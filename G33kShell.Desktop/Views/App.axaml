@@ -1,0 +1,19 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:dialogHostAvalonia="clr-namespace:DialogHostAvalonia;assembly=DialogHost.Avalonia"
+             xmlns:viewModels="clr-namespace:G33kShell.Desktop.ViewModels"
+             x:Class="G33kShell.Desktop.App"
+             RequestedThemeVariant="Default"
+             Name="G33kShell"
+             x:DataType="viewModels:AppViewModel">
+    <Application.Styles>
+        <FluentTheme />
+        <dialogHostAvalonia:DialogHostStyles />
+    </Application.Styles>
+
+     <NativeMenu.Menu>
+         <NativeMenu>
+             <NativeMenuItem Header="About G33kShell" Command="{CompiledBinding AboutCommand}" />
+         </NativeMenu>
+     </NativeMenu.Menu>
+</Application>

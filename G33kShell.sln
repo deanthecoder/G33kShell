@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "G33kShell.Desktop", "G33kShell.Desktop\G33kShell.Desktop.csproj", "{5A8342A5-2158-4B3A-B670-0CDAE8489F68}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CSharp.Core", "DTC.Core\CSharp.Core\CSharp.Core.csproj", "{7EB3D869-C975-431D-A443-02D1136430CA}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5A8342A5-2158-4B3A-B670-0CDAE8489F68}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5A8342A5-2158-4B3A-B670-0CDAE8489F68}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5A8342A5-2158-4B3A-B670-0CDAE8489F68}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5A8342A5-2158-4B3A-B670-0CDAE8489F68}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7EB3D869-C975-431D-A443-02D1136430CA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7EB3D869-C975-431D-A443-02D1136430CA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7EB3D869-C975-431D-A443-02D1136430CA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7EB3D869-C975-431D-A443-02D1136430CA}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,42 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net7.0</TargetFramework>
+        <Nullable>disable</Nullable>
+        <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
+        <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+        <Product>G33kShell</Product>
+        <Company>Dean Edis (DeanTheCoder)</Company>
+        <ApplicationIcon>Assets/app.ico</ApplicationIcon>
+        <AssemblyName>G33kShell</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia" Version="11.1.3" />
+        <PackageReference Include="Avalonia.Desktop" Version="11.1.3" />
+        <PackageReference Include="Avalonia.Themes.Fluent" Version="11.1.3" />
+        <PackageReference Include="Avalonia.Fonts.Inter" Version="11.1.3" />
+        <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
+        <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.1.3" />
+    </ItemGroup>
+    
+    <ItemGroup>
+      <ProjectReference Include="..\DTC.Core\CSharp.Core\CSharp.Core.csproj" />
+    </ItemGroup>
+    
+    <ItemGroup>
+      <Compile Update="Views\App.axaml.cs">
+        <DependentUpon>App.axaml</DependentUpon>
+        <SubType>Code</SubType>
+      </Compile>
+      <Compile Update="Views\MainWindow.axaml.cs">
+        <DependentUpon>MainWindow.axaml</DependentUpon>
+        <SubType>Code</SubType>
+      </Compile>
+    </ItemGroup>
+
+    <ItemGroup>
+      <AvaloniaResource Include="Assets\app.ico" />
+    </ItemGroup>
+</Project>
