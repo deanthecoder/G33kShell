@@ -20,10 +20,13 @@ public class TextBlock : Canvas
 {
     public string[] Text { get; private set; }
     
-    public TextBlock Init(int x, int y, string s)
+    public TextBlock Init(string s) =>
+        Init(s.ReadAllLines().ToArray());
+
+    public TextBlock Init(params string[] lines)
     {
-        Text = s.ReadAllLines().ToArray();
-        base.Init(x, y, Text.Max(o => o.Length), Text.Length);
+        Text = lines;
+        base.Init(Text.Max(o => o.Length), Text.Length);
         return this;
     }
 

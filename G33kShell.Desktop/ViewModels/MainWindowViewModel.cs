@@ -16,20 +16,31 @@ namespace G33kShell.Desktop.ViewModels;
 
 public class MainWindowViewModel : ViewModelBase
 {
-    public WindowManager WindowManager { get; } = new WindowManager(80, 30);
+    public WindowManager WindowManager { get; } = new WindowManager(100, 38);
 
     public MainWindowViewModel()
     {
         WindowManager.Root
+            .AddChild(new TextBlock
+            {
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+            }.Init(
+                " ░░░░░░╗ ░░░░░░╗ ░░░░░░╗ ░░╗  ░░╗ ░░░░░░╗░░╗  ░░╗░░░░░░░╗░░╗     ░░╗",
+                "▒▒╔════╝  ╚═══▒▒╗ ╚═══▒▒╗▒▒║ ▒▒╔╝▒▒╔════╝▒▒║  ▒▒║▒▒╔════╝▒▒║     ▒▒║",
+                "▓▓║  ▓▓▓╗ ▓▓▓▓▓╔╝ ▓▓▓▓▓╔╝▓▓▓▓▓╔╝  ▓▓▓▓▓▓╗▓▓▓▓▓▓▓║▓▓▓▓▓╗  ▓▓║     ▓▓║",
+                "▓▓║   ▓▓║  ╚══▓▓╗  ╚══▓▓╗▓▓╔═▓▓╗  ╚═══▓▓║▓▓╔══▓▓║▓▓╔══╝  ▓▓║     ▓▓║",
+                " ▐█████╔╝▐█████╔╝▐█████╔╝██║  ██╗▐██████║██║  ██║███████╗███████╗███████╗",
+                "  ╚════╝  ╚════╝  ╚════╝  ╚╝  ▐█║ ╚═════╝ ╚╝  ▐█║ ╚═════╝ ╚═════╝ ╚═════╝",
+                "                               ╚╝             ▐█║",
+                "                                               ╚╝"
+            ))
             .AddChild(new Border
                 {
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center
-                }.Init(0, 0, 20, 6, Border.LineStyle.Double)
+                    HorizontalAlignment = HorizontalAlignment.Right // todo - Support shadow (slim/░/█)
+                }.Init(21, 5, Border.LineStyle.Double)
                 .AddChild(new TextBlock
                 {
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    VerticalAlignment = VerticalAlignment.Bottom
-                }.Init(0, 0, "Hello world!\nGreetings!")));
+                    HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+                }.Init("By DeanTheCoder")));
     }
 }

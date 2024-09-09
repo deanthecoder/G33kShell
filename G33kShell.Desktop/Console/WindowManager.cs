@@ -41,7 +41,7 @@ public class WindowManager
 
     public WindowManager(int width, int height)
     {
-        Root = new Canvas().Init(0, 0, width, height);
+        Root = new Canvas().Init(width, height);
         Skin = new RetroMonoDos();
     }
 
@@ -65,7 +65,7 @@ public class WindowManager
         }
     }
 
-    private void Render(Canvas canvas)
+    private static void Render(Canvas canvas)
     {
         // Ask the text area to render its own content.
         if (canvas.IsInvalidatedVisual)

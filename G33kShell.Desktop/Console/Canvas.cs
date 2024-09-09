@@ -104,11 +104,9 @@ public class Canvas
     /// </remarks>
     public bool IsInvalidatedVisual { get; private set; } = true;
     
-    public Canvas Init(int x, int y, int width, int height)
+    public Canvas Init(int width, int height)
     {
         Screen = new ScreenData(width, height);
-        X = x;
-        Y = y;
         return this;
     }
     

@@ -107,7 +107,7 @@ float4 main(float2 fragCoord)
     float lum = 1.0;
 
     // Background noise.
-    lum += enableSignalDistortion * (rnd - 0.5);
+    lum += enableSignalDistortion * (rnd - 0.5) * 0.5;
 
     // Scrolling electron bar.
     lum += enableSignalDistortion * bar(uv.y) * 0.2;

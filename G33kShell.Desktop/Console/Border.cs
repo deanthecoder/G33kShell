@@ -31,10 +31,10 @@ public class Border : Canvas
         { LineStyle.Double, "╔╗╚╝═║" }
     };
 
-    public Border Init(int x, int y, int width, int height, LineStyle style)
+    public Border Init(int width, int height, LineStyle style)
     {
         m_style = style;
-        base.Init(x, y, width, height);
+        base.Init(width, height);
         Padding = new BorderThickness(1);
         return this;
     }

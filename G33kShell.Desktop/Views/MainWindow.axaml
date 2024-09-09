@@ -22,10 +22,10 @@
                 <Panel x:Name="MarginPanel">
                     <!-- The source control to apply the shader to. -->
                     <views:ConsoleView x:Name="Source"
-                                      Loaded="OnConsoleViewLoaded"
-                                      FontFamily="{StaticResource VgaFont}"
-                                      Padding="20,10"
-                                      WindowManager="{Binding WindowManager}"/>
+                                       Loaded="OnConsoleViewLoaded"
+                                       FontFamily="{StaticResource VgaFont}"
+                                       Padding="20,10"
+                                       WindowManager="{Binding WindowManager}" />
                 </Panel>
             </Viewbox>
 
