@@ -11,6 +11,7 @@
 
 using System;
 using Avalonia;
+using G33kShell.Desktop.Views;
 
 namespace G33kShell.Desktop;
 

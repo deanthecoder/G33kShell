@@ -16,7 +16,7 @@ using Avalonia.Markup.Xaml;
 using G33kShell.Desktop.Models;
 using G33kShell.Desktop.ViewModels;
 
-namespace G33kShell.Desktop;
+namespace G33kShell.Desktop.Views;
 
 public class App : Application
 {

@@ -9,14 +9,49 @@
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
+using CSharp.Core.Views;
+using G33kShell.Desktop.Skins;
 
-namespace G33kShell.Desktop;
+namespace G33kShell.Desktop.Views;
 
 public partial class MainWindow : Window
 {
     public MainWindow()
     {
         InitializeComponent();
+    }
+    
+    private void OnConsoleViewLoaded(object sender, RoutedEventArgs _)
+    {
+        var source = (ConsoleView)sender;
+        source.Focus();
+        
+        // Configure the default CRT shader.
+        ApplyRetroSkin(source, new RetroPlasma());
+    }
+
+    private void ApplyRetroSkin(ConsoleView source, SkinBase skin)
+    {
+        // Apply skin.
+        source.WindowManager.Skin = skin;
+
+        // Configure the CRT shader using the provided skin.
+        Shader.AddUniform("brightnessBoost", (float)skin.BrightnessBoost);
+        Shader.AddUniform("enableScanlines", skin.EnableScanlines);
+        Shader.AddUniform("enableSurround", skin.EnableSurround);
+        Shader.AddUniform("enableSignalDistortion", skin.EnableSignalDistortion);
+        Shader.AddUniform("enableShadows", skin.EnableShadows);
+
+        // Alignment.
+        MarginPanel.Margin = new Thickness(skin.EnableSurround ? 20 : 0);
+    }
+    
+    private void OnShaderControlLoaded(object sender, RoutedEventArgs _)
+    {
+        // Set ShaderControl's source control.
+        ((ShaderControl)sender).ControlSource = Source;
     }
 }

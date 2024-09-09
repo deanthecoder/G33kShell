@@ -3,11 +3,36 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:viewModels="clr-namespace:G33kShell.Desktop.ViewModels"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-        x:Class="G33kShell.Desktop.MainWindow"
+        xmlns:coreViews="clr-namespace:CSharp.Core.Views;assembly=CSharp.Core"
+        xmlns:views="clr-namespace:G33kShell.Desktop.Views"
+        mc:Ignorable="d"
+        d:DesignWidth="640" d:DesignHeight="480"
+        x:Class="G33kShell.Desktop.Views.MainWindow"
+        x:DataType="viewModels:MainWindowViewModel"
         Icon="/Assets/app.ico"
         Title="G33kShell">
     <Design.DataContext>
         <viewModels:MainWindowViewModel />
     </Design.DataContext>
+
+    <Viewbox>
+        <Panel Width="{Binding Width, ElementName=Source}" Height="{Binding Height, ElementName=Source}">
+            <Viewbox>
+                <!-- Margin compensates CRT bevel. -->
+                <Panel x:Name="MarginPanel">
+                    <!-- The source control to apply the shader to. -->
+                    <views:ConsoleView x:Name="Source"
+                                      Loaded="OnConsoleViewLoaded"
+                                      FontFamily="{StaticResource VgaFont}"
+                                      Padding="20,10"
+                                      WindowManager="{Binding WindowManager}"/>
+                </Panel>
+            </Viewbox>
+
+            <!-- The shader control, hooked up to the TextBox from the code-behind. -->
+            <coreViews:ShaderControl x:Name="Shader"
+                                 Loaded="OnShaderControlLoaded"
+                                 ShaderUri="avares://G33kShell/Assets/crt.sksl" />
+        </Panel>
+    </Viewbox>
 </Window>

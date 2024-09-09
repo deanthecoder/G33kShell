@@ -2,7 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:dialogHostAvalonia="clr-namespace:DialogHostAvalonia;assembly=DialogHost.Avalonia"
              xmlns:viewModels="clr-namespace:G33kShell.Desktop.ViewModels"
-             x:Class="G33kShell.Desktop.App"
+             x:Class="G33kShell.Desktop.Views.App"
              RequestedThemeVariant="Default"
              Name="G33kShell"
              x:DataType="viewModels:AppViewModel">
@@ -10,6 +10,10 @@
         <FluentTheme />
         <dialogHostAvalonia:DialogHostStyles />
     </Application.Styles>
+
+    <Application.Resources>
+        <FontFamily x:Key="VgaFont">avares://G33kShell/Assets/Fonts/VGA#PxPlus IBM VGA8</FontFamily>
+    </Application.Resources>
 
      <NativeMenu.Menu>
          <NativeMenu>

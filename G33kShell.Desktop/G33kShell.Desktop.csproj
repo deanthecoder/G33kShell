@@ -38,5 +38,9 @@
 
     <ItemGroup>
       <AvaloniaResource Include="Assets\app.ico" />
+      <None Remove="Assets\crt.sksl" />
+      <AvaloniaResource Include="Assets\crt.sksl" />
+      <None Remove="Assets\Fonts\VGA\PxPlus_IBM_VGA8.ttf" />
+      <AvaloniaResource Include="Assets\Fonts\VGA\PxPlus_IBM_VGA8.ttf" />
     </ItemGroup>
 </Project>
