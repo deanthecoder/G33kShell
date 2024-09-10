@@ -24,7 +24,7 @@ public partial class ConsoleView : Control
     private WindowManager m_windowManager;
     private FontFamily m_fontFamily;
     private Thickness m_padding;
-    
+
     public static readonly DirectProperty<ConsoleView, WindowManager> WindowManagerProperty = AvaloniaProperty.RegisterDirect<ConsoleView, WindowManager>(nameof(WindowManager), o => o.WindowManager, (o, v) => o.WindowManager = v);
     public static readonly DirectProperty<ConsoleView, FontFamily> FontFamilyProperty = AvaloniaProperty.RegisterDirect<ConsoleView, FontFamily>(nameof(FontFamily), o => o.FontFamily, (o, v) => o.FontFamily = v);
     public static readonly DirectProperty<ConsoleView, Thickness> PaddingProperty = AvaloniaProperty.RegisterDirect<ConsoleView, Thickness>(nameof(Padding), o => o.Padding, (o, v) => o.Padding = v);
@@ -122,7 +122,7 @@ public partial class ConsoleView : Control
         context.FillRectangle(background ?? Brushes.Black, rect);
 
         // Draw the text on top of the background.
-        var formattedText = new FormattedText(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, Typeface.Default, CharHeight, foreground ?? Brushes.White);
+        var formattedText = new FormattedText(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, Typeface.Default, 1.0, foreground ?? Brushes.White);
         if (m_fontFamily != null)
             formattedText.SetFontFamily(m_fontFamily);
         formattedText.SetFontSize(CharHeight);
