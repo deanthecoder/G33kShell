@@ -132,4 +132,17 @@ public class Canvas
         child.InvalidateVisual();
         return this;
     }
+
+    public void RemoveChild(Canvas child)
+    {
+        if (!m_children.Remove(child))
+            return; // Nothing to do.
+        child.OnUnloaded();
+        child.m_children.ForEach(child.RemoveChild);
+    }
+    
+    protected virtual void OnUnloaded()
+    {
+        // Do nothing.
+    }
 }

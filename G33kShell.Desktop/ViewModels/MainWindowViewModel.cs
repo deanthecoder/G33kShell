@@ -21,6 +21,10 @@ public class MainWindowViewModel : ViewModelBase
     public MainWindowViewModel()
     {
         WindowManager.Root
+            .AddChild(new Fire
+            {
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom
+            }.Init(100, 12))
             .AddChild(new TextBlock
             {
                 HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
