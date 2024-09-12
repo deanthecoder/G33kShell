@@ -18,17 +18,29 @@ namespace G33kShell.Desktop.Console;
 public class Border : Canvas
 {
     private LineStyle m_style;
-    
+
     public enum LineStyle
     {
         Single,
-        Double
+        Double,
+        DoubleHorizontalSingleVertical,
+        SingleHorizontalDoubleVertical
     }
 
     private static readonly Dictionary<LineStyle, string> LineCharacters = new Dictionary<LineStyle, string>
     {
-        { LineStyle.Single, "┌┐└┘─│" },
-        { LineStyle.Double, "╔╗╚╝═║" }
+        {
+            LineStyle.Single, "┌┐└┘─│"
+        },
+        {
+            LineStyle.Double, "╔╗╚╝═║"
+        },
+        {
+            LineStyle.DoubleHorizontalSingleVertical, "╒╕╘╛═│"
+        },
+        {
+            LineStyle.SingleHorizontalDoubleVertical, "╓╖╙╜─║"
+        }
     };
 
     public Border Init(int width, int height, LineStyle style)

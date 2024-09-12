@@ -41,7 +41,7 @@ public class MainWindowViewModel : ViewModelBase
             .AddChild(new Border
                 {
                     HorizontalAlignment = HorizontalAlignment.Right // todo - Support shadow (slim/░/█)
-                }.Init(21, 5, Border.LineStyle.Double)
+                }.Init(21, 3, Border.LineStyle.SingleHorizontalDoubleVertical)
                 .AddChild(new TextBlock
                 {
                     HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
