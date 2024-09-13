@@ -17,7 +17,7 @@ public class RetroPlasma : SkinBase
 {
     // Font properties
     public override IBrush ForegroundColor => SolidColorBrush.Parse("#ffa000"); // Orange foreground
-    public override IBrush BackgroundColor => SolidColorBrush.Parse("#402000"); // Brownish-orange background
+    public override IBrush BackgroundColor => SolidColorBrush.Parse("#301800"); // Brownish-orange background
     public override double BrightnessBoost => 1.2;
 
     // Shader uniform properties
