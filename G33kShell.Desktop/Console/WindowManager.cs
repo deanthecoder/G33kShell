@@ -12,6 +12,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Layout;
+using Avalonia.Media;
 using G33kShell.Desktop.Skins;
 
 namespace G33kShell.Desktop.Console;
@@ -34,8 +35,11 @@ public class WindowManager
                 return;
             m_skin = value ?? new RetroMonoDos();
 
-            Root.Foreground = m_skin.ForegroundColor;
-            Root.Background = m_skin.BackgroundColor;
+            foreach (var visual in GetVisualTree(Root))
+            {
+                visual.Foreground = m_skin.ForegroundColor;
+                visual.Background = m_skin.BackgroundColor;
+            }
         }
     }
 

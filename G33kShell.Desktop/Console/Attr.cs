@@ -25,9 +25,22 @@ public class Attr
     {
         Clear();
     }
+
+    public Attr(char ch)
+    {
+        Ch = ch;
+    }
     
     public void Clear() => Ch = ' ';
 
     public void Set(char ch) => Ch = ch;
-    public void Set(Attr attr) => Set(attr.Ch);
+    
+    public void Set(Attr attr)
+    {
+        Ch = attr.Ch;
+        if (attr.Foreground != null)
+            Foreground = attr.Foreground;
+        if (attr.Background != null)
+            Background = attr.Background;
+    }
 }
