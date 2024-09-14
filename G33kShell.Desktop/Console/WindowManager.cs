@@ -122,4 +122,7 @@ public class WindowManager
                 yield return descendant;
         }
     }
+
+    public T Find<T>(string controlName) where T : Canvas =>
+        GetVisualTree(Root).FirstOrDefault(o => o.Name == controlName) as T;
 }

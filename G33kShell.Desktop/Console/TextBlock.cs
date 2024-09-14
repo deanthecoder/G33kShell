@@ -11,6 +11,8 @@
 
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using CSharp.Core.Extensions;
 
 namespace G33kShell.Desktop.Console;
@@ -18,23 +20,66 @@ namespace G33kShell.Desktop.Console;
 [DebuggerDisplay("TextBlock:{X},{Y} {Width}x{Height} T:{Text}")]
 public class TextBlock : Canvas
 {
-    public string[] Text { get; private set; }
+    private bool m_isFlashing;
+    private Task m_flasher;
+    private bool m_flashState = true;
     
+    public string[] Text { get; private set; }
+
+    public bool IsFlashing
+    {
+        get => m_isFlashing;
+        set
+        {
+            if (m_isFlashing == value)
+                return;
+            m_isFlashing = value;
+
+            if (m_isFlashing)
+            {
+                m_flasher ??= Task.Run(() =>
+                {
+                    while (IsFlashing)
+                    {
+                        m_flashState = true;
+                        Thread.Sleep(800);
+                        InvalidateVisual();
+                        m_flashState = false;
+                        Thread.Sleep(400);
+                        InvalidateVisual();
+                    }
+                });
+            }
+        }
+    }
+
     public TextBlock Init(string s) =>
         Init(s.ReadAllLines().ToArray());
 
     public TextBlock Init(params string[] lines)
     {
         Text = lines;
-        base.Init(Text.Max(o => o.Length), Text.Length);
-        return this;
+        return (TextBlock)base.Init(Text.Max(o => o.Length), Text.Length);
     }
 
     public override void Render()
     {
         base.Render();
 
+        var show = !IsFlashing || m_flashState;
+        if (!show)
+        {
+            Screen.Clear();
+            return;
+        }
+        
         for (var i = 0; i < Text.Length; i++)
             Screen.PrintAt(0, i, Text[i]);
+    }
+
+    protected override void OnUnloaded()
+    {
+        IsFlashing = false;
+        base.OnUnloaded();
     }
 }

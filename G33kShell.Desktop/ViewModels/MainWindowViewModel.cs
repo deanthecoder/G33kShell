@@ -8,7 +8,9 @@
 // about your modifications. Your contributions are valued!
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+using System;
 using Avalonia.Layout;
+using CSharp.Core;
 using CSharp.Core.ViewModels;
 using G33kShell.Desktop.Console;
 
@@ -21,13 +23,17 @@ public class MainWindowViewModel : ViewModelBase
     public MainWindowViewModel()
     {
         WindowManager.Root
-            .AddChild(new Fire
-            {
-                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom
-            }.Init(100, 12))
+            .AddChild(new Border
+                {
+                    HorizontalAlignment = HorizontalAlignment.Right // todo - Support shadow (slim/░/█)
+                }.Init(21, 3, Border.LineStyle.SingleHorizontalDoubleVertical)
+                .AddChild(new TextBlock
+                {
+                    HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+                }.Init("By DeanTheCoder")))
             .AddChild(new TextBlock
             {
-                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Y = -4
             }.Init(
                 " ░░░░░░╗ ░░░░░░╗ ░░░░░░╗ ░░╗  ░░╗ ░░░░░░╗░░╗  ░░╗░░░░░░░╗░░╗     ░░╗",
                 "▒▒╔════╝  ╚═══▒▒╗ ╚═══▒▒╗▒▒║ ▒▒╔╝▒▒╔════╝▒▒║  ▒▒║▒▒╔════╝▒▒║     ▒▒║",
@@ -38,13 +44,32 @@ public class MainWindowViewModel : ViewModelBase
                 "                               ╚╝             ▐█║",
                 "                                               ╚╝"
             ))
-            .AddChild(new Border
+            .AddChild(new ProgressBar
+            {
+                Name = "LogoProgress",
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+                Y = 2
+            }.Init(50, 1))
+            .AddChild(new TextBlock
+            {
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+                Y = 3,
+                IsFlashing = true
+            }.Init("Penetrating Advanced Stealth Systems..."))
+            .AddChild(new Fire
+            {
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom
+            }.Init(100, 12))
+            ;
+
+        _ = new Animation(
+                TimeSpan.FromSeconds(2),
+                TimeSpan.FromSeconds(5),
+                f =>
                 {
-                    HorizontalAlignment = HorizontalAlignment.Right // todo - Support shadow (slim/░/█)
-                }.Init(21, 3, Border.LineStyle.SingleHorizontalDoubleVertical)
-                .AddChild(new TextBlock
-                {
-                    HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
-                }.Init("By DeanTheCoder")));
+                    WindowManager.Find<ProgressBar>("LogoProgress").Progress = (int)(f * 100);
+                    return true;
+                })
+            .StartAsync();
     }
 }

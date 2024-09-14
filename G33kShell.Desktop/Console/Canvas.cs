@@ -25,6 +25,8 @@ public class Canvas
     private int m_y;
     private int m_x;
 
+    public string Name { get; set; }
+
     public Canvas Parent
     {
         get => m_parent;

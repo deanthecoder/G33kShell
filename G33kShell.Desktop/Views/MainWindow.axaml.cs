@@ -12,7 +12,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using CSharp.Core.Views;
+using CSharp.Core.UI;
 using G33kShell.Desktop.Skins;
 
 namespace G33kShell.Desktop.Views;
