@@ -65,32 +65,32 @@ public class WindowManager
         }
     }
 
-    private static void Render(Canvas canvas)
+    private static void Render(Visual visual)
     {
         // Ask the text area to render its own content.
-        if (canvas.IsInvalidatedVisual)
-            canvas.Render();
+        if (visual.IsInvalidatedVisual)
+            visual.Render();
 
         // ...and recurse. 
-        foreach (var child in canvas.Children.Where(o => o.IsInvalidatedVisual))
+        foreach (var child in visual.Children.Where(o => o.IsInvalidatedVisual))
             Render(child);
     }
 
-    private static (int x, int y) GetAbsolutePos(Canvas canvas)
+    private static (int x, int y) GetAbsolutePos(Visual visual)
     {
-        if (canvas == null)
+        if (visual == null)
             return (0, 0);
 
         // Get the origin of the parent.
-        var parent = canvas.Parent;
+        var parent = visual.Parent;
         var (x, y) = GetAbsolutePos(parent);
 
-        // Offset by the origin of this canvas.
-        x += canvas.X;
-        y += canvas.Y;
+        // Offset by the origin of this visual.
+        x += visual.X;
+        y += visual.Y;
 
         if (parent == null)
-            return (x, y); // Done - We're at the root canvas.
+            return (x, y); // Done - We're at the root visual.
         
         // Apply parent's padding offset.
         x += parent.Padding.Left;
@@ -100,23 +100,23 @@ public class WindowManager
         var parentWidth = parent.Width - parent.Padding.LeftRight;
 
         // Apply alignment.
-        if (canvas.VerticalAlignment == VerticalAlignment.Center)
-            y += (parentHeight - canvas.Height) / 2;
-        else if (canvas.VerticalAlignment == VerticalAlignment.Bottom)
-            y += parentHeight - canvas.Height;
+        if (visual.VerticalAlignment == VerticalAlignment.Center)
+            y += (parentHeight - visual.Height) / 2;
+        else if (visual.VerticalAlignment == VerticalAlignment.Bottom)
+            y += parentHeight - visual.Height;
 
-        if (canvas.HorizontalAlignment == HorizontalAlignment.Center)
-            x += (parentWidth - canvas.Width) / 2;
-        else if (canvas.HorizontalAlignment == HorizontalAlignment.Right)
-            x += parentWidth - canvas.Width;
+        if (visual.HorizontalAlignment == HorizontalAlignment.Center)
+            x += (parentWidth - visual.Width) / 2;
+        else if (visual.HorizontalAlignment == HorizontalAlignment.Right)
+            x += parentWidth - visual.Width;
 
         return (x, y);
     }
 
-    private static IEnumerable<Canvas> GetVisualTree(Canvas canvas)
+    private static IEnumerable<Visual> GetVisualTree(Visual visual)
     {
-        yield return canvas;
-        foreach (var child in canvas.Children)
+        yield return visual;
+        foreach (var child in visual.Children)
         {
             foreach (var descendant in GetVisualTree(child))
                 yield return descendant;

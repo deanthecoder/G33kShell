@@ -60,6 +60,7 @@ public class MainWindowViewModel : ViewModelBase
             {
                 HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom
             }.Init(100, 12))
+            //.AddChild(new Image().Init(40, 40, new FileInfo("/Users/dean/Desktop/me.png")))
             ;
 
         _ = new Animation(

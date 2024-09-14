@@ -31,7 +31,7 @@ public class Fire : Canvas
     public Fire Init(int width, int height, int targetFps = 30)
     {
         m_maxCharIndex = m_fireChars.Length;
-        m_firePixelsArray = new int[width * height];
+        m_firePixelsArray = new int[width * (height + 1)];
         m_fps = targetFps;
         m_frameTimeMs = 1000 / m_fps; // Frame time in milliseconds
         m_stopwatch = new Stopwatch();
@@ -50,7 +50,7 @@ public class Fire : Canvas
         lock (m_updateLock)
         {
             var fireString = new StringBuilder();
-            for (var y = 0; y < Height - 1; y++)
+            for (var y = 0; y < Height; y++)
             {
                 fireString.Clear();
                 for (var x = 0; x < Width; x++)
@@ -85,7 +85,7 @@ public class Fire : Canvas
                 for (var i = 0; i < Width; i++)
                 {
                     var randomCol = random.Next(Width);
-                    var index = randomCol + Width * (Height - 1);
+                    var index = randomCol + Width * Height;
                     m_firePixelsArray[index] = random.Next(m_maxCharIndex);
                 }
 
@@ -93,12 +93,12 @@ public class Fire : Canvas
                 for (var i = 0; i < Width; i++)
                 {
                     var randomCol = random.Next(Width);
-                    var index = randomCol + Width * (Height - 1);
+                    var index = randomCol + Width * Height;
                     m_firePixelsArray[index] = 0;
                 }
 
                 // Propagate fire upwards.
-                for (var i = 0; i < Width * (Height - 1) - 1; i++)
+                for (var i = 0; i < Width * Height - 1; i++)
                 {
                     var averageValue = (m_firePixelsArray[i] +
                                         m_firePixelsArray[i + 1] +
