@@ -9,10 +9,16 @@
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Layout;
 using CSharp.Core;
+using CSharp.Core.Extensions;
+using CSharp.Core.ImageProcessing;
 using CSharp.Core.ViewModels;
 using G33kShell.Desktop.Console;
+using SkiaSharp;
 
 namespace G33kShell.Desktop.ViewModels;
 
@@ -29,11 +35,14 @@ public class MainWindowViewModel : ViewModelBase
                 }.Init(21, 3, Border.LineStyle.SingleHorizontalDoubleVertical)
                 .AddChild(new TextBlock
                 {
-                    HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
                 }.Init("By DeanTheCoder")))
             .AddChild(new TextBlock
             {
-                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Y = -4
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Y = -4
             }.Init(
                 " ░░░░░░╗ ░░░░░░╗ ░░░░░░╗ ░░╗  ░░╗ ░░░░░░╗░░╗  ░░╗░░░░░░░╗░░╗     ░░╗",
                 "▒▒╔════╝  ╚═══▒▒╗ ╚═══▒▒╗▒▒║ ▒▒╔╝▒▒╔════╝▒▒║  ▒▒║▒▒╔════╝▒▒║     ▒▒║",
@@ -47,24 +56,31 @@ public class MainWindowViewModel : ViewModelBase
             .AddChild(new ProgressBar
             {
                 Name = "LogoProgress",
-                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-                Y = 2
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center, Y = 2
             }.Init(50, 1))
             .AddChild(new TextBlock
             {
-                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-                Y = 3,
-                IsFlashing = true
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Y = 3, IsFlashing = true
             }.Init("Penetrating Advanced Stealth Systems..."))
             .AddChild(new Fire
             {
-                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Bottom
             }.Init(100, 12))
-            //.AddChild(new Image().Init(40, 40, new FileInfo("/Users/dean/Desktop/me.png")))
             ;
 
-        _ = new Animation(
-                TimeSpan.FromSeconds(2),
+        StartStoryboard();
+    }
+    private async void StartStoryboard()
+    {
+        // Start the 'sign in' face-finding background task.
+        var signInTask = CaptureFace();
+
+        // Animate the 'Penetration' process.
+        await new Animation(
                 TimeSpan.FromSeconds(5),
                 f =>
                 {
@@ -72,5 +88,139 @@ public class MainWindowViewModel : ViewModelBase
                     return true;
                 })
             .StartAsync();
+
+        // Clear the screen with the Explode transition.
+        await WindowManager.Root.ClearAsync(ClearTransition.Explode);
+
+        // 'Sign in' face analysis...
+        var faceAnalysis = await signInTask;
+        if (faceAnalysis != null)
+        {
+            using var faceBitmap = faceAnalysis.Value.Image;
+
+            // Display the face.
+            var faceAspect = (double)faceBitmap.Width / faceBitmap.Height;
+            var width = WindowManager.Root.Height * faceAspect * 2.0; // Double width, as we show with a 8x16 font.
+            var fadeInDuration = TimeSpan.FromSeconds(5);
+            var faceImage = new Image()
+                .Init((int)width, WindowManager.Root.Height, faceBitmap)
+                .EnableFadeIn(fadeInDuration);
+            WindowManager.Root.AddChild(faceImage);
+            
+            // Display message area.
+            var messageArea = new Border
+            {
+                HorizontalAlignment = HorizontalAlignment.Right
+            }.Init(WindowManager.Root.Width - faceImage.Width, WindowManager.Root.Height, Border.LineStyle.Single);
+            WindowManager.Root.AddChild(messageArea);
+
+            // Loading...
+            var loading = new TextBlock
+                {
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    IsFlashing = true
+                }
+                .Init(
+                    "╦  ┌─┐┌─┐┌┬┐┬ ┌┐┌┌─┐   ",
+                    "║  │ │├─┤ │││ ││││ ┬   ",
+                    "╩═╝└─┘┴ ┴─┴┘┴ ┘└┘└─┘ooo");
+            messageArea.AddChild(loading);
+            await Task.Delay(fadeInDuration);
+            loading.RemoveFromParent();
+
+            // Verifying...
+            var verifying = new TextBlock
+                {
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    IsFlashing = true
+                }
+                .Init(
+                    "╦  ╦┌─┐┬─┐┬┌─┐┬ ┬┬ ┌┐┌┌─┐   ",
+                    "╚╗╔╝├┤ ├┬┘│├┤ └┬┘│ ││││ ┬   ",
+                    " ╚╝ └─┘┴└─┴└   ┴ ┴ ┘└┘└─┘ooo");
+            messageArea.AddChild(verifying);
+            
+            // Eye/mouth highlighting.
+            var featureBoxes = new List<Border>();
+            foreach (var (feature, boxWidth) in new[]
+                     {
+                         (faceAnalysis.Value.Face.RightEye, 15),
+                         (faceAnalysis.Value.Face.LeftEye, 15),
+                         (faceAnalysis.Value.Face.MouthCenter, 25)
+                     }.Where(o => o.Item1 != null).Select(o => (o.Item1.Value, o.Item2)))
+            {
+                var x = (feature.X - faceAnalysis.Value.Face.FaceCenter.X + faceAnalysis.Value.Face.FaceWidth / 2.0) / faceAnalysis.Value.Face.FaceWidth * faceImage.Width;
+                var y = (feature.Y - faceAnalysis.Value.Face.FaceCenter.Y + faceAnalysis.Value.Face.FaceHeight / 2.0) / faceAnalysis.Value.Face.FaceHeight * faceImage.Height;
+                var boxHeight = 5;
+                var border = new Border
+                {
+                    X = (int)(x - boxWidth / 2.0),
+                    Y = (int)(y - boxHeight / 2.0)
+                };
+
+                var featureBox = border.Init(boxWidth, boxHeight, Border.LineStyle.Single);
+                featureBox.Screen.Clear('\0');
+                featureBoxes.Add(featureBox);
+            }
+
+            for (var i = 0; i < 8; i++)
+            {
+                featureBoxes.Shuffle();
+                foreach (var featureBox in featureBoxes)
+                {
+                    faceImage.AddChild(featureBox);
+                    await Task.Delay(100);
+                    faceImage.RemoveChild(featureBox);
+                    await Task.Delay(50);
+                }
+            }
+            
+            // "Access Granted"
+            verifying.RemoveFromParent();
+            messageArea.AddChild(new TextBlock
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            }.Init(
+                " ╔═╗┌─┐┌─┐┌─┐┌─┐┌─┐  ",
+                " ╠═╣│  │  ├┤ └─┐└─┐  ",
+                " ╩ ╩└─┘└─┘└─┘└─┘└─┘  ",
+                "╔═╗┬─┐┌─┐┌┐┌┌┬┐┌─┐┌┬┐",
+                "║ ╦├┬┘├─┤│││ │ ├┤  ││",
+                "╚═╝┴└─┴ ┴┘└┘ ┴ └─┘─┴┘"));
+
+            await Task.Delay(TimeSpan.FromSeconds(4));
+            await WindowManager.Root.ClearAsync(ClearTransition.Explode);
+        }
     }
+
+    private static async Task<(SKBitmap Image, FaceFinder.FaceDetails Face)?> CaptureFace()
+    {
+        var webcamImage = new TempFile(".jpg");
+        var webcamSnapResult = await WebCam.Snap(webcamImage);
+        if (!webcamSnapResult)
+            return null; // Webcam image not available.
+
+        try
+        {
+            var faceFinder = CreateFaceFinder();
+            if (faceFinder == null)
+                return null; // Face finding not available.
+
+            var face = await faceFinder.DetectFaceAsync(webcamImage);
+            if (face == null)
+                return null; // No face found.
+
+            return (FaceFinder.CreateFaceBitmap(webcamImage, face), face);
+        }
+        finally
+        {
+            webcamImage.Dispose();
+        }
+    }
+    
+    private static FaceFinder CreateFaceFinder() =>
+        new FaceFinder();
 }
