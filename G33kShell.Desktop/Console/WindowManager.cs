@@ -12,7 +12,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Layout;
-using Avalonia.Media;
 using G33kShell.Desktop.Skins;
 
 namespace G33kShell.Desktop.Console;
@@ -61,10 +60,12 @@ public class WindowManager
 
             // Now blit each child onto our top-level 'screen'.
             Screen.Clear();
-            foreach (var textArea in GetVisualTree(Root).Skip(1))
+            foreach (var visual in GetVisualTree(Root).Skip(1))
             {
-                var pos = GetAbsolutePos(textArea);
-                textArea.Screen.CopyTo(Screen, pos.x, pos.y);
+                var pos = GetAbsolutePos(visual);
+                visual.ActualX = pos.x;
+                visual.ActualY = pos.y;
+                visual.Screen.CopyTo(Screen, pos.x, pos.y);
             }
         }
     }
