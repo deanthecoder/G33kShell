@@ -33,7 +33,7 @@ public class ScreenData
         }
     }
     
-    public void Clear()
+    public void Clear(char? ch = null)
     {
         for (var y = 0; y < Height; y++)
         {
@@ -42,7 +42,10 @@ public class ScreenData
                 var attr = Chars[y][x];
                 attr.Foreground = Foreground;
                 attr.Background = Background;
-                attr.Clear();
+                if (ch.HasValue)
+                    attr.Set(ch.Value);
+                else
+                    attr.Clear();
             }
         }
     }
@@ -60,13 +63,13 @@ public class ScreenData
 
     public void PrintAt(int x, int y, Attr attr)
     {
-        if (IsWithinBounds(x, y))
+        if (attr.Ch != '\0' && IsWithinBounds(x, y))
             Chars[y][x].Set(attr);
     }
 
     public void PrintAt(int x, int y, char ch)
     {
-        if (IsWithinBounds(x, y))
+        if (ch != '\0' && IsWithinBounds(x, y))
             Chars[y][x].Set(ch);
     }
 

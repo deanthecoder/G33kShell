@@ -8,62 +8,103 @@
 // about your modifications. Your contributions are valued!
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using Avalonia.Media;
+using CSharp.Core;
+using CSharp.Core.Extensions;
 using SkiaSharp;
 
 namespace G33kShell.Desktop.Console;
 
+/// <summary>
+/// Represents an image passed through an ASCII filter, allowing optional 'fade in' transition effect.
+/// </summary>
 [DebuggerDisplay("Image:{X},{Y} {Width}x{Height}")]
 public class Image : Visual
 {
     private double[] m_lums;
+    private bool m_startFadeIn;
+    private TimeSpan m_fadeInDuration;
+    private double m_opacity = 1.0;
 
     public Image Init(int width, int height, FileInfo imageFile)
+    {
+        using var bitmap = SKBitmap.Decode(imageFile.FullName);
+        return Init(width, height, bitmap);
+    }
+
+    public Image Init(int width, int height, SKBitmap bitmap)
     {
         base.Init(width, height);
 
         m_lums = new double[width * height];
-        using (var bitmap = SKBitmap.Decode(imageFile.FullName))
+        var blockWidth = (double)bitmap.Width / width;
+        var blockHeight = (double)bitmap.Height / height;
+        for (var y = 0; y < height; y++)
         {
-            var blockWidth = (double)bitmap.Width / Width;
-            var blockHeight = (double)bitmap.Height / Height;
-
-            for (var y = 0; y < Height; y++)
+            for (var x = 0; x < width; x++)
             {
-                for (var x = 0; x < Width; x++)
-                {
-                    bitmap.GetPixel((int)(x * blockWidth), (int)(y * blockHeight)).ToHsl(out _, out _, out var lum);
-                    var f = lum / 100.0;
-                    m_lums[y * width + x] = f;
-                }
+                var rgb = bitmap.GetPixel((int)(x * blockWidth), (int)(y * blockHeight));
+                var lum = 0.21 * rgb.Red + 0.72 * rgb.Green + 0.07 * rgb.Blue;
+                m_lums[y * width + x] = lum / 255.0;
             }
         }
 
+        // Normalize the luminosity range.
         var mn = m_lums.Min();
         var mx = m_lums.Max();
-        m_lums = m_lums.Select(o => (o - mn) / mx).ToArray();
-
+        m_lums = m_lums.Select(o => (o - mn) / (mx - mn)).ToArray();
         return this;
     }
 
     public override void Render()
     {
-        var chars = new[]
+        if (m_startFadeIn)
         {
-            ' ', '.', ':', '-', '=', '+', '*', '#', '%', '@'
-        };
+            m_startFadeIn = false;
+            _ = new Animation(m_fadeInDuration, f =>
+            {
+                m_opacity = f;
+                InvalidateVisual();
+                return true;
+            }).StartAsync();
+        }
+        
+        const string gradient = ".:/░░▒▓█";
         for (var y = 0; y < Height; y++)
         {
             for (var x = 0; x < Width; x++)
             {
-                var lum = m_lums[y * Width + x];
-                var ch = chars[(int)(lum * (chars.Length - 1))];
-                Screen.PrintAt(x, y, ch);
+                var lum = m_lums[y * Width + x] * m_opacity;
+                var col = Parent.Foreground;
+
+                if (lum < 0.5)
+                {
+                    // Half brightness
+                    var rgb = Parent.Foreground.GetColor();
+                    col = new SolidColorBrush(rgb.SetBrightness(0.5));
+                }
+
+                // Determine the character from the gradient using normalizedLum
+                var ch = gradient[(int)(lum * (gradient.Length - 1))];
+                Screen.PrintAt(x, y, new Attr(ch)
+                {
+                    Foreground = col
+                });
             }
         }
 
         base.Render();
+    }
+
+    public Image EnableFadeIn(TimeSpan fadeInDuration)
+    {
+        m_fadeInDuration = fadeInDuration;
+        m_startFadeIn = true;
+        m_opacity = 0.0;
+        return this;
     }
 }
