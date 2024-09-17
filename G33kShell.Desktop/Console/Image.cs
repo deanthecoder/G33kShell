@@ -40,7 +40,15 @@ public class Image : Visual
     {
         base.Init(width, height);
 
-        m_lums = new double[width * height];
+        var lums = CreateLuminosityValues(width, height, bitmap);
+        m_lums = AdjustLuminosity(lums);
+
+        return this;
+    }
+    
+    private static double[] CreateLuminosityValues(int width, int height, SKBitmap bitmap)
+    {
+        var lums = new double[width * height];
         var blockWidth = (double)bitmap.Width / width;
         var blockHeight = (double)bitmap.Height / height;
         for (var y = 0; y < height; y++)
@@ -49,15 +57,21 @@ public class Image : Visual
             {
                 var rgb = bitmap.GetPixel((int)(x * blockWidth), (int)(y * blockHeight));
                 var lum = 0.21 * rgb.Red + 0.72 * rgb.Green + 0.07 * rgb.Blue;
-                m_lums[y * width + x] = lum / 255.0;
+                lums[y * width + x] = lum / 255.0;
             }
         }
+        
+        return lums;
+    }
+    
+    private static double[] AdjustLuminosity(double[] lums)
+    {
+        // Calculate the exponent needed to shift the average luminosity.
+        var currentAverage = lums.Average();
+        var exponent = Math.Log(0.55) / Math.Log(currentAverage);
 
-        // Normalize the luminosity range.
-        var mn = m_lums.Min();
-        var mx = m_lums.Max();
-        m_lums = m_lums.Select(o => (o - mn) / (mx - mn)).ToArray();
-        return this;
+        // Apply the non-linear transformation using the calculated exponent.
+        return lums.Select(o => Math.Pow(o, exponent).Clamp(0.0, 1.0)).ToArray();
     }
 
     public override void Render()
@@ -73,7 +87,7 @@ public class Image : Visual
             }).StartAsync();
         }
         
-        const string gradient = ".:/░░▒▓█";
+        const string gradient = " ,;/░▒▓█";
         for (var y = 0; y < Height; y++)
         {
             for (var x = 0; x < Width; x++)
