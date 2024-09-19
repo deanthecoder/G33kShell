@@ -15,8 +15,8 @@ namespace G33kShell.Desktop.Skins;
 public class RetroGreenDos : SkinBase
 {
     // Font properties
-    public override IBrush ForegroundColor => SolidColorBrush.Parse("#40ff40");
-    public override IBrush BackgroundColor => SolidColorBrush.Parse("#082008");
+    public override Color ForegroundColor { get; } = Color.Parse("#40ff40");
+    public override Color BackgroundColor { get; } = Color.Parse("#082008");
     public override double BrightnessBoost => 1.1;
 
     // Shader uniform properties

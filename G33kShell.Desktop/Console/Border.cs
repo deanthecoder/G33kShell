@@ -24,22 +24,26 @@ public class Border : Canvas
         Single,
         Double,
         DoubleHorizontalSingleVertical,
-        SingleHorizontalDoubleVertical
+        SingleHorizontalDoubleVertical,
+        Block
     }
 
     private static readonly Dictionary<LineStyle, string> LineCharacters = new Dictionary<LineStyle, string>
     {
         {
-            LineStyle.Single, "┌┐└┘─│"
+            LineStyle.Single, "┌┐└┘──││"
         },
         {
-            LineStyle.Double, "╔╗╚╝═║"
+            LineStyle.Double, "╔╗╚╝══║║"
         },
         {
-            LineStyle.DoubleHorizontalSingleVertical, "╒╕╘╛═│"
+            LineStyle.DoubleHorizontalSingleVertical, "╒╕╘╛══││"
         },
         {
-            LineStyle.SingleHorizontalDoubleVertical, "╓╖╙╜─║"
+            LineStyle.SingleHorizontalDoubleVertical, "╓╖╙╜──║║"
+        },
+        {
+            LineStyle.Block, "▄▄▀▀▄▀██"
         }
     };
 
@@ -60,26 +64,26 @@ public class Border : Canvas
         var topRight = boxChars[1];
         var bottomLeft = boxChars[2];
         var bottomRight = boxChars[3];
-        var horizontal = boxChars[4];
-        var vertical = boxChars[5];
-
-        var hLine = new string(horizontal, Width - 2);
+        var hTop = boxChars[4];
+        var hBottom = boxChars[5];
+        var vLeft = boxChars[6];
+        var vRight = boxChars[7];
 
         // Top border
         Screen.PrintAt(0, 0, topLeft);
-        Screen.PrintAt(1, 0, hLine);
+        Screen.PrintAt(1, 0, new string(hTop, Width - 2));
         Screen.PrintAt(Width - 1, 0, topRight);
 
         // Bottom border
         Screen.PrintAt(0, Height - 1, bottomLeft);
-        Screen.PrintAt(1, Height - 1, hLine);
+        Screen.PrintAt(1, Height - 1, new string(hBottom, Width - 2));
         Screen.PrintAt(Width - 1, Height - 1, bottomRight);
 
         // Vertical borders
         for (var i = 1; i < Height - 1; i++)
         {
-            Screen.PrintAt(0, i, vertical);
-            Screen.PrintAt(Width - 1, i, vertical);
+            Screen.PrintAt(0, i, vLeft);
+            Screen.PrintAt(Width - 1, i, vRight);
         }
     }
 }

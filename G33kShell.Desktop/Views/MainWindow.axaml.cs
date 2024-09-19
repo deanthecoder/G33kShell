@@ -30,7 +30,7 @@ public partial class MainWindow : Window
         source.Focus();
         
         // Configure the default CRT shader.
-        ApplyRetroSkin(source, new RetroPlasma());
+        ApplyRetroSkin(source, source.WindowManager.Skin);
     }
 
     private void ApplyRetroSkin(ConsoleView source, SkinBase skin)

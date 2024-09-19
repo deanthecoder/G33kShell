@@ -69,7 +69,7 @@ public class TextBlock : Canvas
         var show = !IsFlashing || m_flashState;
         if (!show)
         {
-            Screen.Clear();
+            Screen.ClearChars();
             return;
         }
         

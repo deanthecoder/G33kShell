@@ -15,8 +15,8 @@ namespace G33kShell.Desktop.Skins;
 public class SimpleSkin : SkinBase
 {
     // Font properties
-    public override IBrush ForegroundColor => SolidColorBrush.Parse("#e0e000");
-    public override IBrush BackgroundColor => SolidColorBrush.Parse("#000080");
+    public override Color ForegroundColor { get; } = Color.Parse("#e0e000");
+    public override Color BackgroundColor { get; } = Color.Parse("#000080");
     public override double BrightnessBoost => 1.0;
 
     // Shader uniform properties

@@ -18,8 +18,8 @@ namespace G33kShell.Desktop.Console;
 public class Attr
 {
     public char Ch { get; private set; }
-    public IBrush Foreground { get; set; }
-    public IBrush Background { get; set; }
+    public Color? Foreground { get; set; }
+    public Color? Background { get; set; }
 
     public Attr()
     {

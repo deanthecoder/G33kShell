@@ -41,7 +41,6 @@ public partial class ConsoleView : Control
         {
             if (!SetAndRaise(WindowManagerProperty, ref m_windowManager, value))
                 return;
-
             Width = WindowManager.Screen.Width * CharWidth + Padding.Left + Padding.Right;
             Height = WindowManager.Screen.Height * CharHeight + Padding.Top + Padding.Bottom;
         }
@@ -70,7 +69,7 @@ public partial class ConsoleView : Control
         m_windowManager.Render();
         
         // Draw the border (in the padding area).
-        context.FillRectangle(m_windowManager.Skin.BackgroundColor, Bounds);
+        context.FillRectangle(new SolidColorBrush(m_windowManager.Skin.BackgroundColor), Bounds);
         
         // Draw the screen content.
         var screenData = m_windowManager.Screen;
@@ -85,18 +84,18 @@ public partial class ConsoleView : Control
             {
                 var attr = screenData.Chars[y][x];
 
-                // Check if the attribute colors (foreground or background) change
-                if (ReferenceEquals(attr.Foreground, currentAttr.Foreground) && Equals(attr.Background, currentAttr.Background))
+                // Check if the attribute colors (foreground or background) change.
+                if (attr.Foreground.Equals(currentAttr.Foreground) && attr.Background.Equals(currentAttr.Background))
                 {
                     // Same attributes - Collate the characters.
                     currentText.Append(attr.Ch);
                 }
                 else
                 {
-                    // Draw the accumulated run with the same foreground and background
+                    // Draw the accumulated run with the same foreground and background.
                     DrawTextRun(context, currentText.ToString(), xStart, y, currentAttr.Foreground, currentAttr.Background);
 
-                    // Start a new run
+                    // Start a new run.
                     currentAttr = attr;
                     currentText.Clear();
                     currentText.Append(attr.Ch);
@@ -110,7 +109,7 @@ public partial class ConsoleView : Control
         }
     }
 
-    private void DrawTextRun(DrawingContext context, string text, int xStart, int y, IBrush foreground, IBrush background)
+    private void DrawTextRun(DrawingContext context, string text, int xStart, int y, Color? foreground, Color? background)
     {
         // Draw the background rectangle for the entire text run.
         var rect = new Rect(
@@ -119,10 +118,34 @@ public partial class ConsoleView : Control
             text.Length * CharWidth,
             CharHeight
         );
-        context.FillRectangle(background ?? Brushes.Black, rect);
+        
+        if (background != null)
+            context.FillRectangle(new SolidColorBrush((Color)background), rect);
+
+        if (foreground == null || ((Color)foreground).A == 0)
+            return; // The text is invisible.
+
+        // Skip invisible characters at the end.
+        if (text[^1] == '\0')
+            text = text.TrimEnd(' ', '\0');
+        if (text.Length == 0)
+            return; // Nothing to render.
+        
+        // Skip invisible characters at the start.
+        var toSkip = 0;
+        while (toSkip < text.Length && (text[toSkip] == '\0' || text[toSkip] == ' '))
+            toSkip++;
+        if (toSkip == text.Length)
+            return; // Nothing to render.
+
+        if (toSkip > 0)
+        {
+            text = text.Substring(toSkip);
+            rect = new Rect(rect.X + toSkip * CharWidth, rect.Y, rect.Width - toSkip * CharWidth, rect.Height);
+        }
 
         // Draw the text on top of the background.
-        var formattedText = new FormattedText(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, Typeface.Default, 1.0, foreground ?? Brushes.White);
+        var formattedText = new FormattedText(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, Typeface.Default, 1.0, new SolidColorBrush((Color)foreground));
         if (m_fontFamily != null)
             formattedText.SetFontFamily(m_fontFamily);
         formattedText.SetFontSize(CharHeight);

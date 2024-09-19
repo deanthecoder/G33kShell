@@ -14,6 +14,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using G33kShell.Desktop.Models;
+using G33kShell.Desktop.Skins;
 using G33kShell.Desktop.ViewModels;
 
 namespace G33kShell.Desktop.Views;
@@ -34,7 +35,7 @@ public class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var viewModel = new MainWindowViewModel();
+            var viewModel = new MainWindowViewModel(new RetroPlasma());
             desktop.MainWindow = new MainWindow
             {
                 DataContext = viewModel

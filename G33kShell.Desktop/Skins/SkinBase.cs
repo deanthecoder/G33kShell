@@ -16,8 +16,8 @@ namespace G33kShell.Desktop.Skins;
 public abstract class SkinBase
 {
     // Font properties.
-    public abstract IBrush ForegroundColor { get; } // e.g., "#FFFFFF" for white text
-    public abstract IBrush BackgroundColor { get; } // e.g., "#000000" for black background
+    public abstract Color ForegroundColor { get; } // e.g., "#FFFFFF" for white text
+    public abstract Color BackgroundColor { get; } // e.g., "#000000" for black background
 
     // Shader uniform properties
     public abstract double BrightnessBoost { get; }

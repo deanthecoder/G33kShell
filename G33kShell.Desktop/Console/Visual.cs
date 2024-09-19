@@ -26,7 +26,9 @@ public abstract class Visual
     private Visual m_parent;
     private int m_y;
     private int m_x;
-    
+    private Color? m_foreground;
+    private Color? m_background;
+
     /// <summary>
     /// Arbitrary control name. (See WindowManager.Find)
     /// </summary>
@@ -96,26 +98,26 @@ public abstract class Visual
     public ScreenData Screen { get; private set; }
     public IEnumerable<Visual> Children => m_children;
     
-    public IBrush Foreground
+    public Color Foreground
     {
-        get => Screen?.Foreground;
+        get => m_foreground ?? Parent?.Foreground ?? Colors.White;
         set
         {
-            if (ReferenceEquals(Screen.Foreground, value))
+            if (m_foreground?.Equals(value) == true)
                 return;
-            Screen.Foreground = value;
+            m_foreground = value;
             InvalidateVisual();
         }
     }
     
-    public IBrush Background
+    public Color Background
     {
-        get => Screen?.Background;
+        get => m_background ?? Parent?.Background ?? Colors.Black;
         set
         {
-            if (ReferenceEquals(Screen.Background, value))
+            if (m_background?.Equals(value) == true)
                 return;
-            Screen.Background = value;
+            m_background = value;
             InvalidateVisual();
         }
     }
@@ -186,6 +188,7 @@ public abstract class Visual
         child.OnUnloaded();
         child.m_children.ToList().ForEach(child.RemoveChild);
         child.Parent = null;
+        InvalidateVisual();
     }
     
     /// <summary>

@@ -9,6 +9,7 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Layout;
@@ -42,12 +43,16 @@ public class WindowManager
         }
     }
 
-    public WindowManager(int width, int height)
+    public WindowManager(int width, int height, SkinBase skin)
     {
         Root = new Canvas().Init(width, height);
-        Skin = new RetroMonoDos();
+        Skin = skin ?? throw new ArgumentNullException(nameof(skin));
     }
 
+    /// <summary>
+    /// Recurse through all visual children, ask them to update their screen data,
+    /// then composite onto the root Screen.
+    /// </summary>
     public void Render()
     {
         lock (m_renderLock)
@@ -59,7 +64,8 @@ public class WindowManager
             Render(Root);
 
             // Now blit each child onto our top-level 'screen'.
-            Screen.Clear();
+            Screen.ClearChars('\0');
+            Screen.ClearColor(Root.Foreground, Root.Background);
             foreach (var visual in GetVisualTree(Root).Skip(1))
             {
                 var pos = GetAbsolutePos(visual);
@@ -70,9 +76,15 @@ public class WindowManager
         }
     }
 
+    /// <summary>
+    /// Recurse through all visual children, asking them to update their own screen data.
+    /// </summary>
+    /// <remarks>
+    /// The collection of screens will be composited later.
+    /// </remarks>
     private static void Render(Visual visual)
     {
-        // Ask the text area to render its own content.
+        // Ask the visual to render its own content.
         if (visual.IsInvalidatedVisual)
             visual.Render();
 

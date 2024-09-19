@@ -12,7 +12,6 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using Avalonia.Media;
 using CSharp.Core;
 using CSharp.Core.Extensions;
 using SkiaSharp;
@@ -98,8 +97,7 @@ public class Image : Visual
                 if (lum < 0.5)
                 {
                     // Half brightness
-                    var rgb = Parent.Foreground.GetColor();
-                    col = new SolidColorBrush(rgb.SetBrightness(0.5));
+                    col = Parent.Foreground.SetBrightness(0.5);
                 }
 
                 // Determine the character from the gradient using normalizedLum

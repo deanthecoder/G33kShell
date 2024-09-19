@@ -66,7 +66,7 @@ float4 main(float2 fragCoord)
     // Monitor screen.
     float rnd = h21(fragCoord + iTime); // Jitter.
     
-    float2 tuv = (st + 0.5) * res + float2(rnd * enableSignalDistortion, 0);
+    float2 tuv = (st + 0.5) * res + float2(rnd * enableSignalDistortion * 0.5, 0);
     float3 imageRgb = float3(0);
     float ampSum = 0.0;
     for (float dx = -1.0; dx < 1.0; dx += 0.125)
@@ -122,7 +122,7 @@ float4 main(float2 fragCoord)
     float lum = 1.0;
 
     // Background noise.
-    lum += enableSignalDistortion * (rnd - 0.5) * 0.5;
+    lum += enableSignalDistortion * (rnd - 0.5) * 0.2;
 
     // Scrolling electron bar.
     lum += enableSignalDistortion * bar(uv.y) * 0.2;

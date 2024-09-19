@@ -11,6 +11,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using Avalonia.Layout;
 using CSharp.Core;
@@ -18,15 +19,104 @@ using CSharp.Core.Extensions;
 using CSharp.Core.ImageProcessing;
 using CSharp.Core.ViewModels;
 using G33kShell.Desktop.Console;
+using G33kShell.Desktop.Skins;
 using SkiaSharp;
 
 namespace G33kShell.Desktop.ViewModels;
 
 public class MainWindowViewModel : ViewModelBase
 {
-    public WindowManager WindowManager { get; } = new WindowManager(100, 38);
+    public WindowManager WindowManager { get; }
 
-    public MainWindowViewModel()
+    public MainWindowViewModel(SkinBase skin)
+    {
+        WindowManager = new WindowManager(100, 38, skin);
+        _ = StartAsync();
+    }
+
+    private async Task StartAsync()
+    {
+        // Start the 'sign in' face-finding background task.
+        var signInTask = CaptureFace();
+
+        await BiosCheck();
+        await LoadOs();
+        await LogIn(signInTask);
+    }
+    
+    private static async Task<(SKBitmap Image, FaceFinder.FaceDetails Face)?> CaptureFace()
+    {
+        var webcamImage = new TempFile(".jpg");
+        var webcamSnapResult = await WebCam.Snap(webcamImage);
+        if (!webcamSnapResult)
+            return null; // Webcam image not available.
+
+        try
+        {
+            var faceFinder = CreateFaceFinder();
+            if (faceFinder == null)
+                return null; // Face finding not available.
+
+            var face = await faceFinder.DetectFaceAsync(webcamImage);
+            if (face == null)
+                return null; // No face found.
+
+            return (FaceFinder.CreateFaceBitmap(webcamImage, face), face);
+        }
+        finally
+        {
+            webcamImage.Dispose();
+        }
+    }
+
+    private async Task BiosCheck()
+    {
+        WindowManager.Root
+            .AddChild(
+                new Border
+                    {
+                        HorizontalAlignment = HorizontalAlignment.Right,
+                        VerticalAlignment = VerticalAlignment.Bottom
+                    }
+                    .Init(32, 10, Border.LineStyle.Block)
+                    .AddChild(new TextBlock()
+                        .Init(
+                            "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                            "░───────░░░────────░░░░─────░░",
+                            "░──░░░░──░░░░░──░░░░░░──░░░──░",
+                            "░──░░░░──░░░░░──░░░░░──░░░░░░░",
+                            "░──░░░░──░░░░░──░░░░░──░░░░░░░",
+                            "░──░░░░──░░░░░──░░░░░░──░░░──░",
+                            "░───────░░░░░░──░░░░░░░─────░░",
+                            "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░")))
+            .AddChild(
+                new TextBlock()
+                    .Init(
+                        "",
+                        "-----------------------------------------------------------",
+                        $"G33kShell v{Assembly.GetExecutingAssembly().GetName().Version} - Initializing Terminal",
+                        "-----------------------------------------------------------",
+                        "",
+                        "Booting Secure System...",
+                        "",
+                        "Verifying System Integrity........... [OK]",
+                        "",
+                        "Checking Hardware Config...",
+                        "CPU: Z80 Dual-Core Processor......... [OK]",
+                        "RAM: 640KB Conventional Memory....... [OK]",
+                        "Disk Drive: 5.25\" Floppy............. [ACTIVE]",
+                        "CRT Display Scanlines................ [OPTIMAL]",
+                        "Modem: 56k Baud Rate................. [INITIALIZED]",
+                        "",
+                        "Securing Connection to Mainframe..... [ENCRYPTED]",
+                        "Authenticating User Credentials...... [PENDING]")
+                    );
+        await Task.Delay(TimeSpan.FromSeconds(4));
+        await WindowManager.Root.ClearAsync(ClearTransition.Immediate);
+        await Task.Delay(TimeSpan.FromSeconds(2));
+    }
+
+    private async Task LoadOs()
     {
         WindowManager.Root
             .AddChild(new Border
@@ -69,18 +159,11 @@ public class MainWindowViewModel : ViewModelBase
             {
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Bottom
-            }.Init(100, 12))
-            ;
-
-        StartStoryboard();
-    }
-    private async void StartStoryboard()
-    {
-        // Start the 'sign in' face-finding background task.
-        var signInTask = CaptureFace();
+            }.Init(WindowManager.Root.Width, 12));
 
         // Animate the 'Penetration' process.
         await new Animation(
+                TimeSpan.FromSeconds(2),
                 TimeSpan.FromSeconds(5),
                 f =>
                 {
@@ -90,8 +173,13 @@ public class MainWindowViewModel : ViewModelBase
             .StartAsync();
 
         // Clear the screen with the Explode transition.
+        await Task.Delay(TimeSpan.FromSeconds(2));
         await WindowManager.Root.ClearAsync(ClearTransition.Explode);
-
+        await Task.Delay(TimeSpan.FromSeconds(1));
+    }
+        
+    private async Task LogIn(Task<(SKBitmap Image, FaceFinder.FaceDetails Face)?> signInTask)
+    {
         // 'Sign in' face analysis...
         var faceAnalysis = await signInTask;
         if (faceAnalysis != null)
@@ -161,7 +249,7 @@ public class MainWindowViewModel : ViewModelBase
                 };
 
                 var featureBox = border.Init(boxWidth, boxHeight, Border.LineStyle.Single);
-                featureBox.Screen.Clear('\0');
+                featureBox.Screen.ClearChars('\0');
                 featureBoxes.Add(featureBox);
             }
 
@@ -195,32 +283,6 @@ public class MainWindowViewModel : ViewModelBase
             await WindowManager.Root.ClearAsync(ClearTransition.Explode);
         }
     }
-
-    private static async Task<(SKBitmap Image, FaceFinder.FaceDetails Face)?> CaptureFace()
-    {
-        var webcamImage = new TempFile(".jpg");
-        var webcamSnapResult = await WebCam.Snap(webcamImage);
-        if (!webcamSnapResult)
-            return null; // Webcam image not available.
-
-        try
-        {
-            var faceFinder = CreateFaceFinder();
-            if (faceFinder == null)
-                return null; // Face finding not available.
-
-            var face = await faceFinder.DetectFaceAsync(webcamImage);
-            if (face == null)
-                return null; // No face found.
-
-            return (FaceFinder.CreateFaceBitmap(webcamImage, face), face);
-        }
-        finally
-        {
-            webcamImage.Dispose();
-        }
-    }
     
     private static FaceFinder CreateFaceFinder() =>
-        new FaceFinder();
 }

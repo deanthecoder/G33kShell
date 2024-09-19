@@ -19,8 +19,6 @@ public class ScreenData
     public Attr[][] Chars { get; }
     public int Width => Chars[0].Length;
     public int Height => Chars.Length;
-    public IBrush Foreground { get; set; }
-    public IBrush Background { get; set; }
 
     public ScreenData(int width, int height)
     {
@@ -33,19 +31,36 @@ public class ScreenData
         }
     }
     
-    public void Clear(char? ch = null)
+    /// <summary>
+    /// Reset the screen's character data.
+    /// </summary>
+    public void ClearChars(char? ch = null)
     {
         for (var y = 0; y < Height; y++)
         {
             for (var x = 0; x < Width; x++)
             {
                 var attr = Chars[y][x];
-                attr.Foreground = Foreground;
-                attr.Background = Background;
                 if (ch.HasValue)
                     attr.Set(ch.Value);
                 else
                     attr.Clear();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Reset the screen's color data.
+    /// </summary>
+    public void ClearColor(Color foreground, Color background)
+    {
+        for (var y = 0; y < Height; y++)
+        {
+            for (var x = 0; x < Width; x++)
+            {
+                var attr = Chars[y][x];
+                attr.Foreground = foreground;
+                attr.Background = background;
             }
         }
     }
