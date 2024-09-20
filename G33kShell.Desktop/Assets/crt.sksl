@@ -54,6 +54,7 @@ float h21(float2 p)
 float4 main(float2 fragCoord)
 {
     float2 res = iImageResolution;
+    float fadeOn = 0.1 + 0.9 * smoothstep(0.5, 3.0, iTime);
 
     // UV coords in the range of -0.5 to 0.5
     float2 uv = (fragCoord / iImageResolution) - 0.5;
@@ -81,6 +82,7 @@ float4 main(float2 fragCoord)
     }
     imageRgb /= ampSum;
     imageRgb = sample(iImage1, tuv).rgb * 0.7 + 0.5 * imageRgb;
+    imageRgb *= fadeOn;
 
     float bev = enableSurround > 0.5 ? (max(abs(st.x), abs(st.y)) - 0.498) / 0.035 : 0.0;
     if (bev > 0.0)
@@ -109,7 +111,7 @@ float4 main(float2 fragCoord)
             for (float i = -5.0; i < 5.0; i++)
             {
                 for (float j = -5.0; j < 5.0; j++)
-                    tint += sample(iImage1, (st * 0.9 + float2(dir * i, j * 2.0) * 0.002 + 0.5) * res).rgb;
+                    tint += sample(iImage1, (st * 0.9 + float2(dir * i, j * 2.0) * 0.002 + 0.5) * res).rgb * fadeOn;
             }
 
             tint /= 80.0;

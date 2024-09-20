@@ -115,19 +115,19 @@ public class MainWindowViewModel : ViewModelBase
             "Authenticating User Credentials...... [PENDING]");
         WindowManager.Root
             .AddChild(
-                new Border(32, 10, Border.LineStyle.Block)
+                new Border(30, 10, Border.LineStyle.Block)
                     {
                         HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom
                     }
                     .AddChild(new TextBlock(
-                        "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
-                        "░───────░░░────────░░░░─────░░",
-                        "░──░░░░──░░░░░──░░░░░░──░░░──░",
-                        "░──░░░░──░░░░░──░░░░░──░░░░░░░",
-                        "░──░░░░──░░░░░──░░░░░──░░░░░░░",
-                        "░──░░░░──░░░░░──░░░░░░──░░░──░",
-                        "░───────░░░░░░──░░░░░░░─────░░",
-                        "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░")))
+                        "░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+                        "░───────░░────────░░░─────░░",
+                        "░──░░░░──░░░░──░░░░░──░░░──░",
+                        "░──░░░░──░░░░──░░░░──░░░░░░░",
+                        "░──░░░░──░░░░──░░░░──░░░░░░░",
+                        "░──░░░░──░░░░──░░░░░──░░░──░",
+                        "░───────░░░░░──░░░░░░─────░░",
+                        "░░░░░░░░░░░░░░░░░░░░░░░░░░░░")))
             .AddChild(biosText);
 
         await Task.Run(() => biosText.Waiter.Wait());
@@ -286,6 +286,7 @@ public class MainWindowViewModel : ViewModelBase
 
             await Task.Delay(TimeSpan.FromSeconds(4));
             await WindowManager.Root.ClearAsync(ClearTransition.Explode);
+            await Task.Delay(TimeSpan.FromSeconds(1));
         }
     }
     
