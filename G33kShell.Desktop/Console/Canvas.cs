@@ -16,9 +16,7 @@ namespace G33kShell.Desktop.Console;
 [DebuggerDisplay("Canvas:{X},{Y} {Width}x{Height}")]
 public class Canvas : Visual
 {
-    public new Canvas Init(int width, int height)
+    public Canvas(int width, int height) : base(width, height)
     {
-        base.Init(width, height);
-        return this;
     }
 }

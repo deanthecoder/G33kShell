@@ -95,7 +95,7 @@ public abstract class Visual
 
     public Rect ActualBounds => new Rect(ActualX, ActualY, Width, Height);
     
-    public ScreenData Screen { get; private set; }
+    public ScreenData Screen { get; }
     public IEnumerable<Visual> Children => m_children;
     
     public Color Foreground
@@ -142,7 +142,7 @@ public abstract class Visual
     /// </summary>
     public bool IsInvalidatedVisual { get; private set; } = true;
     
-    protected void Init(int width, int height)
+    protected Visual(int width, int height)
     {
         Screen = new ScreenData(width, height);
     }

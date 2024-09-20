@@ -21,26 +21,21 @@ public class Fire : Canvas
 {
     private readonly string m_fireChars = " ,;+ltgti!lI?/\\|)(1}{][rcvzjftJUOQocxfXhqwWB8&%$#@";
     private readonly object m_updateLock = new object();
-    private int m_maxCharIndex;
-    private int[] m_firePixelsArray;
+    private readonly int m_maxCharIndex;
+    private readonly int[] m_firePixelsArray;
+    private readonly long m_frameTimeMs;
+    private readonly Stopwatch m_stopwatch;
     private bool m_running;
-    private int m_fps;
-    private long m_frameTimeMs;
-    private Stopwatch m_stopwatch;
 
-    public Fire Init(int width, int height, int targetFps = 30)
+    public Fire(int width, int height, int targetFps = 30) : base(width, height)
     {
         m_maxCharIndex = m_fireChars.Length;
         m_firePixelsArray = new int[width * (height + 1)];
-        m_fps = targetFps;
-        m_frameTimeMs = 1000 / m_fps; // Frame time in milliseconds
+        m_frameTimeMs = 1000 / targetFps; // Frame time in milliseconds
         m_stopwatch = new Stopwatch();
-
-        base.Init(width, height);
 
         m_running = true;
         Task.Run(UpdateFrame); // Start the fire generation asynchronously
-        return this;
     }
 
     public override void Render()

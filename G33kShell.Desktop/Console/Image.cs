@@ -29,22 +29,23 @@ public class Image : Visual
     private TimeSpan m_fadeInDuration;
     private double m_opacity = 1.0;
 
-    public Image Init(int width, int height, FileInfo imageFile)
+    public Image(int width, int height, FileInfo imageFile) : base(width, height)
     {
         using var bitmap = SKBitmap.Decode(imageFile.FullName);
-        return Init(width, height, bitmap);
+        Init(bitmap);
     }
 
-    public Image Init(int width, int height, SKBitmap bitmap)
+    public Image(int width, int height, SKBitmap bitmap) : base(width, height)
     {
-        base.Init(width, height);
-
-        var lums = CreateLuminosityValues(width, height, bitmap);
-        m_lums = AdjustLuminosity(lums);
-
-        return this;
+        Init(bitmap);
     }
-    
+
+    private void Init(SKBitmap bitmap)
+    {
+        var luminosityValues = CreateLuminosityValues(Width, Height, bitmap);
+        m_lums = AdjustLuminosity(luminosityValues);
+    }
+
     private static double[] CreateLuminosityValues(int width, int height, SKBitmap bitmap)
     {
         var lums = new double[width * height];

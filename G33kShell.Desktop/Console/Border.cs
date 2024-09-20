@@ -17,7 +17,7 @@ namespace G33kShell.Desktop.Console;
 [DebuggerDisplay("Border:{X},{Y} {Width}x{Height}")]
 public class Border : Canvas
 {
-    private LineStyle m_style;
+    private readonly LineStyle m_style;
 
     public enum LineStyle
     {
@@ -47,12 +47,10 @@ public class Border : Canvas
         }
     };
 
-    public Border Init(int width, int height, LineStyle style)
+    public Border(int width, int height, LineStyle style) : base(width, height)
     {
         m_style = style;
-        base.Init(width, height);
         Padding = new BorderThickness(1);
-        return this;
     }
 
     public override void Render()

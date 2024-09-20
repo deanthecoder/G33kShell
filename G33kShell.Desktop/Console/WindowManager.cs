@@ -45,7 +45,7 @@ public class WindowManager
 
     public WindowManager(int width, int height, SkinBase skin)
     {
-        Root = new Canvas().Init(width, height);
+        Root = new Canvas(width, height);
         Skin = skin ?? throw new ArgumentNullException(nameof(skin));
     }
 

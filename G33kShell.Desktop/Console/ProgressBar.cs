@@ -32,8 +32,9 @@ public class ProgressBar : Canvas
         }
     }
 
-    public new ProgressBar Init(int width, int height) =>
-        (ProgressBar)base.Init(width, height);
+    public ProgressBar(int width, int height) : base(width, height)
+    {
+    }
 
     public override void Render()
     {

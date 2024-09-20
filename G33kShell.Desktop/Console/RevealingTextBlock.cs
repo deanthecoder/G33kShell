@@ -27,9 +27,9 @@ namespace G33kShell.Desktop.Console;
 public class RevealingTextBlock : TextBlock
 {
     private List<(int Line, int Offset, string Content)> m_toReveal;
-    private TimeSpan m_delay;
-    private TimeSpan m_period;
-    private CancellationTokenSource m_cancellationTokenSource;
+    private readonly TimeSpan m_delay;
+    private readonly TimeSpan m_period;
+    private readonly CancellationTokenSource m_cancellationTokenSource;
     private Task m_revealTask;
 
     /// <summary>
@@ -44,17 +44,13 @@ public class RevealingTextBlock : TextBlock
     /// <param name="period">The time interval between revealing each token.</param>
     /// <param name="lines">The lines of text to reveal.</param>
     /// <returns>The initialized RevealingTextBlock instance.</returns>
-    public RevealingTextBlock Init(TimeSpan delay, TimeSpan period, params string[] lines)
+    public RevealingTextBlock(TimeSpan delay, TimeSpan period, params string[] lines) : base(lines)
     {
         m_delay = delay;
         m_period = period;
         m_cancellationTokenSource = new CancellationTokenSource();
         
-        Init(lines);
-        
         BuildRevealList(lines);
-
-        return this;
     }
 
     private void BuildRevealList(string[] lines)

@@ -23,7 +23,7 @@ public class TextBlock : Canvas
     private Task m_flasher;
     private bool m_flashState = true;
     
-    public string[] Text { get; private set; }
+    public string[] Text { get; private init; }
 
     public bool IsFlashing
     {
@@ -52,10 +52,9 @@ public class TextBlock : Canvas
         }
     }
 
-    public TextBlock Init(params string[] lines)
+    public TextBlock(params string[] lines) : base(lines.Max(o => o.Length), lines.Length)
     {
         Text = lines;
-        return (TextBlock)base.Init(Text.Max(o => o.Length), Text.Length);
     }
 
     public override void Render()
