@@ -71,6 +71,28 @@ public class MainWindowViewModel : ViewModelBase
 
     private async Task BiosCheck()
     {
+        var biosText = new RevealingTextBlock()
+            .Init(
+                TimeSpan.FromSeconds(2), 
+                TimeSpan.FromSeconds(1), 
+                "",
+                "-----------------------------------------------------------",
+                $"G33kShell v{Assembly.GetExecutingAssembly().GetName().Version} - Initializing Terminal",
+                "-----------------------------------------------------------",
+                "",
+                "Booting Secure System...",
+                "",
+                "Verifying System Integrity........... [OK]",
+                "",
+                "Checking Hardware Config...",
+                "CPU: Z80 Dual-Core Processor......... [OK]",
+                "RAM: 640KB Conventional Memory....... [OK]",
+                "Disk Drive: 5.25\" Floppy............. [ACTIVE]",
+                "CRT Display Scanlines................ [OPTIMAL]",
+                "Modem: 56k Baud Rate................. [INITIALIZED]",
+                "",
+                "Securing Connection to Mainframe..... [ENCRYPTED]",
+                "Authenticating User Credentials...... [PENDING]");
         WindowManager.Root
             .AddChild(
                 new Border
@@ -89,29 +111,10 @@ public class MainWindowViewModel : ViewModelBase
                             "░──░░░░──░░░░░──░░░░░░──░░░──░",
                             "░───────░░░░░░──░░░░░░░─────░░",
                             "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░")))
-            .AddChild(
-                new TextBlock()
-                    .Init(
-                        "",
-                        "-----------------------------------------------------------",
-                        $"G33kShell v{Assembly.GetExecutingAssembly().GetName().Version} - Initializing Terminal",
-                        "-----------------------------------------------------------",
-                        "",
-                        "Booting Secure System...",
-                        "",
-                        "Verifying System Integrity........... [OK]",
-                        "",
-                        "Checking Hardware Config...",
-                        "CPU: Z80 Dual-Core Processor......... [OK]",
-                        "RAM: 640KB Conventional Memory....... [OK]",
-                        "Disk Drive: 5.25\" Floppy............. [ACTIVE]",
-                        "CRT Display Scanlines................ [OPTIMAL]",
-                        "Modem: 56k Baud Rate................. [INITIALIZED]",
-                        "",
-                        "Securing Connection to Mainframe..... [ENCRYPTED]",
-                        "Authenticating User Credentials...... [PENDING]")
-                    );
-        await Task.Delay(TimeSpan.FromSeconds(4));
+            .AddChild(biosText);
+
+        await Task.Run(() => biosText.Waiter.Wait());
+        await Task.Delay(TimeSpan.FromSeconds(1));
         await WindowManager.Root.ClearAsync(ClearTransition.Immediate);
         await Task.Delay(TimeSpan.FromSeconds(2));
     }
@@ -285,4 +288,5 @@ public class MainWindowViewModel : ViewModelBase
     }
     
     private static FaceFinder CreateFaceFinder() =>
+        new FaceFinder("ra6c4l3o5d1n8d82d3f4pb0tat", "dkim5e1mjtdbniar2eliq5re4n");
 }

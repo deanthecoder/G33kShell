@@ -13,7 +13,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using CSharp.Core.Extensions;
 
 namespace G33kShell.Desktop.Console;
 
@@ -52,9 +51,6 @@ public class TextBlock : Canvas
             }
         }
     }
-
-    public TextBlock Init(string s) =>
-        Init(s.ReadAllLines().ToArray());
 
     public TextBlock Init(params string[] lines)
     {

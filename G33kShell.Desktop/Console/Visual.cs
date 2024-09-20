@@ -192,7 +192,7 @@ public abstract class Visual
     }
     
     /// <summary>
-    /// Called when the control us removed from the visual hierarchy.
+    /// Called when the control is removed from the visual hierarchy.
     /// </summary>
     /// <seealso cref="RemoveChild"/>
     protected virtual void OnUnloaded()
