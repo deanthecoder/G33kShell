@@ -41,13 +41,18 @@ public class MainWindowViewModel : ViewModelBase
 
     private async Task StartAsync()
     {
+        
         // Start the 'sign in' face-finding background task.
-        var signInTask = CaptureFace();
+        var signInTask = CaptureFaceAsync();
 
         await BiosCheckAsync();
         await LoadOsAsync();
-        await LogInAsync(signInTask);
+
+        var signInResult = await signInTask;
+        await LogInAsync(signInResult);
+        
         _ = Task.Run(RunTerminal);
+        //WindowManager.Root.AddChild(new DonutCanvas(WindowManager.Root.Width, WindowManager.Root.Height));
     }
 
     private void RunTerminal()
@@ -65,7 +70,7 @@ public class MainWindowViewModel : ViewModelBase
             ));
     }
 
-    private static async Task<(SKBitmap Image, FaceFinder.FaceDetails Face)?> CaptureFace()
+    private static async Task<(SKBitmap Image, FaceFinder.FaceDetails Face)?> CaptureFaceAsync()
     {
         var webcamImage = new TempFile(".jpg");
         var webcamSnapResult = await WebCam.Snap(webcamImage);
@@ -189,105 +194,104 @@ public class MainWindowViewModel : ViewModelBase
         await Task.Delay(TimeSpan.FromSeconds(1));
     }
 
-    private async Task LogInAsync(Task<(SKBitmap Image, FaceFinder.FaceDetails Face)?> signInTask)
+    private async Task LogInAsync((SKBitmap Image, FaceFinder.FaceDetails Face)? faceAnalysis)
     {
+        if (faceAnalysis == null)
+            return;
+        
         // 'Sign in' face analysis...
-        var faceAnalysis = await signInTask;
-        if (faceAnalysis != null)
+        using var faceBitmap = faceAnalysis.Value.Image;
+
+        // Display the face.
+        var faceAspect = (double)faceBitmap.Width / faceBitmap.Height;
+        var width = WindowManager.Root.Height * faceAspect * 2.0; // Double width, as we show with a 8x16 font.
+        var fadeInDuration = TimeSpan.FromSeconds(5);
+        var faceImage = new Image((int)width, WindowManager.Root.Height, faceBitmap)
+            .EnableFadeIn(fadeInDuration);
+        WindowManager.Root.AddChild(faceImage);
+            
+        // Display message area.
+        var messageArea = new Border(WindowManager.Root.Width - faceImage.Width, WindowManager.Root.Height, Border.LineStyle.Single)
         {
-            using var faceBitmap = faceAnalysis.Value.Image;
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        WindowManager.Root.AddChild(messageArea);
 
-            // Display the face.
-            var faceAspect = (double)faceBitmap.Width / faceBitmap.Height;
-            var width = WindowManager.Root.Height * faceAspect * 2.0; // Double width, as we show with a 8x16 font.
-            var fadeInDuration = TimeSpan.FromSeconds(5);
-            var faceImage = new Image((int)width, WindowManager.Root.Height, faceBitmap)
-                .EnableFadeIn(fadeInDuration);
-            WindowManager.Root.AddChild(faceImage);
+        // Loading...
+        var loading = new TextBlock(
+            "╦  ┌─┐┌─┐┌┬┐┬ ┌┐┌┌─┐   ",
+            "║  │ │├─┤ │││ ││││ ┬   ",
+            "╩═╝└─┘┴ ┴─┴┘┴ ┘└┘└─┘ooo")
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            IsFlashing = true
+        };
+        messageArea.AddChild(loading);
+        await Task.Delay(fadeInDuration);
+        loading.RemoveFromParent();
+
+        // Verifying...
+        var verifying = new TextBlock(
+            "╦  ╦┌─┐┬─┐┬┌─┐┬ ┬┬ ┌┐┌┌─┐   ",
+            "╚╗╔╝├┤ ├┬┘│├┤ └┬┘│ ││││ ┬   ",
+            " ╚╝ └─┘┴└─┴└   ┴ ┴ ┘└┘└─┘ooo")
+        {
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsFlashing = true
+        };
+        messageArea.AddChild(verifying);
             
-            // Display message area.
-            var messageArea = new Border(WindowManager.Root.Width - faceImage.Width, WindowManager.Root.Height, Border.LineStyle.Single)
+        // Eye/mouth highlighting.
+        var featureBoxes = new List<Border>();
+        foreach (var (feature, boxWidth) in new[]
+                 {
+                     (faceAnalysis.Value.Face.RightEye, 15),
+                     (faceAnalysis.Value.Face.LeftEye, 15),
+                     (faceAnalysis.Value.Face.MouthCenter, 25)
+                 }.Where(o => o.Item1 != null).Select(o => (o.Item1.Value, o.Item2)))
+        {
+            var x = (feature.X - faceAnalysis.Value.Face.FaceCenter.X + faceAnalysis.Value.Face.FaceWidth / 2.0) / faceAnalysis.Value.Face.FaceWidth * faceImage.Width;
+            var y = (feature.Y - faceAnalysis.Value.Face.FaceCenter.Y + faceAnalysis.Value.Face.FaceHeight / 2.0) / faceAnalysis.Value.Face.FaceHeight * faceImage.Height;
+            const int boxHeight = 5;
+            var border = new Border(boxWidth, boxHeight, Border.LineStyle.Single)
             {
-                HorizontalAlignment = HorizontalAlignment.Right
+                X = (int)(x - boxWidth / 2.0),
+                Y = (int)(y - boxHeight / 2.0)
             };
-            WindowManager.Root.AddChild(messageArea);
 
-            // Loading...
-            var loading = new TextBlock(
-                "╦  ┌─┐┌─┐┌┬┐┬ ┌┐┌┌─┐   ",
-                "║  │ │├─┤ │││ ││││ ┬   ",
-                "╩═╝└─┘┴ ┴─┴┘┴ ┘└┘└─┘ooo")
-            {
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-                IsFlashing = true
-            };
-            messageArea.AddChild(loading);
-            await Task.Delay(fadeInDuration);
-            loading.RemoveFromParent();
-
-            // Verifying...
-            var verifying = new TextBlock(
-                "╦  ╦┌─┐┬─┐┬┌─┐┬ ┬┬ ┌┐┌┌─┐   ",
-                "╚╗╔╝├┤ ├┬┘│├┤ └┬┘│ ││││ ┬   ",
-                " ╚╝ └─┘┴└─┴└   ┴ ┴ ┘└┘└─┘ooo")
-            {
-                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsFlashing = true
-            };
-            messageArea.AddChild(verifying);
-            
-            // Eye/mouth highlighting.
-            var featureBoxes = new List<Border>();
-            foreach (var (feature, boxWidth) in new[]
-                     {
-                         (faceAnalysis.Value.Face.RightEye, 15),
-                         (faceAnalysis.Value.Face.LeftEye, 15),
-                         (faceAnalysis.Value.Face.MouthCenter, 25)
-                     }.Where(o => o.Item1 != null).Select(o => (o.Item1.Value, o.Item2)))
-            {
-                var x = (feature.X - faceAnalysis.Value.Face.FaceCenter.X + faceAnalysis.Value.Face.FaceWidth / 2.0) / faceAnalysis.Value.Face.FaceWidth * faceImage.Width;
-                var y = (feature.Y - faceAnalysis.Value.Face.FaceCenter.Y + faceAnalysis.Value.Face.FaceHeight / 2.0) / faceAnalysis.Value.Face.FaceHeight * faceImage.Height;
-                const int boxHeight = 5;
-                var border = new Border(boxWidth, boxHeight, Border.LineStyle.Single)
-                {
-                    X = (int)(x - boxWidth / 2.0),
-                    Y = (int)(y - boxHeight / 2.0)
-                };
-
-                border.Screen.ClearChars('\0');
-                featureBoxes.Add(border);
-            }
-
-            for (var i = 0; i < 8; i++)
-            {
-                featureBoxes.Shuffle();
-                foreach (var featureBox in featureBoxes)
-                {
-                    faceImage.AddChild(featureBox);
-                    await Task.Delay(100);
-                    faceImage.RemoveChild(featureBox);
-                    await Task.Delay(50);
-                }
-            }
-            
-            // "Access Granted"
-            verifying.RemoveFromParent();
-            messageArea.AddChild(new TextBlock(
-                " ╔═╗┌─┐┌─┐┌─┐┌─┐┌─┐  ",
-                " ╠═╣│  │  ├┤ └─┐└─┐  ",
-                " ╩ ╩└─┘└─┘└─┘└─┘└─┘  ",
-                "╔═╗┬─┐┌─┐┌┐┌┌┬┐┌─┐┌┬┐",
-                "║ ╦├┬┘├─┤│││ │ ├┤  ││",
-                "╚═╝┴└─┴ ┴┘└┘ ┴ └─┘─┴┘"
-            )
-            {
-                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
-            });
-
-            await Task.Delay(TimeSpan.FromSeconds(4));
-            await WindowManager.Root.ClearAsync(ClearTransition.Explode);
-            await Task.Delay(TimeSpan.FromSeconds(1));
+            border.Screen.ClearChars('\0');
+            featureBoxes.Add(border);
         }
+
+        for (var i = 0; i < 8; i++)
+        {
+            featureBoxes.Shuffle();
+            foreach (var featureBox in featureBoxes)
+            {
+                faceImage.AddChild(featureBox);
+                await Task.Delay(100);
+                faceImage.RemoveChild(featureBox);
+                await Task.Delay(50);
+            }
+        }
+            
+        // "Access Granted"
+        verifying.RemoveFromParent();
+        messageArea.AddChild(new TextBlock(
+            " ╔═╗┌─┐┌─┐┌─┐┌─┐┌─┐  ",
+            " ╠═╣│  │  ├┤ └─┐└─┐  ",
+            " ╩ ╩└─┘└─┘└─┘└─┘└─┘  ",
+            "╔═╗┬─┐┌─┐┌┐┌┌┬┐┌─┐┌┬┐",
+            "║ ╦├┬┘├─┤│││ │ ├┤  ││",
+            "╚═╝┴└─┴ ┴┘└┘ ┴ └─┘─┴┘"
+        )
+        {
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+        });
+
+        await Task.Delay(TimeSpan.FromSeconds(4));
+        await WindowManager.Root.ClearAsync(ClearTransition.Explode);
+        await Task.Delay(TimeSpan.FromSeconds(1));
     }
     
     private static FaceFinder CreateFaceFinder() =>

@@ -86,8 +86,8 @@ public class Image : Visual
                 return true;
             }).StartAsync();
         }
-        
-        const string gradient = " ,;/░▒▓█";
+
+        const string gradient = ".,-~:;=!*#$@";
         for (var y = 0; y < Height; y++)
         {
             for (var x = 0; x < Width; x++)
