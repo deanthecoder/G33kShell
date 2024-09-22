@@ -24,14 +24,14 @@ public class DonutCanvas : AnimatedCanvas
 {
     private const double ThetaSpacing = 0.05f;
     private const double PhiSpacing = 0.02f;
-    private const double R1 = 1;
+    private const double R1 = 0.7;
     private const double R2 = 2;
     private const double K2 = 5;
 
     private readonly double m_k1;
     private readonly double[,] m_zBuffer;
 
-    public DonutCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight, 20)
+    public DonutCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight)
     {
         m_k1 = screenWidth * K2 * 2.0 / (8.0 * (R1 + R2));
         m_zBuffer = new double[screenWidth, screenHeight];
@@ -41,10 +41,10 @@ public class DonutCanvas : AnimatedCanvas
     /// Modified from the original source by a1kon.
     /// https://www.a1k0n.net/2011/07/20/donut-math.html
     /// </summary>
-    protected override void UpdateFrame()
+    protected override void UpdateFrame(ScreenData screen)
     {
-        var a = 0.1 + 0.07 * m_frameNumber;
-        var b = 0.1 + 0.03 * m_frameNumber;
+        var a = 0.1 + 0.05 * m_frameNumber;
+        var b = 0.1 + 0.02 * m_frameNumber;
         
         // Precompute sines and cosines of A and B
         var cosA = Math.Cos(a);
@@ -53,7 +53,7 @@ public class DonutCanvas : AnimatedCanvas
         var sinB = Math.Sin(b);
 
         // Clear output and z-buffer arrays
-        Screen.ClearChars();
+        screen.ClearChars();
         for (var i = 0; i < m_zBuffer.GetLength(0); i++)
         {
             for (var j = 0; j < m_zBuffer.GetLength(1); j++)
@@ -68,6 +68,11 @@ public class DonutCanvas : AnimatedCanvas
         {
             var cosTheta = Math.Cos(theta);
             var sinTheta = Math.Sin(theta);
+            var f1 = sinB * cosTheta;
+            var f2 = cosA * cosTheta;
+            var f3 = sinA * sinTheta;
+            var f4 = cosA * sinTheta;
+            var f5 = sinA * cosTheta;
 
             var circleX = R2 + R1 * cosTheta;
             var circleY = R1 * sinTheta;
@@ -78,6 +83,11 @@ public class DonutCanvas : AnimatedCanvas
                 var cosPhi = Math.Cos(phi);
                 var sinPhi = Math.Sin(phi);
 
+                // Luminance calculation
+                var l = cosPhi * f1 - f2 * sinPhi - f3 + cosB * (f4 - f5 * sinPhi);
+                if (l < 0)
+                    continue;
+
                 // Calculate 3D coordinates
                 var x = circleX * (cosB * cosPhi + sinA * sinB * sinPhi) - circleY * cosA * sinB;
                 var y = circleX * (sinB * cosPhi - sinA * cosB * sinPhi) + circleY * cosA * cosB;
@@ -87,19 +97,14 @@ public class DonutCanvas : AnimatedCanvas
                 // Projection
                 var xp = (int)(screenWidth / 2.0 + m_k1 * ooz * x);
                 var yp = (int)(screenHeight / 2.0 - m_k1 * ooz * y);
-                
-                // Luminance calculation
-                var l = cosPhi * cosTheta * sinB - cosA * cosTheta * sinPhi - sinA * sinTheta +
-                        cosB * (cosA * sinTheta - cosTheta * sinA * sinPhi);
-
-                if (l > 0 && xp >= 0 && xp < screenWidth && yp >= 0 && yp < screenHeight)
+                if (xp >= 0 && xp < screenWidth && yp >= 0 && yp < screenHeight)
                 {
                     // Z-buffer check
                     if (ooz > m_zBuffer[xp, yp])
                     {
                         m_zBuffer[xp, yp] = ooz;
                         var luminanceIndex = (int)(l * 8);
-                        Screen.PrintAt(xp, yp, ".,-~:;=!*#$@"[Math.Min(11, luminanceIndex)]);
+                        screen.PrintAt(xp, yp, ".,-~:;=!*#$@"[Math.Min(11, luminanceIndex)]);
                     }
                 }
             }

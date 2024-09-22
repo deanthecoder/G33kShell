@@ -36,13 +36,13 @@ public class ProgressBar : Canvas
     {
     }
 
-    public override void Render()
+    public override void Render(ScreenData screen)
     {
-        base.Render();
+        base.Render(screen);
 
         var progressWidth = (int)(Width * Progress / 100.0);
         var bar = new string('█', progressWidth) + new string('░', Width - progressWidth);
         for (var y = 0; y < Height; y++)
-            Screen.PrintAt(0, y, bar);
+            screen.PrintAt(0, y, bar);
     }
 }

@@ -26,7 +26,6 @@ public abstract class AnimatedCanvas : Canvas
 {
     private readonly Stopwatch m_stopwatch = new Stopwatch();
     private readonly long m_frameTimeMs;
-    private readonly object m_updateLock = new object();
     private bool m_running;
 
     protected int m_frameNumber;
@@ -36,7 +35,7 @@ public abstract class AnimatedCanvas : Canvas
         m_frameTimeMs = 1000 / targetFps; // Frame time in milliseconds
     }
 
-    public override void Render()
+    public override void Render(ScreenData screen)
     {
         if (!m_running) // todo - Do this from OnLoaded() (and find other classes with similar logic)
         {
@@ -45,8 +44,7 @@ public abstract class AnimatedCanvas : Canvas
             Task.Run(UpdateFrameBase);
         }
         
-        lock (m_updateLock)
-            base.Render();
+        base.Render(screen);
     }
 
     /// <summary>
@@ -56,7 +54,7 @@ public abstract class AnimatedCanvas : Canvas
     /// This method is called on its own thread at the required FPS and should be
     /// implemented by subclasses to update the 'Screen' data as required.
     /// </remarks>
-    protected abstract void UpdateFrame();
+    protected abstract void UpdateFrame(ScreenData screen);
 
     private void UpdateFrameBase()
     {
@@ -73,15 +71,13 @@ public abstract class AnimatedCanvas : Canvas
 
             m_stopwatch.Restart(); // Reset for the next frame
 
-            lock (m_updateLock)
-            {
-                UpdateFrame();
+            using (Screen.Lock(out var screen))
+                UpdateFrame(screen);
 
-                // Request rendering update.
-                InvalidateVisual();
+            // Request rendering update.
+            InvalidateVisual();
 
-                m_frameNumber++;
-            }
+            m_frameNumber++;
         }
     }
 

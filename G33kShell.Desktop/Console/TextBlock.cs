@@ -57,19 +57,19 @@ public class TextBlock : Canvas
         Text = lines;
     }
 
-    public override void Render()
+    public override void Render(ScreenData screen)
     {
-        base.Render();
+        base.Render(screen);
 
         var show = !IsFlashing || m_flashState;
         if (!show)
         {
-            Screen.ClearChars();
+            screen.ClearChars();
             return;
         }
         
         for (var i = 0; i < Text.Length; i++)
-            Screen.PrintAt(0, i, Text[i]);
+            screen.PrintAt(0, i, Text[i]);
     }
 
     protected override void OnUnloaded()

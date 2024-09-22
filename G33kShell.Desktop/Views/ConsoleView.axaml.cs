@@ -72,17 +72,17 @@ public partial class ConsoleView : Control
         context.FillRectangle(new SolidColorBrush(m_windowManager.Skin.BackgroundColor), Bounds);
         
         // Draw the screen content.
-        var screenData = m_windowManager.Screen;
         var currentText = new StringBuilder();
-        for (var y = 0; y < screenData.Height; y++)
+        using var _ = m_windowManager.Screen.Lock(out var screen);
+        for (var y = 0; y < screen.Height; y++)
         {
             var xStart = 0;
-            var currentAttr = screenData.Chars[y][0];
+            var currentAttr = screen.Chars[y][0];
             currentText.Clear();
 
-            for (var x = 0; x < screenData.Width; x++)
+            for (var x = 0; x < screen.Width; x++)
             {
-                var attr = screenData.Chars[y][x];
+                var attr = screen.Chars[y][x];
 
                 // Check if the attribute colors (foreground or background) change.
                 if (attr.Foreground.Equals(currentAttr.Foreground) && attr.Background.Equals(currentAttr.Background))

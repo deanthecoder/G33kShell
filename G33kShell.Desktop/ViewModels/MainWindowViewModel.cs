@@ -41,7 +41,6 @@ public class MainWindowViewModel : ViewModelBase
 
     private async Task StartAsync()
     {
-        
         // Start the 'sign in' face-finding background task.
         var signInTask = CaptureFaceAsync();
 
@@ -66,7 +65,7 @@ public class MainWindowViewModel : ViewModelBase
                 $"System Uptime: {uptime.Hours:D2}h:{uptime.Minutes:D2}m:{uptime.Seconds:D2}s",
                 "",
                 "",
-                "C:\\>▂"
+                "C:\\>_"
             ));
     }
 
@@ -259,7 +258,8 @@ public class MainWindowViewModel : ViewModelBase
                 Y = (int)(y - boxHeight / 2.0)
             };
 
-            border.Screen.ClearChars('\0');
+            using var _ = border.Screen.Lock(out var screen);
+            screen.ClearChars('\0');
             featureBoxes.Add(border);
         }
 

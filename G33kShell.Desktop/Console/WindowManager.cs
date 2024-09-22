@@ -24,7 +24,7 @@ public class WindowManager
 
     public Canvas Root { get; }
 
-    public ScreenData Screen => Root.Screen;
+    public ScreenDataLock Screen => Root.Screen;
 
     public SkinBase Skin
     {
@@ -64,14 +64,18 @@ public class WindowManager
             Render(Root);
 
             // Now blit each child onto our top-level 'screen'.
-            Screen.ClearChars('\0');
-            Screen.ClearColor(Root.Foreground, Root.Background);
-            foreach (var visual in GetVisualTree(Root).Skip(1))
+            using (Screen.Lock(out var targetScreen))
             {
-                var pos = GetAbsolutePos(visual);
-                visual.ActualX = pos.x;
-                visual.ActualY = pos.y;
-                visual.Screen.CopyTo(Screen, pos.x, pos.y);
+                targetScreen.ClearChars('\0');
+                targetScreen.ClearColor(Root.Foreground, Root.Background);
+                foreach (var visual in GetVisualTree(Root).Skip(1))
+                {
+                    var pos = GetAbsolutePos(visual);
+                    visual.ActualX = pos.x;
+                    visual.ActualY = pos.y;
+                    using (visual.Screen.Lock(out var sourceScreen))
+                        sourceScreen.CopyTo(targetScreen, pos.x, pos.y);
+                }
             }
         }
     }
@@ -86,7 +90,10 @@ public class WindowManager
     {
         // Ask the visual to render its own content.
         if (visual.IsInvalidatedVisual)
-            visual.Render();
+        {
+            using (visual.Screen.Lock(out var screen))
+                visual.Render(screen);
+        }
 
         // ...and recurse. 
         foreach (var child in visual.Children.Where(o => o.IsInvalidatedVisual))

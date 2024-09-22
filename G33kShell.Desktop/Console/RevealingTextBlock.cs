@@ -79,9 +79,9 @@ public class RevealingTextBlock : TextBlock
 
     // todo - Add a Loaded() override, called immediately before the first time a Visual's Render() method is called.
 
-    public override void Render()
+    public override void Render(ScreenData screen)
     {
-        base.Render();
+        base.Render(screen);
         
         if (m_revealTask == null && m_toReveal.Any())
             m_revealTask = StartTextReveal();

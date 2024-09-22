@@ -95,7 +95,7 @@ public abstract class Visual
 
     public Rect ActualBounds => new Rect(ActualX, ActualY, Width, Height);
     
-    public ScreenData Screen { get; }
+    public ScreenDataLock Screen { get; }
     public IEnumerable<Visual> Children => m_children;
     
     public Color Foreground
@@ -144,13 +144,13 @@ public abstract class Visual
     
     protected Visual(int width, int height)
     {
-        Screen = new ScreenData(width, height);
+        Screen = new ScreenDataLock(width, height);
     }
-    
+
     /// <summary>
     /// A request to the implementer to update the content of <see cref="Screen"/>.
     /// </summary>
-    public virtual void Render()
+    public virtual void Render(ScreenData screen)
     {
         // The visual is not invalidated once it's been rendered.
         IsInvalidatedVisual = false;

@@ -27,11 +27,11 @@ public class Fire : AnimatedCanvas
         m_maxCharIndex = m_fireChars.Length;
         m_firePixelsArray = new int[width * (height + 1)];
     }
-    
+
     /// <summary>
     /// Algorithm based on https://github.com/SnippetsDevelop/snippetsdevelop.github.io/blob/master/codes/FireChars.html
     /// </summary>
-    protected override void UpdateFrame()
+    protected override void UpdateFrame(ScreenData screen)
     {
         // Create fire at the bottom row
         for (var i = 0; i < Width; i++)
@@ -66,7 +66,7 @@ public class Fire : AnimatedCanvas
             fireString.Clear();
             for (var x = 0; x < Width; x++)
                 fireString.Append(m_fireChars[m_firePixelsArray[y * Width + x]]);
-            Screen.PrintAt(0, y, fireString.ToString());
+            screen.PrintAt(0, y, fireString.ToString());
         }
     }
 }

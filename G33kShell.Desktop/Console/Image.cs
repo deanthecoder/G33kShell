@@ -74,7 +74,7 @@ public class Image : Visual
         return lums.Select(o => Math.Pow(o, exponent).Clamp(0.0, 1.0)).ToArray();
     }
 
-    public override void Render()
+    public override void Render(ScreenData screen)
     {
         if (m_startFadeIn)
         {
@@ -103,14 +103,14 @@ public class Image : Visual
 
                 // Determine the character from the gradient using normalizedLum
                 var ch = gradient[(int)(lum * (gradient.Length - 1))];
-                Screen.PrintAt(x, y, new Attr(ch)
+                screen.PrintAt(x, y, new Attr(ch)
                 {
                     Foreground = col
                 });
             }
         }
 
-        base.Render();
+        base.Render(screen);
     }
 
     public Image EnableFadeIn(TimeSpan fadeInDuration)

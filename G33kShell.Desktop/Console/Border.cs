@@ -53,9 +53,9 @@ public class Border : Canvas
         Padding = new BorderThickness(1);
     }
 
-    public override void Render()
+    public override void Render(ScreenData screen)
     {
-        base.Render();
+        base.Render(screen);
 
         var boxChars = LineCharacters[m_style];
         var topLeft = boxChars[0];
@@ -68,20 +68,20 @@ public class Border : Canvas
         var vRight = boxChars[7];
 
         // Top border
-        Screen.PrintAt(0, 0, topLeft);
-        Screen.PrintAt(1, 0, new string(hTop, Width - 2));
-        Screen.PrintAt(Width - 1, 0, topRight);
+        screen.PrintAt(0, 0, topLeft);
+        screen.PrintAt(1, 0, new string(hTop, Width - 2));
+        screen.PrintAt(Width - 1, 0, topRight);
 
         // Bottom border
-        Screen.PrintAt(0, Height - 1, bottomLeft);
-        Screen.PrintAt(1, Height - 1, new string(hBottom, Width - 2));
-        Screen.PrintAt(Width - 1, Height - 1, bottomRight);
+        screen.PrintAt(0, Height - 1, bottomLeft);
+        screen.PrintAt(1, Height - 1, new string(hBottom, Width - 2));
+        screen.PrintAt(Width - 1, Height - 1, bottomRight);
 
         // Vertical borders
         for (var i = 1; i < Height - 1; i++)
         {
-            Screen.PrintAt(0, i, vLeft);
-            Screen.PrintAt(Width - 1, i, vRight);
+            screen.PrintAt(0, i, vLeft);
+            screen.PrintAt(Width - 1, i, vRight);
         }
     }
 }
