@@ -43,8 +43,8 @@ public class DonutCanvas : AnimatedCanvas
     /// </summary>
     protected override void UpdateFrame(ScreenData screen)
     {
-        var a = 0.1 + 0.05 * m_frameNumber;
-        var b = 0.1 + 0.02 * m_frameNumber;
+        var a = 0.1 + 0.05 * FrameNumber;
+        var b = 0.1 + 0.02 * FrameNumber;
         
         // Precompute sines and cosines of A and B
         var cosA = Math.Cos(a);

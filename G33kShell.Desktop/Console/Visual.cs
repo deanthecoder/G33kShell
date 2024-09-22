@@ -141,7 +141,12 @@ public abstract class Visual
     /// Whether re-rendering is required, due to the content changing.
     /// </summary>
     public bool IsInvalidatedVisual { get; internal set; } = true;
-    
+
+    /// <summary>
+    /// Internal flag to indicate whether <see cref="OnLoaded"/> needs to be called.
+    /// </summary>
+    public bool LoadOnFirstRender { get; internal set; } = true;
+
     protected Visual(int width, int height)
     {
         Screen = new ScreenDataLock(width, height);
@@ -163,7 +168,10 @@ public abstract class Visual
         IsInvalidatedVisual = true;
         Parent?.InvalidateVisual();
     }
-    
+
+    /// <summary>
+    /// Adds a child <see cref="Visual"/> element to this <see cref="Visual"/> instance.
+    /// </summary>
     public Visual AddChild(Visual child)
     {
         if (child.Parent != null)
@@ -172,11 +180,22 @@ public abstract class Visual
         m_children.Add(child);
         child.Parent = this;
         child.InvalidateVisual();
+        child.LoadOnFirstRender = true;
         return this;
     }
 
+    /// <summary>
+    /// Removes the current visual instance from its parent visual.
+    /// </summary>
     public void RemoveFromParent() => Parent.RemoveChild(this);
 
+    /// <summary>
+    /// Removes the specified child from the list of children of the current visual.
+    /// </summary>
+    /// <param name="child">The child visual to be removed.</param>
+    /// <remarks>
+    /// If the specified child is not a child of the current visual, nothing happens.
+    /// </remarks>
     public void RemoveChild(Visual child)
     {
         if (!m_children.Remove(child))
@@ -186,7 +205,15 @@ public abstract class Visual
         child.Parent = null;
         InvalidateVisual();
     }
-    
+
+    /// <summary>
+    /// Called prior to the visual being rendered for the first time.
+    /// </summary>
+    public virtual void OnLoaded()
+    {
+        // Do nothing.
+    }
+
     /// <summary>
     /// Called when the control is removed from the visual hierarchy.
     /// </summary>

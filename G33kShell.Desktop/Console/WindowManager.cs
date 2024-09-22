@@ -93,6 +93,12 @@ public class WindowManager
         {
             using (visual.Screen.Lock(out var screen))
             {
+                if (visual.LoadOnFirstRender)
+                {
+                    visual.LoadOnFirstRender = false;
+                    visual.OnLoaded();
+                }
+                
                 visual.IsInvalidatedVisual = false;
                 visual.Render(screen);
             }
@@ -153,6 +159,9 @@ public class WindowManager
     public T Find<T>(string controlName) where T : Visual =>
         GetVisualTree(Root).FirstOrDefault(o => o.Name == controlName) as T;
 
+    /// <summary>
+    /// Represents a root canvas for rendering visuals onto a screen.
+    /// </summary>
     private class RootCanvas : Visual
     {
         public RootCanvas(int width, int height) : base(width, height)

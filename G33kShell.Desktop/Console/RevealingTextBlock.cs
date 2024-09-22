@@ -77,16 +77,6 @@ public class RevealingTextBlock : TextBlock
             Waiter.Set(); // Nothing to wait for.
     }
 
-    // todo - Add a Loaded() override, called immediately before the first time a Visual's Render() method is called.
-
-    public override void Render(ScreenData screen)
-    {
-        base.Render(screen);
-        
-        if (m_revealTask == null && m_toReveal.Any())
-            m_revealTask = StartTextReveal();
-    }
-
     private Task StartTextReveal() =>
         Task.Run(async () =>
         {
@@ -109,10 +99,18 @@ public class RevealingTextBlock : TextBlock
             Waiter.Set();
         }, m_cancellationTokenSource.Token);
 
+    public override void OnLoaded()
+    {
+        base.OnLoaded();
+        if (m_toReveal.Any())
+            m_revealTask = StartTextReveal();
+    }
+
     protected override void OnUnloaded()
     {
         m_cancellationTokenSource.Cancel();
         m_revealTask?.Wait();
+        m_revealTask = null;
         base.OnUnloaded();
     }
 }

@@ -8,6 +8,7 @@
 // about your modifications. Your contributions are valued!
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+using System;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -27,22 +28,15 @@ public abstract class AnimatedCanvas : Visual
     private readonly Stopwatch m_stopwatch = new Stopwatch();
     private readonly long m_frameTimeMs;
     private bool m_running;
+    private Task m_animationTask;
 
-    protected int m_frameNumber;
+    protected int FrameNumber { get; private set; }
 
     protected AnimatedCanvas(int width, int height, int targetFps = 30) : base(width, height)
     {
-        m_frameTimeMs = 1000 / targetFps; // Frame time in milliseconds
-    }
-
-    public override void Render(ScreenData screen)
-    {
-        if (!m_running) // todo - Do this from OnLoaded() (and find other classes with similar logic)
-        {
-            // Start the animation asynchronously.
-            m_running = true;
-            Task.Run(UpdateFrameBase);
-        }
+        if (targetFps <= 0)
+            throw new ArgumentException("Target FPS must be greater than 0.", nameof(targetFps));
+        m_frameTimeMs = (long)(1000.0 / targetFps); // Frame time in milliseconds
     }
 
     /// <summary>
@@ -53,6 +47,11 @@ public abstract class AnimatedCanvas : Visual
     /// implemented by subclasses to update the 'Screen' data as required.
     /// </remarks>
     protected abstract void UpdateFrame(ScreenData screen);
+
+    public override void Render(ScreenData _)
+    {
+        // Do nothing - Updating the screen is handled in UpdateFrame().
+    }
 
     private void UpdateFrameBase()
     {
@@ -75,13 +74,24 @@ public abstract class AnimatedCanvas : Visual
             // Request rendering update.
             InvalidateVisual();
 
-            m_frameNumber++;
+            FrameNumber++;
         }
+    }
+
+    public override void OnLoaded()
+    {
+        base.OnLoaded();
+        
+        // Start the animation asynchronously.
+        m_running = true;
+        m_animationTask = Task.Run(UpdateFrameBase);
     }
 
     protected override void OnUnloaded()
     {
         m_running = false;
+        m_animationTask?.Wait();
+        m_animationTask = null;
         base.OnUnloaded();
     }
 }

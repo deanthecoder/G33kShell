@@ -24,6 +24,11 @@ public class ScreenData
 
     public ScreenData(int width, int height)
     {
+        if (width < 0)
+            throw new ArgumentException("Width must not be less than zero", nameof(width));
+        if (height < 0)
+            throw new ArgumentException("Height must not be less than zero", nameof(height));
+
         Chars = new Attr[height][];
         for (var y = 0; y < height; y++)
         {
@@ -32,7 +37,7 @@ public class ScreenData
                 Chars[y][x] = new Attr();
         }
     }
-    
+
     /// <summary>
     /// Reset the screen's character data.
     /// </summary>

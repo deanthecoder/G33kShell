@@ -25,7 +25,6 @@ namespace G33kShell.Desktop.Console;
 public class Image : Visual
 {
     private double[] m_lums;
-    private bool m_startFadeIn;
     private TimeSpan m_fadeInDuration;
     private double m_opacity = 1.0;
 
@@ -76,17 +75,6 @@ public class Image : Visual
 
     public override void Render(ScreenData screen)
     {
-        if (m_startFadeIn)
-        {
-            m_startFadeIn = false;
-            _ = new Animation(m_fadeInDuration, f =>
-            {
-                m_opacity = f;
-                InvalidateVisual();
-                return true;
-            }).StartAsync();
-        }
-
         const string gradient = ".,-~:;=!*#$@";
         for (var y = 0; y < Height; y++)
         {
@@ -114,8 +102,18 @@ public class Image : Visual
     public Image EnableFadeIn(TimeSpan fadeInDuration)
     {
         m_fadeInDuration = fadeInDuration;
-        m_startFadeIn = true;
         m_opacity = 0.0;
         return this;
+    }
+
+    public override void OnLoaded()
+    {
+        base.OnLoaded();
+        _ = new Animation(m_fadeInDuration, f =>
+        {
+            m_opacity = f;
+            InvalidateVisual();
+            return true;
+        }).StartAsync();
     }
 }
