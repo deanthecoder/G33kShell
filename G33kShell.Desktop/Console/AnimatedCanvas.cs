@@ -22,7 +22,7 @@ namespace G33kShell.Desktop.Console;
 /// on its own thread at the required FPS and should update the 'Screen' data
 /// as required.
 /// </remarks>
-public abstract class AnimatedCanvas : Canvas
+public abstract class AnimatedCanvas : Visual
 {
     private readonly Stopwatch m_stopwatch = new Stopwatch();
     private readonly long m_frameTimeMs;
@@ -43,8 +43,6 @@ public abstract class AnimatedCanvas : Canvas
             m_running = true;
             Task.Run(UpdateFrameBase);
         }
-        
-        base.Render(screen);
     }
 
     /// <summary>

@@ -17,7 +17,7 @@ using System.Threading.Tasks;
 namespace G33kShell.Desktop.Console;
 
 [DebuggerDisplay("TextBlock:{X},{Y} {Width}x{Height} T:{Text}")]
-public class TextBlock : Canvas
+public class TextBlock : Visual
 {
     private bool m_isFlashing;
     private Task m_flasher;
@@ -59,8 +59,6 @@ public class TextBlock : Canvas
 
     public override void Render(ScreenData screen)
     {
-        base.Render(screen);
-
         var show = !IsFlashing || m_flashState;
         if (!show)
         {

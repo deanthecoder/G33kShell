@@ -15,7 +15,7 @@ using System.Diagnostics;
 namespace G33kShell.Desktop.Console;
 
 [DebuggerDisplay("Border:{X},{Y} {Width}x{Height}")]
-public class Border : Canvas
+public class Border : Visual
 {
     private readonly LineStyle m_style;
 
@@ -55,8 +55,6 @@ public class Border : Canvas
 
     public override void Render(ScreenData screen)
     {
-        base.Render(screen);
-
         var boxChars = LineCharacters[m_style];
         var topLeft = boxChars[0];
         var topRight = boxChars[1];

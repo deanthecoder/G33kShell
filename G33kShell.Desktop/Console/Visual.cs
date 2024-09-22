@@ -140,7 +140,7 @@ public abstract class Visual
     /// <summary>
     /// Whether re-rendering is required, due to the content changing.
     /// </summary>
-    public bool IsInvalidatedVisual { get; private set; } = true;
+    public bool IsInvalidatedVisual { get; internal set; } = true;
     
     protected Visual(int width, int height)
     {
@@ -150,11 +150,7 @@ public abstract class Visual
     /// <summary>
     /// A request to the implementer to update the content of <see cref="Screen"/>.
     /// </summary>
-    public virtual void Render(ScreenData screen)
-    {
-        // The visual is not invalidated once it's been rendered.
-        IsInvalidatedVisual = false;
-    }
+    public abstract void Render(ScreenData screen);
     
     /// <summary>
     /// Invalidates the visual, scheduling a call to <see cref="Render"/>

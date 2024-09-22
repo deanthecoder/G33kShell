@@ -22,7 +22,7 @@ public class WindowManager
     private readonly object m_renderLock = new object();
     private SkinBase m_skin;
 
-    public Canvas Root { get; }
+    public Visual Root { get; }
 
     public ScreenDataLock Screen => Root.Screen;
 
@@ -45,7 +45,7 @@ public class WindowManager
 
     public WindowManager(int width, int height, SkinBase skin)
     {
-        Root = new Canvas(width, height);
+        Root = new RootCanvas(width, height);
         Skin = skin ?? throw new ArgumentNullException(nameof(skin));
     }
 
@@ -92,7 +92,10 @@ public class WindowManager
         if (visual.IsInvalidatedVisual)
         {
             using (visual.Screen.Lock(out var screen))
+            {
+                visual.IsInvalidatedVisual = false;
                 visual.Render(screen);
+            }
         }
 
         // ...and recurse. 
@@ -147,6 +150,16 @@ public class WindowManager
         }
     }
 
-    public T Find<T>(string controlName) where T : Canvas =>
+    public T Find<T>(string controlName) where T : Visual =>
         GetVisualTree(Root).FirstOrDefault(o => o.Name == controlName) as T;
+
+    private class RootCanvas : Visual
+    {
+        public RootCanvas(int width, int height) : base(width, height)
+        {
+        }
+
+        public override void Render(ScreenData _) =>
+            IsInvalidatedVisual = false;
+    }
 }

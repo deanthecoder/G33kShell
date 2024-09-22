@@ -13,7 +13,7 @@ using System.Diagnostics;
 namespace G33kShell.Desktop.Console;
 
 [DebuggerDisplay("ProgressBar:{X},{Y} {Width}x{Height} P:{Progress}")]
-public class ProgressBar : Canvas
+public class ProgressBar : Visual
 {
     private int m_progress;
     
@@ -38,8 +38,6 @@ public class ProgressBar : Canvas
 
     public override void Render(ScreenData screen)
     {
-        base.Render(screen);
-
         var progressWidth = (int)(Width * Progress / 100.0);
         var bar = new string('█', progressWidth) + new string('░', Width - progressWidth);
         for (var y = 0; y < Height; y++)

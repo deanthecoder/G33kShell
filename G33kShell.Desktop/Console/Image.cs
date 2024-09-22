@@ -109,8 +109,6 @@ public class Image : Visual
                 });
             }
         }
-
-        base.Render(screen);
     }
 
     public Image EnableFadeIn(TimeSpan fadeInDuration)
