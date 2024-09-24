@@ -125,6 +125,9 @@ public partial class ConsoleView : Control
         if (foreground == null || ((Color)foreground).A == 0)
             return; // The text is invisible.
 
+        if (foreground == background)
+            return; // Text is same color as the background.
+
         // Skip invisible characters at the end.
         if (text[^1] == '\0')
             text = text.TrimEnd(' ', '\0');
