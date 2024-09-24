@@ -115,6 +115,18 @@ public class ScreenData
             Chars[y][x + i].Set(s[i]);
     }
 
+    public void SetBackground(int x, int y, Color? color)
+    {
+        if (IsWithinBounds(x, y))
+            Chars[y][x].Background = color;
+    }
+
+    public void SetForeground(int x, int y, Color? color)
+    {
+        if (IsWithinBounds(x, y))
+            Chars[y][x].Foreground = color;
+    }
+
     private bool IsWithinBounds(int x, int y) =>
         x >= 0 && x < Width && y >= 0 && y < Height;
 }
