@@ -41,6 +41,7 @@ public class MainWindowViewModel : ViewModelBase
 
     private async Task StartAsync()
     {
+#if true
         // Start the 'sign in' face-finding background task.
         var signInTask = CaptureFaceAsync();
 
@@ -51,7 +52,11 @@ public class MainWindowViewModel : ViewModelBase
         await LogInAsync(signInResult);
         
         _ = Task.Run(RunTerminal);
+        WindowManager.Root.AddChild(new MatrixCanvas(WindowManager.Root.Width, WindowManager.Root.Height));
+#else
         //WindowManager.Root.AddChild(new DonutCanvas(WindowManager.Root.Width, WindowManager.Root.Height));
+        WindowManager.Root.AddChild(new MatrixCanvas(WindowManager.Root.Width, WindowManager.Root.Height));
+#endif
     }
 
     private void RunTerminal()

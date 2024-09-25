@@ -8,8 +8,10 @@
 // about your modifications. Your contributions are valued!
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
@@ -109,8 +111,41 @@ public partial class ConsoleView : Control
         }
     }
 
+    private readonly Dictionary<Color, SolidColorBrush> m_brushCache = new Dictionary<Color, SolidColorBrush>();
+    private readonly Dictionary<(string, Color), FormattedText> m_textCache = new Dictionary<(string, Color), FormattedText>();
+    private Task m_stats;
+
+    private SolidColorBrush GetBrush(Color color)
+    {
+        if (!m_brushCache.ContainsKey(color))
+            m_brushCache[color] = new SolidColorBrush(color);
+        return m_brushCache[color];
+    }
+
+    private FormattedText GetText(string text, Color foreground)
+    {
+        if (m_textCache.ContainsKey((text, foreground)))
+            return m_textCache[(text, foreground)];
+        
+        var formattedText = new FormattedText(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, Typeface.Default, 1.0, GetBrush(foreground));
+        m_textCache[(text, foreground)] = formattedText;
+        if (m_fontFamily != null)
+            formattedText.SetFontFamily(m_fontFamily);
+        formattedText.SetFontSize(CharHeight);
+        return formattedText;
+    }
+
     private void DrawTextRun(DrawingContext context, string text, int xStart, int y, Color? foreground, Color? background)
     {
+        m_stats ??= Task.Run(async () =>
+        {
+            while (true)
+            {
+                await Task.Delay(1000);
+                System.Console.WriteLine($"Brush cache: {m_brushCache.Count} entries, Text cache: {m_textCache.Count} entries.");
+            }
+        });
+        
         // Draw the background rectangle for the entire text run.
         var rect = new Rect(
             xStart * CharWidth + Padding.Left,
@@ -120,7 +155,7 @@ public partial class ConsoleView : Control
         );
         
         if (background != null)
-            context.FillRectangle(new SolidColorBrush((Color)background), rect);
+            context.FillRectangle(GetBrush((Color)background), rect);
 
         if (foreground == null || ((Color)foreground).A == 0)
             return; // The text is invisible.
@@ -148,11 +183,7 @@ public partial class ConsoleView : Control
         }
 
         // Draw the text on top of the background.
-        var formattedText = new FormattedText(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, Typeface.Default, 1.0, new SolidColorBrush((Color)foreground));
-        if (m_fontFamily != null)
-            formattedText.SetFontFamily(m_fontFamily);
-        formattedText.SetFontSize(CharHeight);
-        
+        var formattedText = GetText(text, (Color)foreground);
         context.DrawText(formattedText, rect.TopLeft);
     }
 }
