@@ -8,6 +8,7 @@
 // about your modifications. Your contributions are valued!
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
@@ -60,6 +61,7 @@ public partial class ConsoleView : Control
         set => SetAndRaise(PaddingProperty, ref m_padding, value);
     }
 
+    private ScreenData m_lastFrame;
     public override void Render(DrawingContext context)
     {
         base.Render(context);
@@ -71,23 +73,33 @@ public partial class ConsoleView : Control
         m_windowManager.Render();
         
         // Draw the border (in the padding area).
-        context.FillRectangle(new SolidColorBrush(m_windowManager.Skin.BackgroundColor), Bounds);
+        context.FillRectangle(GetBrush(m_windowManager.Skin.BackgroundColor), Bounds);
         
         // Draw the screen content.
         var currentText = new StringBuilder();
         using var _ = m_windowManager.Screen.Lock(out var screen);
+
+        if (m_lastFrame == null)
+        {
+            m_lastFrame = new ScreenData(screen.Width, screen.Height);
+            CopyScreenToLastFrame(screen);
+        }
+
         for (var y = 0; y < screen.Height; y++)
         {
             var xStart = 0;
-            var currentAttr = screen.Chars[y][0];
+            var currentAttrForeground = screen.Chars[y][0].Foreground;
+            var currentAttrBackground = screen.Chars[y][0].Background;
             currentText.Clear();
 
             for (var x = 0; x < screen.Width; x++)
             {
                 var attr = screen.Chars[y][x];
+                var attrForeground = attr.Foreground;
+                var attrBackground = attr.Background;
 
                 // Check if the attribute colors (foreground or background) change.
-                if (attr.Foreground.Equals(currentAttr.Foreground) && attr.Background.Equals(currentAttr.Background))
+                if (attrForeground == currentAttrForeground && attrBackground == currentAttrBackground)
                 {
                     // Same attributes - Collate the characters.
                     currentText.Append(attr.Ch);
@@ -95,10 +107,11 @@ public partial class ConsoleView : Control
                 else
                 {
                     // Draw the accumulated run with the same foreground and background.
-                    DrawTextRun(context, currentText.ToString(), xStart, y, currentAttr.Foreground, currentAttr.Background);
+                    DrawTextRun(context, currentText.ToString(), xStart, y, currentAttrForeground, currentAttrBackground);
 
                     // Start a new run.
-                    currentAttr = attr;
+                    currentAttrForeground = attrForeground;
+                    currentAttrBackground = attrBackground;
                     currentText.Clear();
                     currentText.Append(attr.Ch);
                     xStart = x;
@@ -107,32 +120,41 @@ public partial class ConsoleView : Control
 
             // Draw the last accumulated run
             if (currentText.Length > 0)
-                DrawTextRun(context, currentText.ToString(), xStart, y, currentAttr.Foreground, currentAttr.Background);
+            {
+                DrawTextRun(context, currentText.ToString(), xStart, y, currentAttrForeground, currentAttrBackground);
+            }
         }
     }
 
-    private readonly Dictionary<Color, SolidColorBrush> m_brushCache = new Dictionary<Color, SolidColorBrush>();
-    private readonly Dictionary<(string, Color), FormattedText> m_textCache = new Dictionary<(string, Color), FormattedText>();
-    private Task m_stats;
-
-    private SolidColorBrush GetBrush(Color color)
+    private void CopyScreenToLastFrame(ScreenData screen)
     {
-        if (!m_brushCache.ContainsKey(color))
-            m_brushCache[color] = new SolidColorBrush(color);
-        return m_brushCache[color];
+        for (var y = 0; y < screen.Height; y++)
+        {
+            for (var x = 0; x < screen.Width; x++)
+                m_lastFrame.Chars[y][x].Set(screen.Chars[y][x]);
+        }
     }
 
-    private FormattedText GetText(string text, Color foreground)
+    private readonly ConcurrentDictionary<Color, IImmutableBrush> m_brushCache = new ConcurrentDictionary<Color, IImmutableBrush>();
+    private readonly ConcurrentDictionary<string, Geometry> m_geometryCache = new ConcurrentDictionary<string, Geometry>();
+    private Task m_stats;
+
+    private IImmutableBrush GetBrush(Color color) =>
+        m_brushCache.GetOrAdd(color, o => new SolidColorBrush(o).ToImmutable());
+
+    private Geometry GetTextGeometry(string text) =>
+        m_geometryCache.GetOrAdd(text, BuildTextGeometry);
+
+    private Geometry BuildTextGeometry(string text)
     {
-        if (m_textCache.ContainsKey((text, foreground)))
-            return m_textCache[(text, foreground)];
-        
-        var formattedText = new FormattedText(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, Typeface.Default, 1.0, GetBrush(foreground));
-        m_textCache[(text, foreground)] = formattedText;
+        var formattedText = new FormattedText(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, Typeface.Default, 1.0, Brushes.White);
         if (m_fontFamily != null)
             formattedText.SetFontFamily(m_fontFamily);
         formattedText.SetFontSize(CharHeight);
-        return formattedText;
+
+        var geometry = formattedText.BuildGeometry(new Point());
+        m_geometryCache[text] = geometry;
+        return geometry;
     }
 
     private void DrawTextRun(DrawingContext context, string text, int xStart, int y, Color? foreground, Color? background)
@@ -142,10 +164,10 @@ public partial class ConsoleView : Control
             while (true)
             {
                 await Task.Delay(1000);
-                System.Console.WriteLine($"Brush cache: {m_brushCache.Count} entries, Text cache: {m_textCache.Count} entries.");
+                System.Console.WriteLine($"Brush cache: {m_brushCache.Count} entries, Geometry cache: {m_geometryCache.Count} entries.");
             }
         });
-        
+
         // Draw the background rectangle for the entire text run.
         var rect = new Rect(
             xStart * CharWidth + Padding.Left,
@@ -183,7 +205,8 @@ public partial class ConsoleView : Control
         }
 
         // Draw the text on top of the background.
-        var formattedText = GetText(text, (Color)foreground);
-        context.DrawText(formattedText, rect.TopLeft);
+        var textGeometry = GetTextGeometry(text);
+        using (context.PushTransform(Matrix.CreateTranslation(rect.X, rect.Y)))
+            context.DrawGeometry(GetBrush((Color)foreground), null, textGeometry);
     }
 }
