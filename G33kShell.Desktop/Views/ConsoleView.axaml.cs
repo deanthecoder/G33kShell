@@ -8,14 +8,13 @@
 // about your modifications. Your contributions are valued!
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
-using System.Collections.Concurrent;
-using System.Collections.Generic;
+
 using System.Globalization;
 using System.Text;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using CSharp.Core;
 using G33kShell.Desktop.Console;
 
 namespace G33kShell.Desktop.Views;
@@ -24,6 +23,8 @@ public partial class ConsoleView : Control
 {
     private const int CharWidth = 8;
     private const int CharHeight = 16;
+    private readonly LruCache<Color, IImmutableBrush> m_brushCache = new LruCache<Color, IImmutableBrush>(64);
+    private readonly LruCache<string, Geometry> m_geometryCache = new LruCache<string, Geometry>(4096);
     private WindowManager m_windowManager;
     private FontFamily m_fontFamily;
     private Thickness m_padding;
@@ -135,10 +136,6 @@ public partial class ConsoleView : Control
         }
     }
 
-    private readonly ConcurrentDictionary<Color, IImmutableBrush> m_brushCache = new ConcurrentDictionary<Color, IImmutableBrush>();
-    private readonly ConcurrentDictionary<string, Geometry> m_geometryCache = new ConcurrentDictionary<string, Geometry>();
-    private Task m_stats;
-
     private IImmutableBrush GetBrush(Color color) =>
         m_brushCache.GetOrAdd(color, o => new SolidColorBrush(o).ToImmutable());
 
@@ -151,23 +148,11 @@ public partial class ConsoleView : Control
         if (m_fontFamily != null)
             formattedText.SetFontFamily(m_fontFamily);
         formattedText.SetFontSize(CharHeight);
-
-        var geometry = formattedText.BuildGeometry(new Point());
-        m_geometryCache[text] = geometry;
-        return geometry;
+        return formattedText.BuildGeometry(new Point());
     }
 
     private void DrawTextRun(DrawingContext context, string text, int xStart, int y, Color? foreground, Color? background)
     {
-        m_stats ??= Task.Run(async () =>
-        {
-            while (true)
-            {
-                await Task.Delay(1000);
-                System.Console.WriteLine($"Brush cache: {m_brushCache.Count} entries, Geometry cache: {m_geometryCache.Count} entries.");
-            }
-        });
-
         // Draw the background rectangle for the entire text run.
         var rect = new Rect(
             xStart * CharWidth + Padding.Left,

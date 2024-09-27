@@ -32,7 +32,10 @@ public class AppViewModel : ViewModelBase
                 var dialog = new AboutDialog();
                 dialog.Opened += (_, _) => isOpen = true;
                 dialog.Closed += (_, _) => isOpen = false;
-                dialog.ShowDialog(Application.Current?.GetMainWindow());
+                
+                var window = Application.Current?.GetMainWindow();
+                if (window != null)
+                    dialog.ShowDialog(window);
             });
     }
 }
