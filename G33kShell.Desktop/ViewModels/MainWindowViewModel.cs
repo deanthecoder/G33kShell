@@ -123,20 +123,17 @@ public class MainWindowViewModel : ViewModelBase
             "Securing Connection to Mainframe..... [ENCRYPTED]",
             "Authenticating User Credentials...... [PENDING]");
         WindowManager.Root
-            .AddChild(
-                new Border(30, 10, Border.LineStyle.Block)
-                    {
-                        HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom
-                    }
-                    .AddChild(new TextBlock(
-                        "░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
-                        "░───────░░────────░░░─────░░",
-                        "░──░░░░──░░░░──░░░░░──░░░──░",
-                        "░──░░░░──░░░░──░░░░──░░░░░░░",
-                        "░──░░░░──░░░░──░░░░──░░░░░░░",
-                        "░──░░░░──░░░░──░░░░░──░░░──░",
-                        "░───────░░░░░──░░░░░░─────░░",
-                        "░░░░░░░░░░░░░░░░░░░░░░░░░░░░")))
+            .AddChild(new TextBlock(
+                " ______    _________    ______ ",
+                "|_   _ `. |  _   _  | .' ___  |",
+                "  | | `. \\|_/ | | \\_|/ .'   \\_|",
+                "  | |  | |    | |    | |",
+                " _| |_.' /   _| |_   \\ `.___.'\\",
+                "|______.'   |_____|   `.____ .'"
+            )
+            {
+                HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom
+            })
             .AddChild(biosText);
 
         await Task.Run(() => biosText.Waiter.Wait());
@@ -151,11 +148,7 @@ public class MainWindowViewModel : ViewModelBase
             .AddChild(new Border(21, 3, Border.LineStyle.SingleHorizontalDoubleVertical)
                 {
                     HorizontalAlignment = HorizontalAlignment.Right
-                }
-                .AddChild(new TextBlock("By DeanTheCoder")
-                {
-                    HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
-                }))
+                })
             .AddChild(new TextBlock(
                 " ░░░░░░╗ ░░░░░░╗ ░░░░░░╗ ░░╗  ░░╗ ░░░░░░╗░░╗  ░░╗░░░░░░░╗░░╗     ░░╗",
                 "▒▒╔════╝  ╚═══▒▒╗ ╚═══▒▒╗▒▒║ ▒▒╔╝▒▒╔════╝▒▒║  ▒▒║▒▒╔════╝▒▒║     ▒▒║",
