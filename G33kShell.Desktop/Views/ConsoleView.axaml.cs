@@ -23,7 +23,7 @@ public partial class ConsoleView : Control
 {
     private const int CharWidth = 8;
     private const int CharHeight = 16;
-    private readonly LruCache<Color, IImmutableBrush> m_brushCache = new LruCache<Color, IImmutableBrush>(64);
+    private readonly LruCache<Rgb, IImmutableBrush> m_brushCache = new LruCache<Rgb, IImmutableBrush>(64);
     private readonly LruCache<string, Geometry> m_geometryCache = new LruCache<string, Geometry>(4096);
     private WindowManager m_windowManager;
     private FontFamily m_fontFamily;
@@ -136,7 +136,7 @@ public partial class ConsoleView : Control
         }
     }
 
-    private IImmutableBrush GetBrush(Color color) =>
+    private IImmutableBrush GetBrush(Rgb color) =>
         m_brushCache.GetOrAdd(color, o => new SolidColorBrush(o).ToImmutable());
 
     private Geometry GetTextGeometry(string text) =>
@@ -151,7 +151,7 @@ public partial class ConsoleView : Control
         return formattedText.BuildGeometry(new Point());
     }
 
-    private void DrawTextRun(DrawingContext context, string text, int xStart, int y, Color? foreground, Color? background)
+    private void DrawTextRun(DrawingContext context, string text, int xStart, int y, Rgb foreground, Rgb background)
     {
         // Draw the background rectangle for the entire text run.
         var rect = new Rect(
@@ -162,9 +162,9 @@ public partial class ConsoleView : Control
         );
         
         if (background != null)
-            context.FillRectangle(GetBrush((Color)background), rect);
+            context.FillRectangle(GetBrush(background), rect);
 
-        if (foreground == null || ((Color)foreground).A == 0)
+        if (foreground == null)
             return; // The text is invisible.
 
         if (foreground == background)
@@ -192,6 +192,6 @@ public partial class ConsoleView : Control
         // Draw the text on top of the background.
         var textGeometry = GetTextGeometry(text);
         using (context.PushTransform(Matrix.CreateTranslation(rect.X, rect.Y)))
-            context.DrawGeometry(GetBrush((Color)foreground), null, textGeometry);
+            context.DrawGeometry(GetBrush(foreground), null, textGeometry);
     }
 }

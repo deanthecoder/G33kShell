@@ -9,14 +9,15 @@
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using Avalonia.Media;
+using CSharp.Core;
 
 namespace G33kShell.Desktop.Skins;
 
 public class RetroGreenDos : SkinBase
 {
     // Font properties
-    public override Color ForegroundColor { get; } = Color.Parse("#40ff40");
-    public override Color BackgroundColor { get; } = Color.Parse("#082008");
+    public override Rgb ForegroundColor { get; } = Color.Parse("#40ff40");
+    public override Rgb BackgroundColor { get; } = Color.Parse("#082008");
     public override double BrightnessBoost => 1.1;
 
     // Shader uniform properties

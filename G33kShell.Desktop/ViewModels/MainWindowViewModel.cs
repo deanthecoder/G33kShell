@@ -51,7 +51,7 @@ public class MainWindowViewModel : ViewModelBase
         var signInResult = await signInTask;
         await LogInAsync(signInResult);
         
-        _ = Task.Run(RunTerminal);
+        // _ = Task.Run(RunTerminal);
         WindowManager.Root.AddChild(new MatrixCanvas(WindowManager.Root.Width, WindowManager.Root.Height));
 #else
         //WindowManager.Root.AddChild(new DonutCanvas(WindowManager.Root.Width, WindowManager.Root.Height));
@@ -146,10 +146,6 @@ public class MainWindowViewModel : ViewModelBase
     private async Task LoadOsAsync()
     {
         WindowManager.Root
-            .AddChild(new Border(21, 3, Border.LineStyle.SingleHorizontalDoubleVertical)
-                {
-                    HorizontalAlignment = HorizontalAlignment.Right
-                })
             .AddChild(new TextBlock(
                 " ░░░░░░╗ ░░░░░░╗ ░░░░░░╗ ░░╗  ░░╗ ░░░░░░╗░░╗  ░░╗░░░░░░░╗░░╗     ░░╗",
                 "▒▒╔════╝  ╚═══▒▒╗ ╚═══▒▒╗▒▒║ ▒▒╔╝▒▒╔════╝▒▒║  ▒▒║▒▒╔════╝▒▒║     ▒▒║",

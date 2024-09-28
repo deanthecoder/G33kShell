@@ -9,14 +9,15 @@
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using Avalonia.Media;
+using CSharp.Core;
 
 namespace G33kShell.Desktop.Skins;
 
 public class SimpleSkin : SkinBase
 {
     // Font properties
-    public override Color ForegroundColor { get; } = Color.Parse("#e0e000");
-    public override Color BackgroundColor { get; } = Color.Parse("#000080");
+    public override Rgb ForegroundColor { get; } = Color.Parse("#e0e000");
+    public override Rgb BackgroundColor { get; } = Color.Parse("#000080");
     public override double BrightnessBoost => 1.0;
 
     // Shader uniform properties

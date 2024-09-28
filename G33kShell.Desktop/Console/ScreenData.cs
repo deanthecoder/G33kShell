@@ -9,7 +9,7 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
-using Avalonia.Media;
+using CSharp.Core;
 
 namespace G33kShell.Desktop.Console;
 
@@ -59,7 +59,7 @@ public class ScreenData
     /// <summary>
     /// Reset the screen's color data.
     /// </summary>
-    public void ClearColor(Color foreground, Color background)
+    public void ClearColor(Rgb foreground, Rgb background)
     {
         for (var y = 0; y < Height; y++)
         {
@@ -115,13 +115,13 @@ public class ScreenData
             Chars[y][x + i].Set(s[i]);
     }
 
-    public void SetBackground(int x, int y, Color? color)
+    public void SetBackground(int x, int y, Rgb color)
     {
         if (IsWithinBounds(x, y))
             Chars[y][x].Background = color;
     }
 
-    public void SetForeground(int x, int y, Color? color)
+    public void SetForeground(int x, int y, Rgb color)
     {
         if (IsWithinBounds(x, y))
             Chars[y][x].Foreground = color;

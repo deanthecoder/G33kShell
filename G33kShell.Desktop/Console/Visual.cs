@@ -26,8 +26,8 @@ public abstract class Visual
     private Visual m_parent;
     private int m_y;
     private int m_x;
-    private Color? m_foreground;
-    private Color? m_background;
+    private Rgb m_foreground;
+    private Rgb m_background;
 
     /// <summary>
     /// Arbitrary control name. (See WindowManager.Find)
@@ -98,7 +98,7 @@ public abstract class Visual
     public ScreenDataLock Screen { get; }
     public IEnumerable<Visual> Children => m_children;
     
-    public Color Foreground
+    public Rgb Foreground
     {
         get => m_foreground ?? Parent?.Foreground ?? Colors.White;
         set
@@ -110,7 +110,7 @@ public abstract class Visual
         }
     }
     
-    public Color Background
+    public Rgb Background
     {
         get => m_background ?? Parent?.Background ?? Colors.Black;
         set

@@ -17,7 +17,7 @@ namespace G33kShell.Desktop.Console;
 /// <summary>
 /// A canvas to displaying an animated Matrix effect.
 /// </summary>
-[DebuggerDisplay("DonutCanvas:{X},{Y} {Width}x{Height}")]
+[DebuggerDisplay("MatrixCanvas:{X},{Y} {Width}x{Height}")]
 public class MatrixCanvas : AnimatedCanvas
 {
     private readonly Random m_random = new Random();

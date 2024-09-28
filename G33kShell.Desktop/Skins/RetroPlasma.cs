@@ -10,14 +10,15 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
 using Avalonia.Media;
+using CSharp.Core;
 
 namespace G33kShell.Desktop.Skins;
 
 public class RetroPlasma : SkinBase
 {
     // Font properties
-    public override Color ForegroundColor { get; } = Color.Parse("#ffa000"); // Orange foreground
-    public override Color BackgroundColor { get; } = Color.Parse("#301800"); // Brownish-orange background
+    public override Rgb ForegroundColor { get; } = Color.Parse("#ffa000"); // Orange foreground
+    public override Rgb BackgroundColor { get; } = Color.Parse("#301800"); // Brownish-orange background
     public override double BrightnessBoost => 1.2;
 
     // Shader uniform properties

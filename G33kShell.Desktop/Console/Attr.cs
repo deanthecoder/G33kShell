@@ -10,7 +10,7 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
 using System.Diagnostics;
-using Avalonia.Media;
+using CSharp.Core;
 
 namespace G33kShell.Desktop.Console;
 
@@ -18,8 +18,8 @@ namespace G33kShell.Desktop.Console;
 public class Attr
 {
     public char Ch { get; private set; }
-    public Color? Foreground { get; set; }
-    public Color? Background { get; set; }
+    public Rgb Foreground { get; set; }
+    public Rgb Background { get; set; }
 
     public Attr()
     {

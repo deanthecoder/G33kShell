@@ -9,15 +9,15 @@
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
-using Avalonia.Media;
+using CSharp.Core;
 
 namespace G33kShell.Desktop.Skins;
 
 public abstract class SkinBase
 {
     // Font properties.
-    public abstract Color ForegroundColor { get; } // e.g., "#FFFFFF" for white text
-    public abstract Color BackgroundColor { get; } // e.g., "#000000" for black background
+    public abstract Rgb ForegroundColor { get; } // e.g., "#FFFFFF" for white text
+    public abstract Rgb BackgroundColor { get; } // e.g., "#000000" for black background
 
     // Shader uniform properties
     public abstract double BrightnessBoost { get; }
