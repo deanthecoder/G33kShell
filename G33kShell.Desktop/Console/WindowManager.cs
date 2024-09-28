@@ -13,6 +13,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Layout;
+using G33kShell.Desktop.Console.Events;
 using G33kShell.Desktop.Skins;
 
 namespace G33kShell.Desktop.Console;
@@ -20,6 +21,7 @@ namespace G33kShell.Desktop.Console;
 public class WindowManager
 {
     private readonly object m_renderLock = new object();
+    private readonly List<ConsoleEvent> m_consoleEvents = new List<ConsoleEvent>();
     private SkinBase m_skin;
 
     public Visual Root { get; }
@@ -170,5 +172,37 @@ public class WindowManager
 
         public override void Render(ScreenData _) =>
             IsInvalidatedVisual = false;
+    }
+
+    public void QueueEvent(ConsoleEvent consoleEvent)
+    {
+        if (consoleEvent == null)
+            throw new ArgumentNullException(nameof(consoleEvent));
+
+        lock (m_consoleEvents)
+            m_consoleEvents.Add(consoleEvent);
+    }
+
+    public void ProcessEvents()
+    {
+        lock (m_consoleEvents)
+        {
+            var visualTree = GetVisualTree(Root).ToArray();
+            foreach (var consoleEvent in m_consoleEvents)
+            {
+                foreach (var visual in visualTree)
+                {
+                    var handled = false;
+                    visual.OnEvent(consoleEvent, ref handled);
+                    if (handled)
+                    {
+                        // Visual object has handled the event, so stop propagating it.
+                        break;
+                    }
+                }
+            }
+            
+            m_consoleEvents.Clear();
+        }
     }
 }

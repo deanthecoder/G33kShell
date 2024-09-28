@@ -15,9 +15,9 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using CSharp.Core;
-using G33kShell.Desktop.Console;
+using G33kShell.Desktop.Console.Events;
 
-namespace G33kShell.Desktop.Views;
+namespace G33kShell.Desktop.Console.Views;
 
 public partial class ConsoleView : Control
 {
@@ -36,6 +36,13 @@ public partial class ConsoleView : Control
     public ConsoleView()
     {
         InitializeComponent();
+
+        Loaded += (_, _) =>
+        {
+            var topLevel = TopLevel.GetTopLevel(this)!;
+            topLevel.KeyDown += (_, e) => m_windowManager.QueueEvent(new KeyConsoleEvent(e.Key, e.KeyModifiers, KeyConsoleEvent.Direction.Down));
+            topLevel.KeyUp += (_, e) => m_windowManager.QueueEvent(new KeyConsoleEvent(e.Key, e.KeyModifiers, KeyConsoleEvent.Direction.Up));
+        };
     }
     
     public WindowManager WindowManager
@@ -45,8 +52,8 @@ public partial class ConsoleView : Control
         {
             if (!SetAndRaise(WindowManagerProperty, ref m_windowManager, value))
                 return;
-            Width = WindowManager.Screen.Width * CharWidth + Padding.Left + Padding.Right;
-            Height = WindowManager.Screen.Height * CharHeight + Padding.Top + Padding.Bottom;
+            Width = m_windowManager.Screen.Width * CharWidth + Padding.Left + Padding.Right;
+            Height = m_windowManager.Screen.Height * CharHeight + Padding.Top + Padding.Bottom;
         }
     }
     
@@ -69,6 +76,9 @@ public partial class ConsoleView : Control
 
         if (m_windowManager == null)
             return;
+        
+        // Allow console objects to process queued events.
+        m_windowManager.ProcessEvents();
 
         // Render the visual tree.
         m_windowManager.Render();

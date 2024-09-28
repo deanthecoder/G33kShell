@@ -17,6 +17,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using CSharp.Core;
 using CSharp.Core.Extensions;
+using G33kShell.Desktop.Console.Events;
 
 namespace G33kShell.Desktop.Console;
 
@@ -275,5 +276,18 @@ public abstract class Visual
             default:
                 throw new ArgumentException($"Unknown transition: {transition}", nameof(transition));
         }
+    }
+
+    /// <summary>
+    /// Called when a console event occurs.
+    /// </summary>
+    /// <remarks>
+    /// Passed down from the root console visual, to the children.
+    /// </remarks>
+    /// <param name="consoleEvent">The console event that occurred.</param>
+    /// <param name="handled">Allows the implementer to stop further controls receiving the event.</param>
+    public virtual void OnEvent(ConsoleEvent consoleEvent, ref bool handled)
+    {
+        // Do nothing by default.
     }
 }
