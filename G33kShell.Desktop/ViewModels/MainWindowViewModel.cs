@@ -116,12 +116,13 @@ public class MainWindowViewModel : ViewModelBase
             "Checking Hardware Config...",
             "CPU: Z80 Dual-Core Processor......... [OK]",
             "RAM: 640KB Conventional Memory....... [OK]",
-            "Disk Drive: 5.25\" Floppy............. [ACTIVE]",
+            "Disk Drive: 5.25\" Floppy............. [OPERATIONAL]",
             "CRT Display Scanlines................ [OPTIMAL]",
             "Modem: 56k Baud Rate................. [INITIALIZED]",
             "",
             "Securing Connection to Mainframe..... [ENCRYPTED]",
-            "Authenticating User Credentials...... [PENDING]");
+            "Authenticating User Credentials...... [PENDING]",
+            "Hack The Planet...................... [ACTIVE]");
         WindowManager.Root
             .AddChild(new TextBlock(
                 " ______    _________    ______ ",
