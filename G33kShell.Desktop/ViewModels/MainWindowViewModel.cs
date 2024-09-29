@@ -19,6 +19,7 @@ using CSharp.Core.Extensions;
 using CSharp.Core.ImageProcessing;
 using CSharp.Core.ViewModels;
 using G33kShell.Desktop.Console;
+using G33kShell.Desktop.Console.Controls;
 using G33kShell.Desktop.Skins;
 using SkiaSharp;
 
@@ -166,7 +167,7 @@ public class MainWindowViewModel : ViewModelBase
             {
                 HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Y = 3, IsFlashing = true
             })
-            .AddChild(new Fire(WindowManager.Root.Width, 12)
+            .AddChild(new FireCanvas(WindowManager.Root.Width, 12)
             {
                 HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom
             });

@@ -12,17 +12,17 @@ using System;
 using System.Diagnostics;
 using System.Text;
 
-namespace G33kShell.Desktop.Console;
+namespace G33kShell.Desktop.Console.Controls;
 
-[DebuggerDisplay("Fire:{X},{Y} {Width}x{Height}")]
-public class Fire : AnimatedCanvas
+[DebuggerDisplay("FireCanvas:{X},{Y} {Width}x{Height}")]
+public class FireCanvas : AnimatedCanvas
 {
     private readonly string m_fireChars = " ,;+ltgti!lI?/\\|)(1}{][rcvzjftJUOQocxfXhqwWB8&%$#@";
     private readonly int m_maxCharIndex;
     private readonly int[] m_firePixelsArray;
     private readonly Random m_random = new Random();
 
-    public Fire(int width, int height, int targetFps = 30) : base(width, height, targetFps)
+    public FireCanvas(int width, int height, int targetFps = 30) : base(width, height, targetFps)
     {
         m_maxCharIndex = m_fireChars.Length;
         m_firePixelsArray = new int[width * (height + 1)];

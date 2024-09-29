@@ -11,7 +11,7 @@
 using System;
 using System.Diagnostics;
 
-namespace G33kShell.Desktop.Console;
+namespace G33kShell.Desktop.Console.Controls;
 
 /// <summary>
 /// A canvas to displaying an animated donut.

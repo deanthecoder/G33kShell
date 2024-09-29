@@ -18,7 +18,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace G33kShell.Desktop.Console;
+namespace G33kShell.Desktop.Console.Controls;
 
 /// <summary>
 /// A TextBlock that reveals the content of [Foo] tokens, one by one.

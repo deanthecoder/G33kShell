@@ -13,7 +13,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace G33kShell.Desktop.Console;
+namespace G33kShell.Desktop.Console.Controls;
 
 /// <summary>
 /// Represents an animated canvas that can render frames asynchronously.

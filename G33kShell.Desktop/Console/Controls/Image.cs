@@ -16,7 +16,7 @@ using CSharp.Core;
 using CSharp.Core.Extensions;
 using SkiaSharp;
 
-namespace G33kShell.Desktop.Console;
+namespace G33kShell.Desktop.Console.Controls;
 
 /// <summary>
 /// Represents an image passed through an ASCII filter, allowing optional 'fade in' transition effect.

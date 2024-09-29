@@ -14,7 +14,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace G33kShell.Desktop.Console;
+namespace G33kShell.Desktop.Console.Controls;
 
 [DebuggerDisplay("TextBlock:{X},{Y} {Width}x{Height} T:{Text}")]
 public class TextBlock : Visual

@@ -12,7 +12,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 
-namespace G33kShell.Desktop.Console;
+namespace G33kShell.Desktop.Console.Controls;
 
 [DebuggerDisplay("Border:{X},{Y} {Width}x{Height}")]
 public class Border : Visual

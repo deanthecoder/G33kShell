@@ -19,7 +19,7 @@ using CSharp.Core;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Events;
 
-namespace G33kShell.Desktop.Console;
+namespace G33kShell.Desktop.Console.Controls;
 
 public abstract class Visual
 {

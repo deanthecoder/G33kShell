@@ -12,7 +12,7 @@ using System;
 using System.Diagnostics;
 using CSharp.Core.Extensions;
 
-namespace G33kShell.Desktop.Console;
+namespace G33kShell.Desktop.Console.Controls;
 
 /// <summary>
 /// A canvas to displaying an animated Matrix effect.

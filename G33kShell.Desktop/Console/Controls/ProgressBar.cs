@@ -10,7 +10,7 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System.Diagnostics;
 
-namespace G33kShell.Desktop.Console;
+namespace G33kShell.Desktop.Console.Controls;
 
 [DebuggerDisplay("ProgressBar:{X},{Y} {Width}x{Height} P:{Progress}")]
 public class ProgressBar : Visual
