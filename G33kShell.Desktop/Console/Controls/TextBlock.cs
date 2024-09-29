@@ -16,14 +16,17 @@ using System.Threading.Tasks;
 
 namespace G33kShell.Desktop.Console.Controls;
 
+/// <summary>
+/// Represents a non-editable text block control.
+/// </summary>
 [DebuggerDisplay("TextBlock:{X},{Y} {Width}x{Height} T:{Text}")]
 public class TextBlock : Visual
 {
     private bool m_isFlashing;
     private Task m_flasher;
     private bool m_flashState = true;
-    
-    public string[] Text { get; private init; }
+
+    public virtual string[] Text { get; private init; } = new[] { string.Empty };
 
     public bool IsFlashing
     {
@@ -52,7 +55,11 @@ public class TextBlock : Visual
         }
     }
 
-    public TextBlock(params string[] lines) : base(lines.Max(o => o.Length), lines.Length)
+    protected TextBlock(int width, int height) : base(width, height)
+    {
+    }
+    
+    public TextBlock(params string[] lines) : this(lines.Max(o => o.Length), lines.Length)
     {
         Text = lines;
     }

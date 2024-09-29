@@ -24,6 +24,7 @@ public class WindowManager
     private readonly object m_renderLock = new object();
     private readonly List<ConsoleEvent> m_consoleEvents = new List<ConsoleEvent>();
     private SkinBase m_skin;
+    private (int X, int Y)? m_cursorPos;
 
     public Visual Root { get; }
 
@@ -43,6 +44,26 @@ public class WindowManager
                 visual.Foreground = m_skin.ForegroundColor;
                 visual.Background = m_skin.BackgroundColor;
             }
+        }
+    }
+
+    /// <summary>
+    /// The time at which the cursor position was last updated.
+    /// </summary>
+    public long CursorMoveTime { get; private set; }
+    
+    /// <summary>
+    /// The current cursor position.
+    /// </summary>
+    public (int X, int Y)? CursorPos
+    {
+        get => m_cursorPos;
+        set
+        {
+            if (m_cursorPos == value)
+                return;
+            m_cursorPos = value;
+            CursorMoveTime = Environment.TickCount64;
         }
     }
 
@@ -89,7 +110,7 @@ public class WindowManager
     /// <remarks>
     /// The collection of screens will be composited later.
     /// </remarks>
-    private static void Render(Visual visual)
+    private void Render(Visual visual)
     {
         // Ask the visual to render its own content.
         if (visual.IsInvalidatedVisual)
@@ -99,6 +120,7 @@ public class WindowManager
                 if (visual.LoadOnFirstRender)
                 {
                     visual.LoadOnFirstRender = false;
+                    visual.CursorPosChanged += OnCursorPosChangeRequested;
                     visual.OnLoaded();
                 }
                 
@@ -111,6 +133,9 @@ public class WindowManager
         foreach (var child in visual.Children.Where(o => o.IsInvalidatedVisual))
             Render(child);
     }
+
+    private void OnCursorPosChangeRequested(object sender, (int X, int Y)? cursorPos) =>
+        CursorPos = cursorPos;
 
     private static (int x, int y) GetAbsolutePos(Visual visual)
     {

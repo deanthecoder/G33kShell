@@ -9,6 +9,7 @@
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
+using System;
 using System.Globalization;
 using System.Text;
 using Avalonia;
@@ -40,8 +41,8 @@ public partial class ConsoleView : Control
         Loaded += (_, _) =>
         {
             var topLevel = TopLevel.GetTopLevel(this)!;
-            topLevel.KeyDown += (_, e) => m_windowManager.QueueEvent(new KeyConsoleEvent(e.Key, e.KeyModifiers, KeyConsoleEvent.Direction.Down));
-            topLevel.KeyUp += (_, e) => m_windowManager.QueueEvent(new KeyConsoleEvent(e.Key, e.KeyModifiers, KeyConsoleEvent.Direction.Up));
+            topLevel.KeyDown += (_, e) => m_windowManager.QueueEvent(new KeyConsoleEvent(e.Key, e.KeyModifiers, KeyConsoleEvent.KeyDirection.Down));
+            topLevel.KeyUp += (_, e) => m_windowManager.QueueEvent(new KeyConsoleEvent(e.Key, e.KeyModifiers, KeyConsoleEvent.KeyDirection.Up));
         };
     }
     
@@ -131,8 +132,22 @@ public partial class ConsoleView : Control
 
             // Draw the last accumulated run
             if (currentText.Length > 0)
-            {
                 DrawTextRun(context, currentText.ToString(), xStart, y, currentAttrForeground, currentAttrBackground);
+        }
+        
+        // Draw the screen cursor.
+        if (m_windowManager?.CursorPos.HasValue == true)
+        {
+            var cursorX = m_windowManager.CursorPos.Value.X;
+            var cursorY = m_windowManager.CursorPos.Value.Y;
+            if (cursorX >= 0 && cursorX < screen.Width && cursorY >= 0 && cursorY < screen.Height)
+            {
+                var isFlashOn = (Environment.TickCount64 - m_windowManager.CursorMoveTime) % 1000 < 500;
+                if (isFlashOn)
+                {
+                    var cursorRect = new Rect(cursorX * CharWidth + Padding.Left, cursorY * CharHeight + Padding.Top, CharWidth, CharHeight);
+                    context.FillRectangle(GetBrush(m_windowManager.Skin.ForegroundColor), cursorRect);
+                }
             }
         }
     }

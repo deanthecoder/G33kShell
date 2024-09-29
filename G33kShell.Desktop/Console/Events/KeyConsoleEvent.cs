@@ -17,23 +17,65 @@ namespace G33kShell.Desktop.Console.Events;
 /// </summary>
 public class KeyConsoleEvent : ConsoleEvent
 {
-    private readonly Key m_key;
-    private readonly KeyModifiers m_modifiers;
-    private readonly Direction m_direction;
+    public Key Key { get; }
+    public KeyModifiers Modifiers { get; }
+    public KeyDirection Direction { get; }
 
-    public enum Direction
+    public enum KeyDirection
     {
         Up,
         Down
     }
 
-    public KeyConsoleEvent(Key key, KeyModifiers modifiers, Direction direction)
+    public KeyConsoleEvent(Key key, KeyModifiers modifiers, KeyDirection direction)
     {
-        m_key = key;
-        m_modifiers = modifiers;
-        m_direction = direction;
+        Key = key;
+        Modifiers = modifiers;
+        Direction = direction;
     }
 
     public override string ToString() =>
-        $"Key: {m_key}, Modifiers: {m_modifiers}, Direction: {m_direction}";
+        $"Key: {Key}, Modifiers: {Modifiers}, Direction: {Direction}";
+
+    public char GetChar()
+    {
+        var s = Key.ToString();
+        var shiftPressed = Modifiers.HasFlag(KeyModifiers.Shift);
+
+        // Support keypad numbers.
+        s = s.Replace("NumPad", "D");
+
+        // Support digits.
+        if (s.Length == 2 && s[0] == 'D')
+        {
+            // Digit.
+            s = s[1].ToString();
+            
+            // Symbol?
+            if (shiftPressed)
+                s = ")!@#$%^&*("[int.Parse(s)].ToString();
+        }
+
+        // Single character.
+        if (s.Length == 1)
+            return s[0];
+
+        return Key switch
+        {
+            Key.Space => ' ',
+            Key.OemComma => shiftPressed ? '<' : ',',
+            Key.OemPeriod => shiftPressed ? '>' : '.',
+            Key.OemQuestion => shiftPressed ? '?' : '/',
+            Key.OemOpenBrackets => shiftPressed ? '{' : '[',
+            Key.OemCloseBrackets => shiftPressed ? '}' : ']',
+            Key.OemSemicolon => shiftPressed ? ':' : ';',
+            Key.OemQuotes => shiftPressed ? '"' : '\'',
+            Key.OemBackslash => shiftPressed ? '|' : '\\',
+            Key.OemPipe => shiftPressed ? '|' : '\\',
+            Key.OemTilde => shiftPressed ? '~' : '`',
+            Key.OemMinus => shiftPressed ? '_' : '-',
+            Key.OemPlus => shiftPressed ? '+' : '=',
+            _ => '\0'
+        };
+    }
 }
