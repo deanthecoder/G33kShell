@@ -9,7 +9,10 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Input;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Events;
@@ -26,11 +29,25 @@ public class TextBox : TextBlock
     private bool m_waitForKeyUp;
     private Key m_previousKey;
     private int m_cursorIndex;
+    private string m_prefix;
 
     public override string[] Text => new[]
     {
-        m_s + " "
+        $"{Prefix}{m_s} "
     };
+
+    public string Prefix
+    {
+        get => m_prefix;
+        set
+        {
+            if (m_prefix == value)
+                return;
+            m_prefix = value;
+            SetCursor(0);
+            InvalidateVisual();
+        }
+    }
 
     public TextBox(int width) : base(width, 1)
     {
@@ -39,7 +56,7 @@ public class TextBox : TextBlock
     public override void OnLoaded()
     {
         base.OnLoaded();
-        SetCursorPos(0, 0);
+        SetCursor(0);
     }
 
     public override void OnEvent(ConsoleEvent consoleEvent, ref bool handled)
@@ -69,29 +86,27 @@ public class TextBox : TextBlock
             return;
         }
 
-        bool actionPerformed;
+        // Handle non-printable control keys.
+        var controlPressed = keyEvent.Modifiers.HasFlag(KeyModifiers.Meta);
+        var actionPerformed = keyEvent.Key switch
+        {
+            Key.Left => MoveCursor(controlPressed ? GetDistanceToWordStart() : -1),
+            Key.Right => MoveCursor(controlPressed ? GetDistanceToWordEnd() : 1),
+            Key.Home => SetCursor(0),
+            Key.End => SetCursor(m_s.Length),
+            Key.Back when m_cursorIndex > 0 => Backspace(),
+            Key.V when controlPressed => ClipboardPaste(),
+            _ => false
+        };
 
         // Handle printable characters.
         var ch = keyEvent.GetChar();
-        if (IsPrintableChar(ch))
+        if (!actionPerformed && !controlPressed && IsPrintableChar(ch))
         {
+            if (!keyEvent.Modifiers.HasFlag(KeyModifiers.Shift))
+                ch = char.ToLower(ch);
             m_s.Insert(m_cursorIndex++, ch);
             actionPerformed = true;
-        }
-        else
-        {
-            var controlPressed = keyEvent.Modifiers.HasFlag(KeyModifiers.Meta);
-
-            // Handle non-printable control keys.
-            actionPerformed = keyEvent.Key switch
-            {
-                Key.Left => MoveCursor(controlPressed ? GetDistanceToWordStart() : -1),
-                Key.Right => MoveCursor(controlPressed ? GetDistanceToWordEnd() : 1),
-                Key.Home => SetCursor(0),
-                Key.End => SetCursor(m_s.Length),
-                Key.Back when m_cursorIndex > 0 => Backspace(),
-                _ => false
-            };
         }
 
         if (actionPerformed)
@@ -100,9 +115,45 @@ public class TextBox : TextBlock
             InvalidateVisual();
             MoveCursor(0);
             handled = true;
+            
+            // Auto-reset the wait for 'key up' after a short delay, to allow press-and-hold key entry.
+            Task.Delay(50).ContinueWith(_ => m_waitForKeyUp = false);
         }
 
         base.OnEvent(consoleEvent, ref handled);
+    }
+
+    private bool ClipboardPaste()
+    {
+        var clipboard = Application.Current.GetMainWindow().Clipboard;
+        if (clipboard == null)
+            return false;
+
+        string data = null;
+        var formatsAsync = clipboard.GetFormatsAsync();
+        formatsAsync.Wait();
+        var formats = formatsAsync.Result;
+        if (formats.Contains("FileNames"))
+        {
+            var dataAsync = clipboard.GetDataAsync("FileNames");
+            dataAsync.Wait();
+            data = ((string[])dataAsync.Result)?.Aggregate(string.Empty, (current, s) => $"{current}{s.AsFileName()} ").Trim();
+        }
+        
+        if (data == null && formats.Contains("Text"))
+        {
+            var dataAsync = clipboard.GetDataAsync("Text");
+            dataAsync.Wait();
+            data = (string)dataAsync.Result;
+        }
+
+        if (string.IsNullOrEmpty(data))
+            return false;
+
+        m_s.Insert(m_cursorIndex, data);
+        m_cursorIndex += data.Length;
+        
+        return true;
     }
 
     private int GetDistanceToWordStart()
@@ -151,7 +202,7 @@ public class TextBox : TextBlock
     private bool SetCursor(int position)
     {
         m_cursorIndex = position.Clamp(0, m_s.Length);
-        SetCursorPos(m_cursorIndex, 0);
+        SetCursorPos(m_cursorIndex + Prefix?.Length ?? 0, 0);
         return true;
     }
 

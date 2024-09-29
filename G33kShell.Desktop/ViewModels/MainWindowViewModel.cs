@@ -57,7 +57,7 @@ public class MainWindowViewModel : ViewModelBase
 #else
         //WindowManager.Root.AddChild(new DonutCanvas(WindowManager.Root.Width, WindowManager.Root.Height));
         //WindowManager.Root.AddChild(new MatrixCanvas(WindowManager.Root.Width, WindowManager.Root.Height));
-        WindowManager.Root.AddChild(new TextBox(WindowManager.Root.Width));
+        WindowManager.Root.AddChild(new TextBox(WindowManager.Root.Width) { Prefix = "[PREFIX]" });
 #endif
     }
 
