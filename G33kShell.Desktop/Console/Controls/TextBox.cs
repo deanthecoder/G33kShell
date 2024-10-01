@@ -8,8 +8,10 @@
 // about your modifications. Your contributions are valued!
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using Avalonia;
@@ -31,10 +33,29 @@ public class TextBox : TextBlock
     private int m_cursorIndex;
     private string m_prefix;
 
-    public override string[] Text => new[]
+    public override string[] Text
     {
-        $"{Prefix}{m_s} "
-    };
+        get
+        {
+            var s = $"{Prefix}{m_s} ";
+            return WrapText(s, Width).ToArray();
+        }
+    }
+
+    /// <summary>
+    /// Use 'yield return' to wrap the text string into an array with items up to 'width' characters, splitting at characters (not words).
+    /// </summary>
+    private static IEnumerable<string> WrapText(string s, int width)
+    {
+        while (s.Length > width)
+        {
+            yield return s.Substring(0, width);
+            s = s.Substring(width);
+        }
+
+        if (!string.IsNullOrEmpty(s))
+            yield return s;
+    }
 
     public string Prefix
     {
@@ -49,7 +70,7 @@ public class TextBox : TextBlock
         }
     }
 
-    public TextBox(int width) : base(width, 1)
+    public TextBox(int width) : base(width, 2)
     {
     }
 
@@ -87,7 +108,8 @@ public class TextBox : TextBlock
         }
 
         // Handle non-printable control keys.
-        var controlPressed = keyEvent.Modifiers.HasFlag(KeyModifiers.Meta);
+        var actionKey = RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? KeyModifiers.Meta : KeyModifiers.Control;
+        var controlPressed = keyEvent.Modifiers.HasFlag(actionKey);
         var actionPerformed = keyEvent.Key switch
         {
             Key.Left => MoveCursor(controlPressed ? GetDistanceToWordStart() : -1),
@@ -202,7 +224,9 @@ public class TextBox : TextBlock
     private bool SetCursor(int position)
     {
         m_cursorIndex = position.Clamp(0, m_s.Length);
-        SetCursorPos(m_cursorIndex + Prefix?.Length ?? 0, 0);
+        var x = m_cursorIndex + Prefix?.Length ?? 0;
+        var y = x / Width;
+        SetCursorPos(x % Width, y);
         return true;
     }
 

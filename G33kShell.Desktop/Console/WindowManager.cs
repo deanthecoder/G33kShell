@@ -58,7 +58,7 @@ public class WindowManager
     public (int X, int Y)? CursorPos
     {
         get => m_cursorPos;
-        set
+        private set
         {
             if (m_cursorPos == value)
                 return;
