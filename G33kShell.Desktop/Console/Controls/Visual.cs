@@ -298,4 +298,10 @@ public abstract class Visual
     /// </summary>
     protected void SetCursorPos(int dx, int dy) =>
         CursorPosChanged?.Invoke(this, (X + dx, Y + dy));
+
+    public void SetHeight(int height)
+    {
+        using (Screen.Lock(out var screenData))
+            screenData.Height = height;
+    }
 }

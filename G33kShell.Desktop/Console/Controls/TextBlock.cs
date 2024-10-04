@@ -9,6 +9,7 @@
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
@@ -22,6 +23,7 @@ namespace G33kShell.Desktop.Console.Controls;
 [DebuggerDisplay("TextBlock:{X},{Y} {Width}x{Height} T:{Text}")]
 public class TextBlock : Visual
 {
+    private readonly Dictionary<int, int> m_stringLengths = new Dictionary<int, int>();
     private bool m_isFlashing;
     private Task m_flasher;
     private bool m_flashState = true;
@@ -72,9 +74,23 @@ public class TextBlock : Visual
             screen.ClearChars();
             return;
         }
-        
-        for (var i = 0; i < Text.Length; i++)
-            screen.PrintAt(0, i, Text[i]);
+
+        var text = Text;
+        for (var i = 0; i < text.Length; i++)
+        {
+            // Print the text at the specified position on the screen.
+            screen.PrintAt(0, i, text[i]);
+            
+            // Retrieve the length of the previously printed string at this line.
+            m_stringLengths.TryGetValue(i, out var previousLength);
+            
+            // Pad the string if it is shorter than the previous one (to allow for string shrinkage).
+            var charsToPad = previousLength - text[i].Length;
+            if (charsToPad > 0) screen.PrintAt(text[i].Length, i, new string(' ', charsToPad));
+
+            // Update the dictionary with the current string length.
+            m_stringLengths[i] = text[i].Length;
+        }
     }
 
     protected override void OnUnloaded()

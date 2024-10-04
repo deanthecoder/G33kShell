@@ -35,7 +35,7 @@ public class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var viewModel = new MainWindowViewModel(new RetroPlasma());
+            var viewModel = new ShellViewModel(new RetroPlasma());
             desktop.MainWindow = new MainWindow
             {
                 DataContext = viewModel

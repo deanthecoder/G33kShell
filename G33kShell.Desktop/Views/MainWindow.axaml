@@ -8,11 +8,11 @@
         mc:Ignorable="d"
         d:DesignWidth="640" d:DesignHeight="480"
         x:Class="G33kShell.Desktop.Views.MainWindow"
-        x:DataType="viewModels:MainWindowViewModel"
+        x:DataType="viewModels:ShellViewModel"
         Icon="/Assets/app.ico"
         Title="G33kShell">
     <Design.DataContext>
-        <viewModels:MainWindowViewModel />
+        <viewModels:ShellViewModel />
     </Design.DataContext>
 
     <Viewbox>

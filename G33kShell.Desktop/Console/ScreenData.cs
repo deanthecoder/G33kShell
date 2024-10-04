@@ -9,6 +9,7 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
+using System.Collections.Generic;
 using CSharp.Core;
 
 namespace G33kShell.Desktop.Console;
@@ -18,9 +19,30 @@ namespace G33kShell.Desktop.Console;
 /// </summary>
 public class ScreenData
 {
-    public Attr[][] Chars { get; }
+    public List<Attr[]> Chars { get; }
     public int Width => Chars[0].Length;
-    public int Height => Chars.Length;
+    public int Height
+    {
+        get => Chars.Count;
+        set
+        {
+            if (Height == value)
+                return;
+            
+            // Trim height down.
+            while (Chars.Count > value)
+                Chars.RemoveAt(Chars.Count - 1);
+            
+            // ...or expand it...
+            while (Chars.Count < value)
+            {
+                var row = new Attr[Width];
+                for (var x = 0; x < row.Length; x++)
+                    row[x] = new Attr();
+                Chars.Add(row);
+            }
+        }
+    }
 
     public ScreenData(int width, int height)
     {
@@ -29,12 +51,13 @@ public class ScreenData
         if (height < 0)
             throw new ArgumentException("Height must not be less than zero", nameof(height));
 
-        Chars = new Attr[height][];
-        for (var y = 0; y < height; y++)
+        Chars = new List<Attr[]>(height);
+        for (var i = 0; i < height; i++)
         {
-            Chars[y] = new Attr[width];
-            for (var x = 0; x < width; x++)
-                Chars[y][x] = new Attr();
+            var row = new Attr[width];
+            for (var j = 0; j < row.Length; j++)
+                row[j] = new Attr();
+            Chars.Add(row);
         }
     }
 

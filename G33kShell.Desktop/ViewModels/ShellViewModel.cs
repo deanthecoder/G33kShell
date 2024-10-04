@@ -21,20 +21,29 @@ using CSharp.Core.ViewModels;
 using G33kShell.Desktop.Console;
 using G33kShell.Desktop.Console.Controls;
 using G33kShell.Desktop.Skins;
+using G33kShell.Desktop.Terminal;
+using G33kShell.Desktop.TerminalControls;
 using SkiaSharp;
 
 namespace G33kShell.Desktop.ViewModels;
 
-public class MainWindowViewModel : ViewModelBase
+
+/// <summary>
+/// Represents the view model for the main shell of the G33kShell desktop application.
+/// </summary>
+/// <remarks>
+/// This class is responsible for managing the main window and initializing the application with a specified skin.
+/// </remarks>
+public class ShellViewModel : ViewModelBase
 {
     public WindowManager WindowManager { get; }
 
-    // Used by the Designer.
-    public MainWindowViewModel() : this(new RetroPlasma())
+    // Default constructor, used by the Designer.
+    public ShellViewModel() : this(new RetroPlasma())
     {
     }
 
-    public MainWindowViewModel(SkinBase skin)
+    public ShellViewModel(SkinBase skin)
     {
         WindowManager = new WindowManager(100, 38, skin);
         _ = StartAsync();
@@ -51,29 +60,31 @@ public class MainWindowViewModel : ViewModelBase
 
         var signInResult = await signInTask;
         await LogInAsync(signInResult);
-        
-        // _ = Task.Run(RunTerminal);
-        WindowManager.Root.AddChild(new MatrixCanvas(WindowManager.Root.Width, WindowManager.Root.Height));
 #else
         //WindowManager.Root.AddChild(new DonutCanvas(WindowManager.Root.Width, WindowManager.Root.Height));
         //WindowManager.Root.AddChild(new MatrixCanvas(WindowManager.Root.Width, WindowManager.Root.Height));
-        WindowManager.Root.AddChild(new TextBox(WindowManager.Root.Width) { Prefix = "[PREFIX]" });
+        //WindowManager.Root.AddChild(new TextBox(WindowManager.Root.Width) { Prefix = "[PREFIX]" });
 #endif
+        
+        _ = Task.Run(RunTerminal);
     }
 
     private void RunTerminal()
     {
         var uptime = TimeSpan.FromMilliseconds(Environment.TickCount64);
-        WindowManager.Root
-            .AddChild(new TextBlock(
-                "",
-                $"Welcome to G33kShell v{Assembly.GetExecutingAssembly().GetName().Version}",
-                "",
-                $"System Uptime: {uptime.Hours:D2}h:{uptime.Minutes:D2}m:{uptime.Seconds:D2}s",
-                "",
-                "",
-                "C:\\>_"
-            ));
+        var introHeader = new TextBlock(
+            "",
+            $"Welcome to G33kShell v{Assembly.GetExecutingAssembly().GetName().Version}",
+            "",
+            $"System Uptime: {uptime.Hours:D2}h:{uptime.Minutes:D2}m:{uptime.Seconds:D2}s",
+            "",
+            ""
+        );
+        WindowManager.Root.AddChild(introHeader);
+        var cliPrompt = new CliPrompt(WindowManager.Root.Width) { Y = introHeader.Height };
+        WindowManager.Root.AddChild(cliPrompt);
+
+        var terminalState = new TerminalState(Environment.CurrentDirectory.ToDir(), cliPrompt);
     }
 
     private static async Task<(SKBitmap Image, FaceFinder.FaceDetails Face)?> CaptureFaceAsync()

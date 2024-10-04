@@ -8,6 +8,8 @@
 // about your modifications. Your contributions are valued!
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -24,6 +26,13 @@ namespace G33kShell.Desktop.Console.Controls;
 /// <summary>
 /// Represents an editable text box control.
 /// </summary>
+/// <remarks>
+/// This control supports the following features:
+/// - Prefix: Allows setting a non-editable prefix string that appears at the beginning of the text.
+/// - Control-Backspace: Clears the entire text field.
+/// - Cursor Navigation: Supports moving the cursor with arrow keys, Home, and End keys.
+/// - Clipboard Paste: Allows pasting text from the clipboard using Control-V.
+/// </remarks>
 [DebuggerDisplay("TextBox:{X},{Y} {Width}x{Height} T:{Text}")]
 public class TextBox : TextBlock
 {
@@ -33,28 +42,42 @@ public class TextBox : TextBlock
     private int m_cursorIndex;
     private string m_prefix;
 
-    public override string[] Text
-    {
-        get
-        {
-            var s = $"{Prefix}{m_s} ";
-            return WrapText(s, Width).ToArray();
-        }
-    }
+    public event EventHandler<string> ReturnPressed;
+
+    public override string[] Text => WrapText($"{Prefix}{m_s}", Width).ToArray();
+    public string TextWithoutPrefix => m_s.ToString();
+    public bool IsReadOnly { get; set; }
 
     /// <summary>
     /// Use 'yield return' to wrap the text string into an array with items up to 'width' characters, splitting at characters (not words).
     /// </summary>
     private static IEnumerable<string> WrapText(string s, int width)
     {
-        while (s.Length > width)
-        {
-            yield return s.Substring(0, width);
-            s = s.Substring(width);
-        }
+        var lines = s.Split('\n');
 
-        if (!string.IsNullOrEmpty(s))
-            yield return s;
+        foreach (var line in lines)
+        {
+            if (line.Length <= width)
+            {
+                // String will fit within the available space - All good.
+                yield return line;
+            }
+            else
+            {
+                // Line is too long - Chunk it into 'width' chunks.
+                var temp = new StringBuilder(line);
+                while (temp.Length > width)
+                {
+                    var wrapText = temp.ToString(0, width).TrimEnd();
+                    yield return wrapText;
+                    temp = temp.Remove(0, width);
+                }
+
+                // Any bits left over?
+                if (temp.Length > 0)
+                    yield return temp.ToString();
+            }
+        }
     }
 
     public string Prefix
@@ -70,7 +93,7 @@ public class TextBox : TextBlock
         }
     }
 
-    public TextBox(int width) : base(width, 2)
+    public TextBox(int width) : base(width, 1)
     {
     }
 
@@ -82,7 +105,7 @@ public class TextBox : TextBlock
 
     public override void OnEvent(ConsoleEvent consoleEvent, ref bool handled)
     {
-        if (consoleEvent is not KeyConsoleEvent keyEvent)
+        if (consoleEvent is not KeyConsoleEvent keyEvent || IsReadOnly)
         {
             base.OnEvent(consoleEvent, ref handled);
             return;
@@ -116,8 +139,11 @@ public class TextBox : TextBlock
             Key.Right => MoveCursor(controlPressed ? GetDistanceToWordEnd() : 1),
             Key.Home => SetCursor(0),
             Key.End => SetCursor(m_s.Length),
+            Key.Back when controlPressed => Clear(),
             Key.Back when m_cursorIndex > 0 => Backspace(),
+            Key.Delete when m_cursorIndex < m_s.Length => Delete(),
             Key.V when controlPressed => ClipboardPaste(),
+            Key.Return => Return(),
             _ => false
         };
 
@@ -143,6 +169,21 @@ public class TextBox : TextBlock
         }
 
         base.OnEvent(consoleEvent, ref handled);
+    }
+
+    public void AppendLine(string s) =>
+        Append($"{s}\n");
+    
+    public void Append(string s)
+    {
+        m_s.Append(s);
+        m_cursorIndex = m_s.Length;
+    }
+
+    private bool Return()
+    {
+        ReturnPressed?.Invoke(this, TextWithoutPrefix);
+        return true;
     }
 
     private bool ClipboardPaste()
@@ -230,9 +271,23 @@ public class TextBox : TextBlock
         return true;
     }
 
+    private bool Clear()
+    {
+        m_s.Clear();
+        SetCursor(0);
+        return true;
+    }
+    
     private bool Backspace()
     {
         m_s.Remove(--m_cursorIndex, 1);
+        MoveCursor(0);
+        return true;
+    }
+    
+    private bool Delete()
+    {
+        m_s.Remove(m_cursorIndex, 1);
         MoveCursor(0);
         return true;
     }
