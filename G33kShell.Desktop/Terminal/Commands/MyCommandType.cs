@@ -18,4 +18,7 @@ public enum MyCommandType
 
     [Command(typeof(WhereIsCommand), LongName = "whereis", Description = "Finds an executable located in the system’s PATH.")]
     WhereIs,
+
+    [Command(typeof(FindCommand), LongName = "find", Description = "Search for files or directories by name.")]
+    Find,
 }
