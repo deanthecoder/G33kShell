@@ -22,7 +22,7 @@ using G33kShell.Desktop.Console;
 using G33kShell.Desktop.Console.Controls;
 using G33kShell.Desktop.Skins;
 using G33kShell.Desktop.Terminal;
-using G33kShell.Desktop.TerminalControls;
+using G33kShell.Desktop.Terminal.Controls;
 using SkiaSharp;
 
 namespace G33kShell.Desktop.ViewModels;

@@ -9,12 +9,10 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
-using System;
 using System.IO;
-using System.Linq;
 using G33kShell.Desktop.Console.Controls;
 
-namespace G33kShell.Desktop.TerminalControls;
+namespace G33kShell.Desktop.Terminal.Controls;
 
 /// <summary>
 /// Represents a command-line interface (CLI) control.

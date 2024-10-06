@@ -17,7 +17,8 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using CSharp.Core.Extensions;
-using G33kShell.Desktop.TerminalControls;
+using G33kShell.Desktop.Console.Controls;
+using G33kShell.Desktop.Terminal.Controls;
 using JetBrains.Annotations;
 using NClap;
 
@@ -43,7 +44,7 @@ public class CommandHistory
 
 public enum MyCommandType
 {
-    [Command(typeof(HelpCommand), LongName = "help", Description = "Get help information.")]
+    [Command(typeof(HelpCommand), LongName = "help", ShortName = "?", Description = "Get help information.")]
     Help,
 
     [Command(typeof(DirCommand), LongName = "dir", Description = "List files and directories.")]
@@ -92,9 +93,9 @@ public class HelpCommand : CommandBase
     public override bool Run(ITerminalState state)
     {
         var commands = Enum.GetValues<MyCommandType>()
-            .Select(GetCommandDescription)
-            .OrderBy(o => o.ShortName)
-            .Select(o => (o.ShortName ?? o.LongName, o.Description))
+            .Select(GetCommandAttribute)
+            .OrderBy(o => o.LongName)
+            .Select(o => (GetCommandNames(o), o.Description))
             .ToArray();
         
         var maxLength = commands.Max(o => o.Item1.Length);
@@ -104,7 +105,15 @@ public class HelpCommand : CommandBase
         return true;
     }
 
-    private static CommandAttribute GetCommandDescription(MyCommandType command)
+    private static string GetCommandNames(CommandAttribute commandAttr)
+    {
+        return new[]
+        {
+            commandAttr.LongName, commandAttr.ShortName
+        }.Where(o => o != null).ToArray().ToCsv();
+    }
+
+    private static CommandAttribute GetCommandAttribute(MyCommandType command)
     {
         var memberInfo = typeof(MyCommandType).GetMember(command.ToString()).FirstOrDefault();
         return memberInfo?.GetCustomAttribute<CommandAttribute>();
@@ -228,19 +237,22 @@ public class TerminalState : ITerminalState
         CliPrompt.Append("\n");
         CliPrompt.ScrollIntoView();
     }
-    
+
     private void PrepareNextInputPrompt()
     {
+        CliPrompt.Parent.AddChild(new Separator(CliPrompt.Parent.Width)
+        {
+            Y = CliPrompt.Y + CliPrompt.Height
+        });
         var newCliPrompt = new CliPrompt(CliPrompt.Parent.Width)
         {
-            Y = CliPrompt.Y + CliPrompt.Height,
-            Cwd = CurrentDirectory
+            Y = CliPrompt.Y + CliPrompt.Height + 1, Cwd = CurrentDirectory
         };
         CliPrompt.Parent.AddChild(newCliPrompt);
         CliPrompt.ReturnPressed -= OnCliPromptReturnPressed;
         CliPrompt = newCliPrompt;
         CliPrompt.ReturnPressed += OnCliPromptReturnPressed;
-        
+
         CliPrompt.ScrollIntoView();
     }
 }
