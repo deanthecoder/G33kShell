@@ -29,9 +29,9 @@ public class OpenCommand : LocationCommand
             WriteLine($"Location not found: {Location}");
             return false;
         }
-        catch (Exception e)
+        catch (Exception ex)
         {
-            WriteLine($"An error occurred: {e.Message}");
+            WriteLine($"An error occurred: {ex.Message}");
             return false;
         }
     }

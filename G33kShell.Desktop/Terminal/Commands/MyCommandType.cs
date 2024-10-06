@@ -15,4 +15,7 @@ public enum MyCommandType
 
     [Command(typeof(OpenCommand), LongName = "open", Description = "View the target in the OS file browser.")]
     Open,
+
+    [Command(typeof(WhereIsCommand), LongName = "whereis", Description = "Finds an executable located in the system’s PATH.")]
+    WhereIs,
 }
