@@ -171,10 +171,8 @@ public class TextBox : TextBlock
         base.OnEvent(consoleEvent, ref handled);
     }
 
-    public bool MoveCursorToEnd()
-    {
-        return SetCursor(m_s.Length);
-    }
+    public bool MoveCursorToEnd() =>
+        SetCursor(m_s.Length);
 
     public void AppendLine(string s) =>
         Append($"{s}\n");
@@ -182,7 +180,7 @@ public class TextBox : TextBlock
     public void Append(string s)
     {
         m_s.Append(s);
-        m_cursorIndex = m_s.Length;
+        SetCursor(m_s.Length);
     }
 
     private bool Return()
@@ -219,7 +217,7 @@ public class TextBox : TextBlock
             return false;
 
         m_s.Insert(m_cursorIndex, data);
-        m_cursorIndex += data.Length;
+        MoveCursor(data.Length);
         
         return true;
     }
@@ -273,6 +271,13 @@ public class TextBox : TextBlock
         var x = m_cursorIndex + Prefix?.Length ?? 0;
         var y = x / Width;
         SetCursorPos(x % Width, y);
+
+        if (Text.Length > Height)
+        {
+            SetHeight(Text.Length);
+            ScrollIntoView();
+        }
+        
         return true;
     }
 
