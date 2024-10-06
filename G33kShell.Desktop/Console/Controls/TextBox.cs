@@ -138,7 +138,7 @@ public class TextBox : TextBlock
             Key.Left => MoveCursor(controlPressed ? GetDistanceToWordStart() : -1),
             Key.Right => MoveCursor(controlPressed ? GetDistanceToWordEnd() : 1),
             Key.Home => SetCursor(0),
-            Key.End => SetCursor(m_s.Length),
+            Key.End => MoveCursorToEnd(),
             Key.Back when controlPressed => Clear(),
             Key.Back when m_cursorIndex > 0 => Backspace(),
             Key.Delete when m_cursorIndex < m_s.Length => Delete(),
@@ -169,6 +169,11 @@ public class TextBox : TextBlock
         }
 
         base.OnEvent(consoleEvent, ref handled);
+    }
+
+    public bool MoveCursorToEnd()
+    {
+        return SetCursor(m_s.Length);
     }
 
     public void AppendLine(string s) =>
@@ -278,7 +283,7 @@ public class TextBox : TextBlock
         return true;
     }
     
-    private bool Backspace()
+    public bool Backspace()
     {
         m_s.Remove(--m_cursorIndex, 1);
         MoveCursor(0);

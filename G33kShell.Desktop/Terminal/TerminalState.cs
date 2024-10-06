@@ -75,10 +75,15 @@ public abstract class CommandBase : SynchronousCommand
 
     protected void WriteLine(string s)
     {
+        // Add a line to the prompt output control.
         CliPrompt.AppendLine(s);
 
+        // ...and expand the control height.
         var lineCount = CliPrompt.Text.Length;
         CliPrompt.SetHeight(lineCount);
+        
+        // If the control now pokes off the bottom of the screen, scroll the controls up.
+        CliPrompt.ScrollIntoView();
     }
 }
 
@@ -203,6 +208,10 @@ public class TerminalState : ITerminalState
         if (!CommandLineParser.TryParse(args, out ProgramArguments parsedCommand))
         {
             Debug.WriteLine($"Unknown command: {cmdString}");
+            CliPrompt.IsReadOnly = false;
+            CliPrompt.MoveCursorToEnd();
+            CliPrompt.Backspace();
+            CliPrompt.Append("?");
             return;
         }
 
@@ -217,11 +226,12 @@ public class TerminalState : ITerminalState
     {
         CliPrompt.IsReadOnly = true;
         CliPrompt.Append("\n");
+        CliPrompt.ScrollIntoView();
     }
     
     private void PrepareNextInputPrompt()
     {
-        var newCliPrompt = new CliPrompt(CliPrompt.Width)
+        var newCliPrompt = new CliPrompt(CliPrompt.Parent.Width)
         {
             Y = CliPrompt.Y + CliPrompt.Height,
             Cwd = CurrentDirectory
@@ -230,5 +240,7 @@ public class TerminalState : ITerminalState
         CliPrompt.ReturnPressed -= OnCliPromptReturnPressed;
         CliPrompt = newCliPrompt;
         CliPrompt.ReturnPressed += OnCliPromptReturnPressed;
+        
+        CliPrompt.ScrollIntoView();
     }
 }

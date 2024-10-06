@@ -304,4 +304,24 @@ public abstract class Visual
         using (Screen.Lock(out var screenData))
             screenData.Height = height;
     }
+
+    /// <summary>
+    /// Apply a delta to the position of all child controls.
+    /// </summary>
+    public void ScrollChildren(int dy)
+    {
+        foreach (var child in Children)
+            child.Y += dy;
+    }
+
+    /// <summary>
+    /// Scroll the parent's child controls to ensure this one is visible on the screen.
+    /// </summary>
+    public void ScrollIntoView()
+    {
+        var maxBottom = Parent.Children.Max(o => o.Y + o.Height);
+        var linesOffTheBottom = maxBottom - Parent.Height;
+        if (linesOffTheBottom > 0)
+            Parent.ScrollChildren(-linesOffTheBottom);
+    }
 }

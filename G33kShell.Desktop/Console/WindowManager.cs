@@ -125,7 +125,9 @@ public class WindowManager
                 }
                 
                 visual.IsInvalidatedVisual = false;
-                visual.Render(screen);
+                
+                if (IsOnScreen(visual))
+                    visual.Render(screen);
             }
         }
 
@@ -134,6 +136,19 @@ public class WindowManager
             Render(child);
     }
 
+    /// <summary>
+    /// Determines whether the given Visual instance is within the bounds of the screen.
+    /// </summary>
+    private bool IsOnScreen(Visual visual)
+    {
+        if (visual.ActualX >= Root.Screen.Width || visual.ActualY >= Root.Screen.Height)
+            return false; 
+        if (visual.ActualX + visual.Width <= 0 || visual.ActualY + visual.Height <= 0)
+            return false; 
+
+        return true;
+    }
+    
     private void OnCursorPosChangeRequested(object sender, (int X, int Y)? cursorPos) =>
         CursorPos = cursorPos;
 
