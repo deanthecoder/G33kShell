@@ -24,6 +24,7 @@ namespace G33kShell.Desktop.Console.Controls;
 public class TextBlock : Visual
 {
     private readonly Dictionary<int, int> m_stringLengths = new Dictionary<int, int>();
+    private int m_previousLineCount;
     private bool m_isFlashing;
     private Task m_flasher;
     private bool m_flashState = true;
@@ -86,11 +87,17 @@ public class TextBlock : Visual
             
             // Pad the string if it is shorter than the previous one (to allow for string shrinkage).
             var charsToPad = previousLength - text[i].Length;
-            if (charsToPad > 0) screen.PrintAt(text[i].Length, i, new string(' ', charsToPad));
+            if (charsToPad > 0)
+                screen.PrintAt(text[i].Length, i, new string(' ', charsToPad));
 
             // Update the dictionary with the current string length.
             m_stringLengths[i] = text[i].Length;
         }
+
+        for (var i = text.Length; i <= m_previousLineCount; i++)
+            screen.PrintAt(0, i, new string(' ', Width));
+
+        m_previousLineCount = text.Length;
     }
 
     protected override void OnUnloaded()
