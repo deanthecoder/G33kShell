@@ -14,10 +14,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Reflection;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
+using G33kShell.Desktop.Terminal.Commands;
 using G33kShell.Desktop.Terminal.Controls;
 using JetBrains.Annotations;
 using NClap;
@@ -41,137 +40,6 @@ public class CommandHistory
     }
     
 }
-
-public enum MyCommandType
-{
-    [Command(typeof(HelpCommand), LongName = "help", ShortName = "?", Description = "Get help information.")]
-    Help,
-
-    [Command(typeof(DirCommand), LongName = "dir", Description = "List files and directories.")]
-    Dir,
-
-    [Command(typeof(CdCommand), LongName = "cd", Description = "Change the current directory.")]
-    Cd
-}
-
-public abstract class CommandBase : SynchronousCommand
-{
-    private ITerminalState m_state;
-
-    protected CliPrompt CliPrompt => m_state.CliPrompt;
-    
-    public CommandBase SetState(ITerminalState state)
-    {
-        m_state = state;
-        return this;
-    }
-
-    public abstract bool Run(ITerminalState state);
-    
-    public override NClap.Metadata.CommandResult Execute()
-    {
-        Run(m_state);
-        return NClap.Metadata.CommandResult.Success;
-    }
-
-    protected void WriteLine(string s)
-    {
-        // Add a line to the prompt output control.
-        CliPrompt.AppendLine(s);
-
-        // ...and expand the control height.
-        var lineCount = CliPrompt.Text.Length;
-        CliPrompt.SetHeight(lineCount);
-        
-        // If the control now pokes off the bottom of the screen, scroll the controls up.
-        CliPrompt.ScrollIntoView();
-    }
-}
-
-public class HelpCommand : CommandBase
-{
-    public override bool Run(ITerminalState state)
-    {
-        var commands = Enum.GetValues<MyCommandType>()
-            .Select(GetCommandAttribute)
-            .OrderBy(o => o.LongName)
-            .Select(o => (GetCommandNames(o), o.Description))
-            .ToArray();
-        
-        var maxLength = commands.Max(o => o.Item1.Length);
-        foreach (var cmd in commands)
-            WriteLine($"{cmd.Item1.PadLeft(maxLength + 4)} │ {cmd.Description}".TrimEnd(' ', ':'));
-
-        return true;
-    }
-
-    private static string GetCommandNames(CommandAttribute commandAttr)
-    {
-        return new[]
-        {
-            commandAttr.LongName, commandAttr.ShortName
-        }.Where(o => o != null).ToArray().ToCsv();
-    }
-
-    private static CommandAttribute GetCommandAttribute(MyCommandType command)
-    {
-        var memberInfo = typeof(MyCommandType).GetMember(command.ToString()).FirstOrDefault();
-        return memberInfo?.GetCustomAttribute<CommandAttribute>();
-    }
-}
-
-public class DirCommand : CommandBase
-{
-    // Option for /b switch
-    [NamedArgument(Description = "Display in bare format", ShortName = "b")]
-    public bool BareFormat { get; [UsedImplicitly] set; }
-
-    // Option for /s switch
-    [NamedArgument(Description = "Recursively list files", ShortName = "s")]
-    public bool Recursive { get; [UsedImplicitly] set; }
-
-    // Positional argument for file mask (e.g. *.exe)
-    [PositionalArgument(ArgumentFlags.Optional, Description = "File mask (e.g. *.exe)")]
-    public string FileMask { get; [UsedImplicitly] set; } = "*.*";
-
-    public override bool Run(ITerminalState state)
-    {
-        IEnumerable<FileSystemInfo> files = state.CurrentDirectory.EnumerateFiles();
-        IEnumerable<FileSystemInfo> dirs = state.CurrentDirectory.EnumerateDirectories();
-        foreach (var file in files.Union(dirs).OrderBy(o => o.Name))
-            WriteLine(file.ToString());
-
-        return true;
-    }
-}
-
-public class CdCommand : CommandBase
-{
-    [PositionalArgument(ArgumentFlags.Required, Description = "New directory location.")]
-    public string Location { get; [UsedImplicitly] set; }
-
-    public override bool Run(ITerminalState state)
-    {
-        var newDir = state.CurrentDirectory;
-        try
-        {
-            newDir = state.CurrentDirectory.GetDir(Location);
-            if (newDir.Exists)
-            {
-                state.CurrentDirectory = newDir;
-                System.Console.WriteLine($"CWD: {newDir}");
-                return true;
-            }
-        }
-        catch (Exception)
-        {
-            // Fall through.
-        }
-
-        WriteLine($"CWD not found: {newDir}");
-
-        return false;
-    }}
 
 public class ProgramArguments
 {
