@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using CSharp.Core.Extensions;
+using G33kShell.Desktop.Terminal.Attributes;
 using G33kShell.Desktop.Terminal.Controls;
 using JetBrains.Annotations;
 using NClap.Metadata;
@@ -48,7 +49,7 @@ public abstract class CommandBase : SynchronousCommand
         CliPrompt.ScrollIntoView();
     }
 
-    public void WriteManPage([NotNull] CommandAttribute commandAttribute)
+    public void WriteManPage([NotNull] CommandAttribute commandAttribute, CommandDescriptionAttribute description)
     {
         if (commandAttribute == null)
             throw new ArgumentNullException(nameof(commandAttribute));
@@ -103,13 +104,18 @@ public abstract class CommandBase : SynchronousCommand
             pairs.AddRange(positionalArguments.Select(arg => ($"<{arg.Property.Name.ToLower()}>", arg.Attribute.Description)));
 
             var maxLength = pairs.Max(pair => pair.Command.Length);
-            foreach (var (command, description) in pairs)
-                WriteLine($"    {command.PadRight(maxLength)} : {description}");
+            foreach (var (command, shortDescription) in pairs)
+                WriteLine($"    {command.PadRight(maxLength)} : {shortDescription}");
         }
         
         WriteLine();
-        WriteLine("DESCRIPTION");
-        WriteLine($"    {commandDescription}");
-        WriteLine();
+
+        if (description != null)
+        {
+            WriteLine("DESCRIPTION");
+            foreach (var s in description.Lines)
+                WriteLine($"    {s}");
+            WriteLine();
+        }
     }
 }

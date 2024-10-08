@@ -12,6 +12,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using G33kShell.Desktop.Terminal.Attributes;
 using JetBrains.Annotations;
 using NClap.Metadata;
 
@@ -34,11 +35,11 @@ public class ManCommand : CommandBase
             var commandAttribute = GetCommandAttribute((MyCommandType)commandEnum);
 
             // Get the command type from the CommandAttribute
-            var commandType = commandAttribute.GetImplementingType(null);
+            var commandType = commandAttribute?.GetImplementingType(null);
             if (commandType != null && Activator.CreateInstance(commandType) is CommandBase commandInstance)
             {
                 commandInstance.SetState(state);
-                commandInstance.WriteManPage(commandAttribute);
+                commandInstance.WriteManPage(commandAttribute, GetCommandDescription((MyCommandType)commandEnum));
                 return true;
             }
         }
@@ -55,4 +56,7 @@ public class ManCommand : CommandBase
 
     private static CommandAttribute GetCommandAttribute(MyCommandType command) =>
         typeof(MyCommandType).GetMember(command.ToString()).FirstOrDefault()?.GetCustomAttribute<CommandAttribute>();
+
+    private static CommandDescriptionAttribute GetCommandDescription(MyCommandType command) =>
+        typeof(MyCommandType).GetMember(command.ToString()).FirstOrDefault()?.GetCustomAttribute<CommandDescriptionAttribute>();
 }
