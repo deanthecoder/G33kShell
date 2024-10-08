@@ -9,12 +9,9 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
-using NClap.Metadata;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
 using G33kShell.Desktop.Terminal.Commands;
@@ -24,38 +21,9 @@ using NClap;
 
 namespace G33kShell.Desktop.Terminal;
 
-public record CommandResult(
-    DirectoryInfo Directory,
-    string Command,
-    string Output,
-    bool IsSuccess
-);
-
-public class CommandHistory
-{
-    private readonly List<CommandResult> m_commands = new List<CommandResult>();
-
-    public void AddCommand(CommandResult command)
-    {
-        m_commands.Add(command);
-    }
-
-    public CommandResult LastGood => m_commands.LastOrDefault(o => o.IsSuccess);
-}
-
-public class ProgramArguments
-{
-    [PositionalArgument(ArgumentFlags.Required, Position = 0)]
-    public CommandGroup<MyCommandType> PrimaryCommand { get; set; }
-}
-
-public interface ITerminalState
-{
-    DirectoryInfo CurrentDirectory { get; set; }
-    CommandHistory CommandHistory { get; }
-    CliPrompt CliPrompt { get; }
-}
-
+/// <summary>
+/// <inheritdoc cref="ITerminalState"/>
+/// </summary>
 public class TerminalState : ITerminalState
 {
     public DirectoryInfo CurrentDirectory { get; set; }
@@ -69,6 +37,8 @@ public class TerminalState : ITerminalState
 
         CliPrompt.Cwd = CurrentDirectory;
         CliPrompt.ReturnPressed += OnCliPromptReturnPressed;
+
+        CommandLineParserOptions.Quiet();
     }
 
     private void OnCliPromptReturnPressed(object _, string cmd) =>
