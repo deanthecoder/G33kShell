@@ -14,6 +14,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
 using G33kShell.Desktop.Terminal.Commands;
@@ -38,7 +39,8 @@ public class CommandHistory
     {
         m_commands.Add(command);
     }
-    
+
+    public CommandResult LastGood => m_commands.LastOrDefault(o => o.IsSuccess);
 }
 
 public class ProgramArguments

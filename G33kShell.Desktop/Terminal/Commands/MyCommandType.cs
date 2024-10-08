@@ -7,6 +7,9 @@ public enum MyCommandType
     [Command(typeof(CdCommand), LongName = "cd", Description = "Change the current directory.")]
     Cd,
 
+    [Command(typeof(ClipCommand), LongName = "clip", Description = "Copy the output from the previous command into the clipboard.")]
+    Clip,
+
     [Command(typeof(DirCommand), LongName = "dir", ShortName = "ls", Description = "List files and directories.")]
     Dir,
 

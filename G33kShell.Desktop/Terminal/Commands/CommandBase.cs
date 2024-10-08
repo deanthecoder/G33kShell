@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using CSharp.Core.Extensions;
 using G33kShell.Desktop.Terminal.Controls;
 using JetBrains.Annotations;
 using NClap.Metadata;
@@ -25,7 +26,12 @@ public abstract class CommandBase : SynchronousCommand
     
     public override NClap.Metadata.CommandResult Execute()
     {
-        Run(m_state);
+        var commandSuccess = Run(m_state);
+
+        var lines = CliPrompt.TextWithoutPrefix.Split('\n');
+        var result = new CommandResult(m_state.CurrentDirectory.Clone(), lines.First(), string.Join('\n', lines.Skip(1)).Trim(), commandSuccess);
+        m_state.CommandHistory.AddCommand(result);
+        
         return NClap.Metadata.CommandResult.Success;
     }
 
