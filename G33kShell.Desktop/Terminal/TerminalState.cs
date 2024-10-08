@@ -12,6 +12,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
 using G33kShell.Desktop.Terminal.Commands;
@@ -56,11 +57,13 @@ public class TerminalState : ITerminalState
         var args = cmdString.ToArgumentArray();
         if (!CommandLineParser.TryParse(args, out ProgramArguments parsedCommand))
         {
-            Debug.WriteLine($"Unknown command: {cmdString}");
             CliPrompt.IsReadOnly = false;
             CliPrompt.MoveCursorToEnd();
             CliPrompt.Backspace();
-            CliPrompt.Append("?");
+
+            // Invalid command - Completely unknown, or just bad arguments?
+            var isKnownCommand = Enum.GetNames(typeof(MyCommandType)).Any(o => o.Equals(args[0], StringComparison.OrdinalIgnoreCase));
+            CliPrompt.Append(isKnownCommand ? "...?" : "?");
             return;
         }
 
