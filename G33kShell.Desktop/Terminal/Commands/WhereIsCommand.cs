@@ -20,7 +20,7 @@ namespace G33kShell.Desktop.Terminal.Commands;
 public class WhereIsCommand : CommandBase
 {
     [PositionalArgument(ArgumentFlags.Required, Description = "Executable name/pattern to find.")]
-    public string ExecutableName { get; [UsedImplicitly] set; }
+    public string Name { get; [UsedImplicitly] set; }
 
     public override bool Run(ITerminalState state)
     {
@@ -33,7 +33,7 @@ public class WhereIsCommand : CommandBase
             foreach (var dir in paths.Select(o => o.ToDir()).Where(o => o.Exists()))
             {
                 // Search for files matching the executable name
-                var files = dir.GetFiles(ExecutableName);
+                var files = dir.GetFiles(Name);
                 foundExecutables |= files.Length > 0;
 
                 foreach (var fileInfo in files.Where(o => o.IsExecutable()))
@@ -41,7 +41,7 @@ public class WhereIsCommand : CommandBase
             }
 
             if (!foundExecutables)
-                WriteLine($"No executable found for '{ExecutableName}' in PATH.");
+                WriteLine($"No executable found for '{Name}' in PATH.");
 
             return true;
         }

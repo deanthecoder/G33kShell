@@ -26,7 +26,7 @@ public class OpenCommand : LocationCommand
                 return true;
             }
             
-            WriteLine($"Location not found: {Location}");
+            WriteLine($"Location not found: {Path}");
             return false;
         }
         catch (Exception ex)

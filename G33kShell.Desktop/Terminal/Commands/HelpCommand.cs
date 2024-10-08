@@ -19,7 +19,7 @@ public class HelpCommand : CommandBase
         var maxLength = commands.Max(o => o.Item1.Length);
         foreach (var cmd in commands)
             WriteLine($"{cmd.Item1.PadLeft(maxLength + 4)} │ {cmd.Description}".TrimEnd(' ', ':'));
-
+        
         return true;
     }
 
