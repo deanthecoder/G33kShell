@@ -83,6 +83,14 @@ public abstract class CommandBase : Command
         WriteLine("NAME");
         WriteLine($"    {commandName} - {commandDescription}");
         WriteLine();
+
+        var alias = commandAttribute.LongName != null ? commandAttribute.ShortName : null;
+        if (alias != null)
+        {
+            WriteLine("ALIAS");
+            WriteLine($"    {alias}");
+            WriteLine();
+        }
         
         WriteLine("SYNOPSIS");
         var synopsis = new StringBuilder($"    {commandName}");
@@ -108,9 +116,8 @@ public abstract class CommandBase : Command
             var maxLength = pairs.Max(pair => pair.Command.Length);
             foreach (var (command, shortDescription) in pairs)
                 WriteLine($"    {command.PadRight(maxLength)} : {shortDescription}");
+            WriteLine();
         }
-        
-        WriteLine();
 
         if (description != null)
         {
