@@ -137,6 +137,8 @@ public class TextBox : TextBlock
         {
             Key.Left => MoveCursor(controlPressed ? GetDistanceToWordStart() : -1),
             Key.Right => MoveCursor(controlPressed ? GetDistanceToWordEnd() : 1),
+            Key.Up => OnUpArrow(),
+            Key.Down => OnDownArrow(),
             Key.Home => SetCursor(0),
             Key.End => MoveCursorToEnd(),
             Key.Back when controlPressed => Clear(),
@@ -148,13 +150,16 @@ public class TextBox : TextBlock
         };
 
         // Handle printable characters.
-        var ch = keyEvent.GetChar();
-        if (!actionPerformed && !controlPressed && IsPrintableChar(ch))
+        if (!actionPerformed && !controlPressed)
         {
-            if (!keyEvent.Modifiers.HasFlag(KeyModifiers.Shift))
-                ch = char.ToLower(ch);
-            m_s.Insert(m_cursorIndex++, ch);
-            actionPerformed = true;
+            var ch = keyEvent.GetChar();
+            if (IsPrintableChar(ch))
+            {
+                if (!keyEvent.Modifiers.HasFlag(KeyModifiers.Shift))
+                    ch = char.ToLower(ch);
+                m_s.Insert(m_cursorIndex++, ch);
+                actionPerformed = true;
+            }
         }
 
         if (actionPerformed)
@@ -169,6 +174,30 @@ public class TextBox : TextBlock
         }
 
         base.OnEvent(consoleEvent, ref handled);
+    }
+
+    /// <summary>
+    /// Perform the logic when the up arrow key is pressed in the TextBox control.
+    /// </summary>
+    /// <returns>
+    /// True if the arrow key functionality was handled.
+    /// </returns>
+    protected virtual bool OnUpArrow()
+    {
+        // Do nothing.
+        return false;
+    }
+
+    /// <summary>
+    /// Perform the logic when the down arrow key is pressed in the TextBox control.
+    /// </summary>
+    /// <returns>
+    /// True if the arrow key functionality was handled.
+    /// </returns>
+    protected virtual bool OnDownArrow()
+    {
+        // Do nothing.
+        return false;
     }
 
     public bool MoveCursorToEnd() =>
@@ -216,10 +245,18 @@ public class TextBox : TextBlock
         if (string.IsNullOrEmpty(data))
             return false;
 
-        m_s.Insert(m_cursorIndex, data);
-        MoveCursor(data.Length);
-        
+        Paste(data);
+
         return true;
+    }
+
+    /// <summary>
+    /// Inserts the provided string at the current cursor position in the text box.
+    /// </summary>
+    protected void Paste(string s)
+    {
+        m_s.Insert(m_cursorIndex, s);
+        MoveCursor(s.Length);
     }
 
     private int GetDistanceToWordStart()
@@ -281,7 +318,10 @@ public class TextBox : TextBlock
         return true;
     }
 
-    private bool Clear()
+    /// <summary>
+    /// Clear the content of the TextBox and set the cursor position to the beginning.
+    /// </summary>
+    protected bool Clear()
     {
         m_s.Clear();
         SetCursor(0);

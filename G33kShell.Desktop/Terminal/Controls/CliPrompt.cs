@@ -10,6 +10,7 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
 using System.IO;
+using System.Linq;
 using G33kShell.Desktop.Console.Controls;
 
 namespace G33kShell.Desktop.Terminal.Controls;
@@ -24,6 +25,8 @@ namespace G33kShell.Desktop.Terminal.Controls;
 public class CliPrompt : TextBox
 {
     private DirectoryInfo m_cwd;
+
+    public string Command => TextWithoutPrefix.Split('\n').FirstOrDefault() ?? string.Empty;
     
     public DirectoryInfo Cwd
     {
@@ -39,5 +42,24 @@ public class CliPrompt : TextBox
     
     public CliPrompt(int width) : base(width)
     {
+    }
+
+    protected override bool OnUpArrow()
+    {
+        var commands = Parent.Children.OfType<CliPrompt>().ToList();
+        var currentCommandIndex = commands.IndexOf(this);
+        var previousCommandIndex = currentCommandIndex - 1;
+        if (previousCommandIndex < 0)
+            return false; // No history. 
+        
+        Clear();
+        Paste(commands[previousCommandIndex].Command);
+        return true;
+    }
+
+    protected override bool OnDownArrow()
+    {
+        Clear();
+        return true;
     }
 }
