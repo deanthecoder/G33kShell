@@ -9,6 +9,10 @@ public enum MyCommandType
     [CommandDescription("Changes the current directory to the specified path.", "Example: cd /home/user/documents")]
     Cd,
 
+    [Command(typeof(ClearCommand), LongName = "clear", ShortName = "cls", Description = "Clear the terminal.")]
+    [CommandDescription("Clears the terminal screen.")]
+    Clear,
+
     [Command(typeof(ClipCommand), LongName = "clip", Description = "Copy the output from the previous command into the clipboard.")]
     [CommandDescription("Copies the output from the previous command into the system clipboard.")]
     Clip,
