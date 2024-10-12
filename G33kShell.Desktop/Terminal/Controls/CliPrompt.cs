@@ -25,6 +25,8 @@ namespace G33kShell.Desktop.Terminal.Controls;
 public class CliPrompt : TextBox
 {
     private DirectoryInfo m_cwd;
+    private string[] m_commandHistory;
+    private int m_historyOffset;
 
     public string Command => TextWithoutPrefix.Split('\n').FirstOrDefault() ?? string.Empty;
     
@@ -46,20 +48,39 @@ public class CliPrompt : TextBox
 
     protected override bool OnUpArrow()
     {
-        var commands = Parent.Children.OfType<CliPrompt>().ToList();
-        var currentCommandIndex = commands.IndexOf(this);
-        var previousCommandIndex = currentCommandIndex - 1;
-        if (previousCommandIndex < 0)
-            return false; // No history. 
+        if (m_commandHistory == null)
+        {
+            m_commandHistory =
+                Parent.Children.OfType<CliPrompt>()
+                    .Select(o => o.Command)
+                    .Where(o => !string.IsNullOrWhiteSpace(o))
+                    .Reverse()
+                    .Distinct()
+                    .Reverse()
+                    .ToArray();
+            m_historyOffset = 0;
+        }
+
+        if (m_historyOffset > -m_commandHistory.Length)
+        {
+            Clear();
+            Paste(m_commandHistory[m_commandHistory.Length + --m_historyOffset]);
+        }
         
-        Clear();
-        Paste(commands[previousCommandIndex].Command);
         return true;
     }
 
     protected override bool OnDownArrow()
     {
         Clear();
+
+        if (m_historyOffset < 0)
+        {
+            m_historyOffset++;
+            if (m_historyOffset < 0)
+                Paste(m_commandHistory[m_commandHistory.Length + m_historyOffset]);
+        }
+        
         return true;
     }
 }
