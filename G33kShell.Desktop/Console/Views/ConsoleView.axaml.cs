@@ -119,7 +119,7 @@ public partial class ConsoleView : Control
                 else
                 {
                     // Draw the accumulated run with the same foreground and background.
-                    DrawTextRun(context, currentText.ToString(), xStart, y, currentAttrForeground, currentAttrBackground);
+                    DrawTextRun(context, currentText, xStart, y, currentAttrForeground, currentAttrBackground);
 
                     // Start a new run.
                     currentAttrForeground = attrForeground;
@@ -132,7 +132,7 @@ public partial class ConsoleView : Control
 
             // Draw the last accumulated run
             if (currentText.Length > 0)
-                DrawTextRun(context, currentText.ToString(), xStart, y, currentAttrForeground, currentAttrBackground);
+                DrawTextRun(context, currentText, xStart, y, currentAttrForeground, currentAttrBackground);
         }
         
         // Draw the screen cursor.
@@ -176,13 +176,13 @@ public partial class ConsoleView : Control
         return formattedText.BuildGeometry(new Point());
     }
 
-    private void DrawTextRun(DrawingContext context, string text, int xStart, int y, Rgb foreground, Rgb background)
+    private void DrawTextRun(DrawingContext context, StringBuilder s, int xStart, int y, Rgb foreground, Rgb background)
     {
         // Draw the background rectangle for the entire text run.
         var rect = new Rect(
             xStart * CharWidth + Padding.Left,
             y * CharHeight + Padding.Top,
-            text.Length * CharWidth,
+            s.Length * CharWidth,
             CharHeight
         );
         
@@ -195,28 +195,23 @@ public partial class ConsoleView : Control
         if (foreground == background)
             return; // Text is same color as the background.
 
-        // Skip invisible characters at the end.
-        if (text[^1] == '\0')
-            text = text.TrimEnd(' ', '\0');
-        if (text.Length == 0)
-            return; // Nothing to render.
-        
         // Skip invisible characters at the start.
-        var toSkip = 0;
-        while (toSkip < text.Length && (text[toSkip] == '\0' || text[toSkip] == ' '))
-            toSkip++;
-        if (toSkip == text.Length)
-            return; // Nothing to render.
+        var start = 0;
+        var end = s.Length;
+        while (start < end && (s[start] == ' ' || s[start] == '\0'))
+            start++;
 
-        if (toSkip > 0)
-        {
-            text = text.Substring(toSkip);
-            rect = new Rect(rect.X + toSkip * CharWidth, rect.Y, rect.Width - toSkip * CharWidth, rect.Height);
-        }
+        // Skip invisible characters at the end
+        while (start < end && (s[end - 1] == ' ' || s[end - 1] == '\0'))
+            end--;
+
+        if (start == end)
+            return; // Nothing to draw.
 
         // Draw the text on top of the background.
-        var textGeometry = GetTextGeometry(text);
-        using (context.PushTransform(Matrix.CreateTranslation(rect.X, rect.Y)))
+        var x = rect.X + start * CharWidth;
+        var textGeometry = GetTextGeometry(s.ToString(start, end - start));
+        using (context.PushTransform(Matrix.CreateTranslation(x, rect.Y)))
             context.DrawGeometry(GetBrush(foreground), null, textGeometry);
     }
 }
