@@ -33,7 +33,7 @@ public class CliPrompt : TextBox
             if (m_cwd == value)
                 return;
             m_cwd = value;
-            Prefix = $"[{m_cwd.FullName}]";
+            Prefix = $"[{m_cwd.FullName.TrimEnd('\\', '/')}]";
         }
     }
     
