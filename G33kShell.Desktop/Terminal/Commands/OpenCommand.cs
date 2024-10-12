@@ -1,12 +1,13 @@
 using System;
 using System.IO;
+using System.Threading.Tasks;
 using CSharp.Core.Extensions;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
 public class OpenCommand : LocationCommand
 {
-    public override bool Run(ITerminalState state)
+    public override async Task<bool> Run(ITerminalState state)
     {
         try
         {
@@ -15,14 +16,14 @@ public class OpenCommand : LocationCommand
             var fileInfo = new FileInfo(targetPath);
             if (fileInfo.Exists)
             {
-                fileInfo.Explore();
+                await Task.Run(() => fileInfo.Explore());
                 return true;
             }
             
             var directoryInfo = new DirectoryInfo(targetPath);
             if (directoryInfo.Exists)
             {
-                directoryInfo.Explore();
+                await Task.Run(() => directoryInfo.Explore());
                 return true;
             }
             

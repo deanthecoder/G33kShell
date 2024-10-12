@@ -1,11 +1,12 @@
 using System;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
 public class CdCommand : LocationCommand
 {
-    public override bool Run(ITerminalState state)
+    public override Task<bool> Run(ITerminalState state)
     {
         var newDir = state.CurrentDirectory;
         try
@@ -14,7 +15,7 @@ public class CdCommand : LocationCommand
             if (newDir.Exists)
             {
                 state.CurrentDirectory = newDir;
-                return true;
+                return Task.FromResult(true);
             }
         }
         catch (Exception)
@@ -23,6 +24,6 @@ public class CdCommand : LocationCommand
         }
         
         WriteLine($"CWD not found: {newDir}");
-        return false;
+        return Task.FromResult(false);
     }
 }

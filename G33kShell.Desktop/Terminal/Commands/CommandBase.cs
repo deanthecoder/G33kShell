@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Terminal.Attributes;
 using G33kShell.Desktop.Terminal.Controls;
@@ -11,7 +13,7 @@ using NClap.Metadata;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
-public abstract class CommandBase : SynchronousCommand
+public abstract class CommandBase : Command
 {
     private ITerminalState m_state;
 
@@ -23,11 +25,11 @@ public abstract class CommandBase : SynchronousCommand
         return this;
     }
 
-    public abstract bool Run(ITerminalState state);
+    public abstract Task<bool> Run(ITerminalState state);
     
-    public override NClap.Metadata.CommandResult Execute()
+    public override async Task<NClap.Metadata.CommandResult> ExecuteAsync(CancellationToken cancel)
     {
-        var commandSuccess = Run(m_state);
+        var commandSuccess = await Run(m_state);
 
         var lines = CliPrompt.TextWithoutPrefix.Split('\n');
         var result = new CommandResult(m_state.CurrentDirectory.Clone(), lines.First(), string.Join('\n', lines.Skip(1)).Trim(), commandSuccess);

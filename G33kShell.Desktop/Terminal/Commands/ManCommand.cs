@@ -12,6 +12,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using G33kShell.Desktop.Terminal.Attributes;
 using JetBrains.Annotations;
 using NClap.Metadata;
@@ -23,7 +24,7 @@ public class ManCommand : CommandBase
     [PositionalArgument(ArgumentFlags.Required, Description = "The name of the command.")]
     public string CommandName { get; [UsedImplicitly] set; }
 
-    public override bool Run(ITerminalState state)
+    public override Task<bool> Run(ITerminalState state)
     {
         var commandEnum =
             Enum.GetValues<MyCommandType>()
@@ -40,12 +41,12 @@ public class ManCommand : CommandBase
             {
                 commandInstance.SetState(state);
                 commandInstance.WriteManPage(commandAttribute, GetCommandDescription((MyCommandType)commandEnum));
-                return true;
+                return Task.FromResult(true);
             }
         }
 
         WriteLine("Error: Command not found.");
-        return false;
+        return Task.FromResult(false);
     }
 
     private static IEnumerable<string> GetCommandNames(CommandAttribute commandAttr) =>

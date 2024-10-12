@@ -8,18 +8,19 @@
 // about your modifications. Your contributions are valued!
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+using System.Threading.Tasks;
 using TextCopy;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
 public class ClipCommand : CommandBase
 {
-    public override bool Run(ITerminalState state)
+    public override Task<bool> Run(ITerminalState state)
     {
         var lastGood = state.CommandHistory.LastGood;
         if (lastGood != null)
             ClipboardService.SetText(lastGood.Output);
         
-        return true;
+        return Task.FromResult(true);
     }
 }

@@ -10,9 +10,10 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
 using G33kShell.Desktop.Terminal.Commands;
@@ -43,9 +44,9 @@ public class TerminalState : ITerminalState
     }
 
     private void OnCliPromptReturnPressed(object _, string cmd) =>
-        Execute(cmd);
+        _ = ExecuteAsync(cmd);
 
-    private void Execute(string cmdString)
+    private async Task ExecuteAsync(string cmdString)
     {
         if (string.IsNullOrWhiteSpace(cmdString))
             return; // Nothing to do.
@@ -55,25 +56,40 @@ public class TerminalState : ITerminalState
 
         // Execute the command.
         var args = cmdString.ToArgumentArray();
+        CommandBase command;
         if (!CommandLineParser.TryParse(args, out ProgramArguments parsedCommand))
         {
-            CliPrompt.IsReadOnly = false;
-            CliPrompt.MoveCursorToEnd();
-            CliPrompt.Backspace();
+            // Unknown command. Could be an executable though?
+            var executableCommand = new ExecutableCommand(args);
+            if (!executableCommand.CanExecute())
+            {
+                // Unknown command - Completely unknown, or just bad arguments?
+                CliPrompt.IsReadOnly = false;
+                CliPrompt.MoveCursorToEnd();
+                CliPrompt.Backspace();
 
-            // Invalid command - Completely unknown, or just bad arguments?
-            var isKnownCommand = Enum.GetNames(typeof(MyCommandType)).Any(o => o.Equals(args[0], StringComparison.OrdinalIgnoreCase));
-            CliPrompt.Append(isKnownCommand ? "...?" : "?");
-            return;
+                var isKnownCommand = Enum.GetNames(typeof(MyCommandType)).Any(o => o.Equals(args[0], StringComparison.OrdinalIgnoreCase));
+                CliPrompt.Append(isKnownCommand ? "...?" : "?");
+                return;
+            }
+            
+            // It's an executable...
+            command = executableCommand;
+        }
+        else
+        {
+            command = (CommandBase)parsedCommand.PrimaryCommand.InstantiatedCommand;
         }
 
-        var command = (CommandBase)parsedCommand.PrimaryCommand.InstantiatedCommand;
-        command.SetState(this).Execute();
+        await command.SetState(this).ExecuteAsync(new CancellationToken());
         
         // Prepare the next prompt for input.
         PrepareNextInputPrompt();
     }
 
+    /// <summary>
+    /// Makes the CLI prompt read-only and prepares it to receive command output.
+    /// </summary>
     private void BeginCommandExecution()
     {
         CliPrompt.IsReadOnly = true;

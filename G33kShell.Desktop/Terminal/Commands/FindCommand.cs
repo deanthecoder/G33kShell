@@ -12,6 +12,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using JetBrains.Annotations;
 using NClap.Metadata;
 
@@ -22,7 +23,7 @@ public class FindCommand : CommandBase
     [PositionalArgument(ArgumentFlags.Required, Description = "File mask to search for (e.g. *.txt)")]
     public string FileMask { get; [UsedImplicitly] set; } = "*.*";
 
-    public override bool Run(ITerminalState state)
+    public override Task<bool> Run(ITerminalState state)
     {
         try
         {
@@ -30,18 +31,18 @@ public class FindCommand : CommandBase
             if (results.Length == 0)
             {
                 WriteLine("No files or directories found.");
-                return true;
+                return Task.FromResult(true);
             }
 
             foreach (var result in results)
                 WriteLine(result.FullName);
 
-            return true;
+            return Task.FromResult(true);
         }
         catch (Exception ex)
         {
             WriteLine($"An error occurred: {ex.Message}");
-            return false;
+            return Task.FromResult(false);
         }
     }
 

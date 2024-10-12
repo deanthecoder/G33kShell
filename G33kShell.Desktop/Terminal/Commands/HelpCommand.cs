@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using CSharp.Core.Extensions;
 using NClap.Metadata;
 
@@ -8,7 +9,7 @@ namespace G33kShell.Desktop.Terminal.Commands;
 
 public class HelpCommand : CommandBase
 {
-    public override bool Run(ITerminalState state)
+    public override Task<bool> Run(ITerminalState state)
     {
         var commands = Enum.GetValues<MyCommandType>()
             .Select(GetCommandAttribute)
@@ -20,7 +21,7 @@ public class HelpCommand : CommandBase
         foreach (var cmd in commands)
             WriteLine($"{cmd.Item1.PadLeft(maxLength + 4)} │ {cmd.Description}".TrimEnd(' ', ':'));
         
-        return true;
+        return Task.FromResult(true);
     }
 
     private static string GetCommandNames(CommandAttribute commandAttr) =>

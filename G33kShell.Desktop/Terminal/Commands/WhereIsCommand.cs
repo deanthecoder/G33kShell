@@ -9,8 +9,11 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using CSharp.Core.Extensions;
 using JetBrains.Annotations;
 using NClap.Metadata;
@@ -22,33 +25,46 @@ public class WhereIsCommand : CommandBase
     [PositionalArgument(ArgumentFlags.Required, Description = "Executable name/pattern to find.")]
     public string Name { get; [UsedImplicitly] set; }
 
-    public override bool Run(ITerminalState state)
+    public override Task<bool> Run(ITerminalState state)
     {
         try
         {
-            var pathEnv = Environment.GetEnvironmentVariable("PATH");
-            var paths = pathEnv?.Split(RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ';' : ':') ?? Array.Empty<string>();
-
             var foundExecutables = false;
-            foreach (var dir in paths.Select(o => o.ToDir()).Where(o => o.Exists()))
+            foreach (var executablePath in FindExecutables(Name))
             {
-                // Search for files matching the executable name
-                var files = dir.GetFiles(Name);
-                foundExecutables |= files.Length > 0;
-
-                foreach (var fileInfo in files.Where(o => o.IsExecutable()))
-                    WriteLine(fileInfo.FullName);
+                WriteLine(executablePath.FullName);
+                foundExecutables = true;
             }
 
             if (!foundExecutables)
                 WriteLine($"No executable found for '{Name}' in PATH.");
 
-            return true;
+            return Task.FromResult(true);
         }
         catch (Exception ex)
         {
             WriteLine($"An error occurred: {ex.Message}");
-            return false;
+            return Task.FromResult(false);
+        }
+    }
+
+    /// <summary>
+    /// Public method that yields paths to executables matching the name.
+    /// </summary>
+    public static IEnumerable<FileInfo> FindExecutables(string name)
+    {
+        var pathEnv = Environment.GetEnvironmentVariable("PATH");
+        var paths = new List<string>
+        {
+            "."
+        };
+        paths.AddRange(pathEnv?.Split(RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ';' : ':') ?? Array.Empty<string>());
+
+        foreach (var dir in paths.Select(o => o.ToDir()).Where(o => o.Exists()))
+        {
+            var files = dir.GetFiles(RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? name + ".*": name);
+            foreach (var fileInfo in files.Where(o => o.IsExecutable()))
+                yield return fileInfo;
         }
     }
 }
