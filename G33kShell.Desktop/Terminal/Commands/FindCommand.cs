@@ -23,7 +23,7 @@ public class FindCommand : CommandBase
     [PositionalArgument(ArgumentFlags.Required, Description = "File mask to search for (e.g. *.txt)")]
     public string FileMask { get; [UsedImplicitly] set; } = "*.*";
 
-    public override Task<bool> Run(ITerminalState state)
+    public override async Task<bool> Run(ITerminalState state)
     {
         try
         {
@@ -31,19 +31,23 @@ public class FindCommand : CommandBase
             if (results.Length == 0)
             {
                 WriteLine("No files or directories found.");
-                return Task.FromResult(true);
+                return true;
             }
 
-            foreach (var result in results)
-                WriteLine(result.FullName);
+            await Task.Run(() =>
+            {
+                foreach (var result in results)
+                    WriteLine(result.FullName);
+            });
 
-            return Task.FromResult(true);
+            return true;
         }
         catch (Exception ex)
         {
             WriteLine($"An error occurred: {ex.Message}");
-            return Task.FromResult(false);
         }
+        
+        return false;
     }
 
     private static IEnumerable<FileSystemInfo> SearchDirectory(DirectoryInfo directory, string fileMask)

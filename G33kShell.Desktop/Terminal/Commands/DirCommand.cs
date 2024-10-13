@@ -34,7 +34,7 @@ public class DirCommand : CommandBase
     [PositionalArgument(ArgumentFlags.Optional, Description = "File mask (e.g. *.exe)")]
     public string FileMask { get; [UsedImplicitly] set; } = "*.*";
 
-    public override Task<bool> Run(ITerminalState state)
+    public override async Task<bool> Run(ITerminalState state)
     {
         BareFormat |= Recursive;
 
@@ -52,20 +52,23 @@ public class DirCommand : CommandBase
             if (items.Length == 0)
             {
                 WriteLine("No files or directories found.");
-                return Task.FromResult(true);
+                return true;
             }
 
-            if (BareFormat)
-                DisplayBareFormat(items);
-            else
-                DisplayExtendedFormat(items, state.CliPrompt.Width);
+            await Task.Run(() =>
+            {
+                if (BareFormat)
+                    DisplayBareFormat(items);
+                else
+                    DisplayExtendedFormat(items, state.CliPrompt.Width);
+            });
         }
         catch (DirectoryNotFoundException)
         {
             WriteLine("Directory not found.");
         }
 
-        return Task.FromResult(true);
+        return true;
     }
 
     private FileSystemInfo[] GetItems(DirectoryInfo cwd, out DirectoryInfo actualCwd)

@@ -309,9 +309,10 @@ public class TextBox : TextBlock
         var y = x / Width;
         SetCursorPos(x % Width, y);
 
-        if (Text.Length > Height)
+        var s = Text;
+        if (s.Length > Height)
         {
-            SetHeight(Text.Length);
+            SetHeight(s.Length);
             ScrollIntoView();
         }
         
