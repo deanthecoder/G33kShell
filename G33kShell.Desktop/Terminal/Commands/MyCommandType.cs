@@ -40,6 +40,10 @@ public enum MyCommandType
     [CommandDescription("Provides help information for available commands.")]
     Help,
 
+    [Command(typeof(HistoryCommand), LongName = "history", Description = "List command history.")]
+    [CommandDescription("List all of the previously-used Terminal commands.")]
+    History,
+
     [Command(typeof(ManCommand), LongName = "man", Description = "Get usage information for a specific command.")]
     [CommandDescription("Displays manual pages for commands, detailing their usage and options.", "Example: man open")]
     Man,
