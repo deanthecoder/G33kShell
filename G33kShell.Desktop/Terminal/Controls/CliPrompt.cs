@@ -11,6 +11,7 @@
 
 using System.IO;
 using System.Linq;
+using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
 
 namespace G33kShell.Desktop.Terminal.Controls;
@@ -27,8 +28,6 @@ public class CliPrompt : TextBox
     private string[] m_commandHistory;
     private int m_historyOffset;
 
-    public string Command => TextWithoutPrefix.Split('\n').FirstOrDefault() ?? string.Empty;
-    
     public CliPrompt(int width) : base(width)
     {
     }
@@ -60,7 +59,7 @@ public class CliPrompt : TextBox
 
     public void Init(DirectoryInfo cwd, CommandHistory commandHistory)
     {
-        Prefix = $"[{cwd.FullName.TrimEnd('\\', '/')}]";
+        Prefix = $"[{cwd.FullName.TrimEnd('\\', '/').StringOrDefault("/")}]";
 
         m_commandHistory =
             commandHistory.Commands
