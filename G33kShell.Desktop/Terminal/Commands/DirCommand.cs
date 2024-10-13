@@ -22,11 +22,14 @@ namespace G33kShell.Desktop.Terminal.Commands;
 
 public class DirCommand : CommandBase
 {
-    [NamedArgument(Description = "Display in bare format", ShortName = "b")]
+    [NamedArgument(Description = "Display in bare format.", ShortName = "b")]
     public bool BareFormat { get; [UsedImplicitly] set; }
 
-    [NamedArgument(Description = "Recursively list files", ShortName = "s")]
+    [NamedArgument(Description = "Recursively list files.", ShortName = "s")]
     public bool Recursive { get; [UsedImplicitly] set; }
+
+    [NamedArgument(Description = "List directories only.", ShortName = "d")]
+    public bool DirsOnly { get; [UsedImplicitly] set; }
 
     [PositionalArgument(ArgumentFlags.Optional, Description = "File mask (e.g. *.exe)")]
     public string FileMask { get; [UsedImplicitly] set; } = "*.*";
@@ -91,9 +94,10 @@ public class DirCommand : CommandBase
             }
         }
 
-        actualCwd = new DirectoryInfo(directory);
-        return actualCwd
-            .EnumerateFileSystemInfos(mask, Recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly)
+        actualCwd = new DirectoryInfo(directory ?? ".");
+        var recurse = Recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
+        var infos = DirsOnly ? actualCwd.EnumerateDirectories(mask, recurse) : actualCwd.EnumerateFileSystemInfos(mask, recurse);
+        return infos
             .OrderBy(o => o.Name)
             .ToArray();
     }
