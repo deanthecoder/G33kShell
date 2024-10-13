@@ -32,7 +32,7 @@ public abstract class CommandBase : Command
         var commandSuccess = await Run(m_state);
 
         var lines = CliPrompt.TextWithoutPrefix.Split('\n');
-        var result = new CommandResult(m_state.CurrentDirectory.Clone(), lines.First(), string.Join('\n', lines.Skip(1)).Trim(), commandSuccess);
+        var result = new CommandResult(lines.First(), m_state.CurrentDirectory.Clone(), string.Join('\n', lines.Skip(1)).Trim(), commandSuccess);
         m_state.CommandHistory.AddCommand(result);
         
         return NClap.Metadata.CommandResult.Success;

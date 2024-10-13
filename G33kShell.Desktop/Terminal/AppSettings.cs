@@ -8,20 +8,21 @@
 // about your modifications. Your contributions are valued!
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
-using System.Linq;
-using System.Threading.Tasks;
-using TextCopy;
+using System.Collections.Generic;
+using CSharp.Core.Settings;
 
-namespace G33kShell.Desktop.Terminal.Commands;
+namespace G33kShell.Desktop.Terminal;
 
-public class ClipCommand : CommandBase
+public class AppSettings : UserSettingsBase
 {
-    public override Task<bool> Run(ITerminalState state)
+    public static AppSettings Instance { get; } = new AppSettings();
+
+    public List<string> UsedCommands
     {
-        var lastGood = state.CommandHistory.Commands.LastOrDefault();
-        if (lastGood != null)
-            ClipboardService.SetText(lastGood.Output);
-        
-        return Task.FromResult(true);
+        get => Get<List<string>>();
+        set => Set(value);
     }
+
+    protected override void ApplyDefaults() =>
+        UsedCommands = new List<string>();
 }

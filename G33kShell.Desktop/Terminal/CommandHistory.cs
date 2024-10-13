@@ -10,7 +10,6 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
 using System.Collections.Generic;
-using System.Linq;
 
 namespace G33kShell.Desktop.Terminal;
 
@@ -21,10 +20,7 @@ public class CommandHistory
 {
     private readonly List<CommandResult> m_commands = new List<CommandResult>();
 
-    public void AddCommand(CommandResult command)
-    {
-        m_commands.Add(command);
-    }
+    public IEnumerable<CommandResult> Commands => m_commands;
 
-    public CommandResult LastGood => m_commands.LastOrDefault(o => o.IsSuccess);
+    public void AddCommand(CommandResult command) => m_commands.Add(command);
 }

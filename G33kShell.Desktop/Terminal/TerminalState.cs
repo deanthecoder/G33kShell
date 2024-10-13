@@ -26,7 +26,7 @@ namespace G33kShell.Desktop.Terminal;
 /// <summary>
 /// <inheritdoc cref="ITerminalState"/>
 /// </summary>
-public class TerminalState : ITerminalState
+public class TerminalState : ITerminalState, IDisposable
 {
     public DirectoryInfo CurrentDirectory { get; set; }
     public CommandHistory CommandHistory { get; } = new CommandHistory();
@@ -37,13 +37,17 @@ public class TerminalState : ITerminalState
         CliPrompt = cliPrompt ?? throw new ArgumentNullException(nameof(cliPrompt));
         CurrentDirectory = cwd ?? throw new ArgumentNullException(nameof(cwd));
 
-        CliPrompt.Cwd = CurrentDirectory;
+        // Restore commands from the previous session.
+        foreach (var command in AppSettings.Instance.UsedCommands)
+            CommandHistory.AddCommand(new CommandResult(command));
+
+        CliPrompt.Init(CurrentDirectory, CommandHistory);
         CliPrompt.ReturnPressed += OnCliPromptReturnPressed;
 
         CommandLineParserOptions.Quiet();
     }
 
-    private void OnCliPromptReturnPressed(object _, string cmd) =>
+    private void OnCliPromptReturnPressed(object sender, string cmd) =>
         _ = ExecuteAsync(cmd);
 
     private async Task ExecuteAsync(string cmdString)
@@ -105,13 +109,20 @@ public class TerminalState : ITerminalState
         });
         var newCliPrompt = new CliPrompt(CliPrompt.Parent.Width)
         {
-            Y = CliPrompt.Y + CliPrompt.Height + 1, Cwd = CurrentDirectory
+            Y = CliPrompt.Y + CliPrompt.Height + 1
         };
+        newCliPrompt.Init(CurrentDirectory, CommandHistory);
         CliPrompt.Parent.AddChild(newCliPrompt);
         CliPrompt.ReturnPressed -= OnCliPromptReturnPressed;
         CliPrompt = newCliPrompt;
         CliPrompt.ReturnPressed += OnCliPromptReturnPressed;
 
         CliPrompt.ScrollIntoView();
+    }
+
+    public void Dispose()
+    {
+        // Save commands for the next session.
+        AppSettings.Instance.UsedCommands = CommandHistory.Commands.Select(o => o.Command).Reverse().Distinct().Reverse().ToList();
     }
 }

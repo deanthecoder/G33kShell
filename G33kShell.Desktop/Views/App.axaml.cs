@@ -40,6 +40,7 @@ public class App : Application
             {
                 DataContext = viewModel
             };
+            desktop.Exit += (_, _) => viewModel.Dispose();
 
             if (!Design.IsDesignMode)
                 desktop.MainWindow.Closed += (_, _) => Settings.Instance.Dispose();

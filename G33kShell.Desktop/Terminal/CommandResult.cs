@@ -20,8 +20,7 @@ namespace G33kShell.Desktop.Terminal;
 /// This class is used to track the results of executed commands in a terminal application.
 /// </remarks>
 public record CommandResult(
-    DirectoryInfo Directory,
     string Command,
-    string Output,
-    bool IsSuccess
-);
+    DirectoryInfo Directory = null,
+    string Output = null,
+    bool? IsSuccess = null);

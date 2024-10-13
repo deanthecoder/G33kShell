@@ -34,8 +34,10 @@ namespace G33kShell.Desktop.ViewModels;
 /// <remarks>
 /// This class is responsible for managing the main window and initializing the application with a specified skin.
 /// </remarks>
-public class ShellViewModel : ViewModelBase
+public class ShellViewModel : ViewModelBase, IDisposable
 {
+    private TerminalState m_terminalState;
+    
     public WindowManager WindowManager { get; }
 
     // Default constructor, used by the Designer.
@@ -84,7 +86,7 @@ public class ShellViewModel : ViewModelBase
         var cliPrompt = new CliPrompt(WindowManager.Root.Width) { Y = introHeader.Height };
         WindowManager.Root.AddChild(cliPrompt);
 
-        var terminalState = new TerminalState(Environment.CurrentDirectory.ToDir(), cliPrompt);
+        m_terminalState = new TerminalState(Environment.CurrentDirectory.ToDir(), cliPrompt);
     }
 
     private static async Task<(SKBitmap Image, FaceFinder.FaceDetails Face)?> CaptureFaceAsync()
@@ -304,4 +306,7 @@ public class ShellViewModel : ViewModelBase
     
     private static FaceFinder CreateFaceFinder() =>
         new FaceFinder("ra6c4l3o5d1n8d82d3f4pb0tat", "dkim5e1mjtdbniar2eliq5re4n");
+
+    public void Dispose() =>
+        m_terminalState?.Dispose();
 }

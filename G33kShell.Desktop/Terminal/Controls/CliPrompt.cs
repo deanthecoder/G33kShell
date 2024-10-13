@@ -24,23 +24,10 @@ namespace G33kShell.Desktop.Terminal.Controls;
 /// </remarks>
 public class CliPrompt : TextBox
 {
-    private DirectoryInfo m_cwd;
     private string[] m_commandHistory;
     private int m_historyOffset;
 
     public string Command => TextWithoutPrefix.Split('\n').FirstOrDefault() ?? string.Empty;
-    
-    public DirectoryInfo Cwd
-    {
-        get => m_cwd;
-        set
-        {
-            if (m_cwd == value)
-                return;
-            m_cwd = value;
-            Prefix = $"[{m_cwd.FullName.TrimEnd('\\', '/')}]";
-        }
-    }
     
     public CliPrompt(int width) : base(width)
     {
@@ -48,19 +35,6 @@ public class CliPrompt : TextBox
 
     protected override bool OnUpArrow()
     {
-        if (m_commandHistory == null)
-        {
-            m_commandHistory =
-                Parent.Children.OfType<CliPrompt>()
-                    .Select(o => o.Command)
-                    .Where(o => !string.IsNullOrWhiteSpace(o))
-                    .Reverse()
-                    .Distinct()
-                    .Reverse()
-                    .ToArray();
-            m_historyOffset = 0;
-        }
-
         if (m_historyOffset > -m_commandHistory.Length)
         {
             Clear();
@@ -82,5 +56,19 @@ public class CliPrompt : TextBox
         }
         
         return true;
+    }
+
+    public void Init(DirectoryInfo cwd, CommandHistory commandHistory)
+    {
+        Prefix = $"[{cwd.FullName.TrimEnd('\\', '/')}]";
+
+        m_commandHistory =
+            commandHistory.Commands
+                .Select(o => o.Command)
+                .Where(o => !string.IsNullOrWhiteSpace(o))
+                .Reverse()
+                .Distinct()
+                .Reverse()
+                .ToArray();
     }
 }
