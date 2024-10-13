@@ -86,7 +86,7 @@ public class ShellViewModel : ViewModelBase, IDisposable
         var cliPrompt = new CliPrompt(WindowManager.Root.Width) { Y = introHeader.Height };
         WindowManager.Root.AddChild(cliPrompt);
 
-        m_terminalState = new TerminalState(Environment.CurrentDirectory.ToDir(), cliPrompt);
+        m_terminalState = new TerminalState(AppSettings.Instance.Cwd, cliPrompt);
     }
 
     private static async Task<(SKBitmap Image, FaceFinder.FaceDetails Face)?> CaptureFaceAsync()

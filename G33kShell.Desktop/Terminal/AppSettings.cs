@@ -9,6 +9,9 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
+using CSharp.Core.Extensions;
 using CSharp.Core.Settings;
 
 namespace G33kShell.Desktop.Terminal;
@@ -23,6 +26,15 @@ public class AppSettings : UserSettingsBase
         set => Set(value);
     }
 
-    protected override void ApplyDefaults() =>
+    public DirectoryInfo Cwd
+    {
+        get => Get<DirectoryInfo>();
+        set => Set(value);
+    }
+
+    protected override void ApplyDefaults()
+    {
         UsedCommands = new List<string>();
+        Cwd = Assembly.GetExecutingAssembly().GetDirectory();
+    }
 }

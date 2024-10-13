@@ -28,7 +28,12 @@ namespace G33kShell.Desktop.Terminal;
 /// </summary>
 public class TerminalState : ITerminalState, IDisposable
 {
-    public DirectoryInfo CurrentDirectory { get; set; }
+    public DirectoryInfo CurrentDirectory
+    {
+        get => AppSettings.Instance.Cwd;
+        set => AppSettings.Instance.Cwd = value;
+    }
+    
     public CommandHistory CommandHistory { get; } = new CommandHistory();
     public CliPrompt CliPrompt { get; private set; }
 
@@ -38,13 +43,18 @@ public class TerminalState : ITerminalState, IDisposable
         CurrentDirectory = cwd ?? throw new ArgumentNullException(nameof(cwd));
 
         // Restore commands from the previous session.
-        foreach (var command in AppSettings.Instance.UsedCommands)
-            CommandHistory.AddCommand(new CommandResult(command));
+        RestoreSessionState();
 
         CliPrompt.Init(CurrentDirectory, CommandHistory);
         CliPrompt.ReturnPressed += OnCliPromptReturnPressed;
 
         CommandLineParserOptions.Quiet();
+    }
+
+    private void RestoreSessionState()
+    {
+        foreach (var command in AppSettings.Instance.UsedCommands)
+            CommandHistory.AddCommand(new CommandResult(command));
     }
 
     private void OnCliPromptReturnPressed(object sender, string cmd) =>
@@ -122,7 +132,7 @@ public class TerminalState : ITerminalState, IDisposable
 
     public void Dispose()
     {
-        // Save commands for the next session.
+        // Save state for the next session.
         AppSettings.Instance.UsedCommands = CommandHistory.Commands.Select(o => o.Command).Reverse().Distinct().Reverse().ToList();
     }
 }
