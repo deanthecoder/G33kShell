@@ -32,6 +32,9 @@ public enum MyCommandType
     [CommandDescription("Lists files and directories in the current directory.", "Example: dir ..")]
     Dir,
 
+    [Command(typeof(ExitCommand), LongName = "exit", Description = "Quit the terminal.")]
+    Exit,
+
     [Command(typeof(FindCommand), LongName = "find", Description = "Search for files or directories by name.")]
     [CommandDescription("Searches for files or directories matching the specified name or pattern.", "Example: find *.txt")]
     Find,
