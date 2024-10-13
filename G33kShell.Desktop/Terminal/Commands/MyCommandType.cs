@@ -13,7 +13,7 @@ public enum MyCommandType
     [CommandDescription("Clears the terminal screen.")]
     Clear,
 
-    [Command(typeof(ClipCommand), LongName = "clip", Description = "Copy the output from the previous command into the clipboard.")]
+    [Command(typeof(ClipCommand), LongName = "clip", Description = "Copy command output into the clipboard.")]
     [CommandDescription("Copies the output from the previous command into the system clipboard.")]
     Clip,
 

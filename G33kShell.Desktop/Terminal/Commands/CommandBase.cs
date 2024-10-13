@@ -29,11 +29,17 @@ public abstract class CommandBase : Command
     
     public override async Task<NClap.Metadata.CommandResult> ExecuteAsync(CancellationToken cancel)
     {
-        var commandSuccess = await Run(m_state);
-
-        var lines = CliPrompt.TextWithoutPrefix.Split('\n');
-        var result = new CommandResult(lines.First(), m_state.CurrentDirectory.Clone(), string.Join('\n', lines.Skip(1)).Trim(), commandSuccess);
-        m_state.CommandHistory.AddCommand(result);
+        try
+        {
+            var commandSuccess = await Run(m_state);
+            var lines = CliPrompt.TextWithoutPrefix.Split('\n');
+            var result = new CommandResult(lines.First(), m_state.CurrentDirectory.Clone(), string.Join('\n', lines.Skip(1)).Trim(), commandSuccess);
+            m_state.CommandHistory.AddCommand(result);
+        }
+        catch
+        {
+            // Continue.
+        }
         
         return NClap.Metadata.CommandResult.Success;
     }
