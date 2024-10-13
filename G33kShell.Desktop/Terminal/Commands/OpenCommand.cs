@@ -11,7 +11,7 @@ public class OpenCommand : LocationCommand
     {
         try
         {
-            var targetPath = GetTargetPath(state);
+            var targetPath = state.CurrentDirectory.Resolve(Path);
             
             var fileInfo = new FileInfo(targetPath);
             if (fileInfo.Exists)

@@ -14,6 +14,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using CSharp.Core.Extensions;
 using JetBrains.Annotations;
 using NClap.Metadata;
 
@@ -66,7 +67,7 @@ public class DirCommand : CommandBase
 
     private FileSystemInfo[] GetItems(DirectoryInfo cwd, out DirectoryInfo actualCwd)
     {
-        var fullPath = Path.Combine(cwd.FullName, FileMask);
+        var fullPath = cwd.Resolve(FileMask);
         string directory;
         string mask;
 

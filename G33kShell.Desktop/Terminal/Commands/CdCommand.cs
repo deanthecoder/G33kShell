@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using CSharp.Core.Extensions;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
@@ -11,7 +12,7 @@ public class CdCommand : LocationCommand
         var newDir = state.CurrentDirectory;
         try
         {
-            newDir = new DirectoryInfo(GetTargetPath(state));
+            newDir = new DirectoryInfo(state.CurrentDirectory.Resolve(Path));
             if (newDir.Exists)
             {
                 state.CurrentDirectory = newDir;
