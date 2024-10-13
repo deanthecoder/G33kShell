@@ -16,7 +16,7 @@ public class ClearCommand : CommandBase
 {
     public override Task<bool> Run(ITerminalState state)
     {
-        state.CliPrompt.Parent.ScrollChildren(-state.CliPrompt.ActualY);
+        state.CliPrompt.Parent.ScrollChildren(state.CliPrompt.Parent.Y - state.CliPrompt.Y - 2);
         return Task.FromResult(true);
     }
 }
