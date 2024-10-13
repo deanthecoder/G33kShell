@@ -10,6 +10,7 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -36,6 +37,7 @@ public class TerminalState : ITerminalState, IDisposable
     
     public CommandHistory CommandHistory { get; } = new CommandHistory();
     public CliPrompt CliPrompt { get; private set; }
+    public Stack<DirectoryInfo> DirStack { get; } = new Stack<DirectoryInfo>();
 
     public TerminalState(DirectoryInfo cwd, [NotNull] CliPrompt cliPrompt)
     {

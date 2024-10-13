@@ -8,6 +8,7 @@
 // about your modifications. Your contributions are valued!
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+using System.Collections.Generic;
 using System.IO;
 using G33kShell.Desktop.Terminal.Controls;
 
@@ -21,4 +22,9 @@ public interface ITerminalState
     DirectoryInfo CurrentDirectory { get; set; }
     CommandHistory CommandHistory { get; }
     CliPrompt CliPrompt { get; }
+    
+    /// <summary>
+    /// Used by the pushd and popd commands.
+    /// </summary>
+    Stack<DirectoryInfo> DirStack { get; }
 }
