@@ -51,6 +51,10 @@ public enum MyCommandType
     [CommandDescription("Displays manual pages for commands, detailing their usage and options.", "Example: man open")]
     Man,
 
+    [Command(typeof(NowCommand), LongName = "now", Description = "Report the current date and time.")]
+    [CommandDescription("Report the current date and time.")]
+    Now,
+
     [Command(typeof(OpenCommand), LongName = "open", Description = "View the target in the OS file browser.")]
     [CommandDescription("Opens the specified file or directory in the OS file browser or associated application.", "Example: open myfile.txt")]
     Open,
