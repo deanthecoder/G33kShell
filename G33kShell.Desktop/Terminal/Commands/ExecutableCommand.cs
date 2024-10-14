@@ -9,11 +9,13 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using CliWrap;
 using CliWrap.Buffered;
 using JetBrains.Annotations;
+using PeNet;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
@@ -43,6 +45,13 @@ public class ExecutableCommand : CommandBase
                 .WithValidation(CommandResultValidation.None)
                 .WithWorkingDirectory(state.CurrentDirectory.FullName);
 
+            if (IsGuiApp(m_args.First()))
+            {
+                // Don't capture output on GUI apps - Launch and forget.
+                command.ExecuteAsync();
+                return true;
+            }
+            
             // Execute the command and capture the output.
             var result = await command.ExecuteBufferedAsync();
 
@@ -63,5 +72,20 @@ public class ExecutableCommand : CommandBase
             WriteLine($"Failed to run command: {ex.Message}");
             return false;
         }
+    }
+
+    private static bool IsGuiApp(string filePath)
+    {
+        // Check file extension to ensure it's an executable
+        var extension = Path.GetExtension(filePath).ToLower();
+        if (extension != ".exe" && extension != ".dll")
+        {
+            // Non-Windows executables
+            return false;
+        }
+
+        // Use PeNet to read the PE headers and check if the subsystem is Windows GUI.
+        var peFile = new PeFile(filePath);
+        return peFile.ImageNtHeaders?.OptionalHeader.Subsystem == PeNet.Header.Pe.SubsystemType.WindowsGui;
     }
 }
