@@ -35,8 +35,6 @@ public class ExecutableCommand : CommandBase
 
     public override async Task<bool> Run(ITerminalState state)
     {
-        // todo - 'git --version' doesn't work multiple times.
-        
         try
         {
             // Set up the command we want to run.

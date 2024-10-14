@@ -17,7 +17,8 @@ public class HistoryCommand : CommandBase
 {
     public override Task<bool> Run(ITerminalState state)
     {
-        foreach (var cmd in state.CommandHistory.Commands.Select(o => o.Command))
+        var commands = state.CommandHistory.Commands.Select(o => o.Command);
+        foreach (var cmd in commands.Reverse().Distinct().Reverse())
             WriteLine(cmd);
         
         return Task.FromResult(true);
