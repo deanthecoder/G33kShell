@@ -31,8 +31,8 @@ public class TerminalState : ITerminalState, IDisposable
 {
     public DirectoryInfo CurrentDirectory
     {
-        get => AppSettings.Instance.Cwd;
-        set => AppSettings.Instance.Cwd = value;
+        get => Settings.Instance.Cwd;
+        set => Settings.Instance.Cwd = value;
     }
     
     public CommandHistory CommandHistory { get; } = new CommandHistory();
@@ -55,7 +55,7 @@ public class TerminalState : ITerminalState, IDisposable
 
     private void RestoreSessionState()
     {
-        foreach (var command in AppSettings.Instance.UsedCommands)
+        foreach (var command in Settings.Instance.UsedCommands)
             CommandHistory.AddCommand(new CommandResult(command));
     }
 
@@ -135,6 +135,6 @@ public class TerminalState : ITerminalState, IDisposable
     public void Dispose()
     {
         // Save state for the next session.
-        AppSettings.Instance.UsedCommands = CommandHistory.Commands.Select(o => o.Command).Reverse().Distinct().Reverse().ToList();
+        Settings.Instance.UsedCommands = CommandHistory.Commands.Select(o => o.Command).Reverse().Distinct().Reverse().ToList();
     }
 }

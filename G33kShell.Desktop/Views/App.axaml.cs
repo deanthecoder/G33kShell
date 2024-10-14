@@ -13,8 +13,9 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
-using G33kShell.Desktop.Models;
+using CSharp.Core.Extensions;
 using G33kShell.Desktop.Skins;
+using G33kShell.Desktop.Terminal;
 using G33kShell.Desktop.ViewModels;
 
 namespace G33kShell.Desktop.Views;
@@ -26,10 +27,8 @@ public class App : Application
         DataContext = new AppViewModel();
     }
     
-    public override void Initialize()
-    {
+    public override void Initialize() =>
         AvaloniaXamlLoader.Load(this);
-    }
 
     public override void OnFrameworkInitializationCompleted()
     {
@@ -43,7 +42,10 @@ public class App : Application
             desktop.Exit += (_, _) => viewModel.Dispose();
 
             if (!Design.IsDesignMode)
-                desktop.MainWindow.Closed += (_, _) => Settings.Instance.Dispose();
+            {
+                desktop.MainWindow.Closing += (_, _) => Settings.Instance.WindowBounds = desktop.MainWindow.GetPositionString();
+                desktop.MainWindow.SetPositionFromString(Settings.Instance.WindowBounds);
+            }
         }
 
         base.OnFrameworkInitializationCompleted();

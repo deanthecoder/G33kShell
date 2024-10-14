@@ -26,7 +26,7 @@ static class Program
     {
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         
-        AppSettings.Instance.Dispose();
+        Settings.Instance.Dispose();
     }
 
     // Avalonia configuration, don't remove; also used by visual designer.

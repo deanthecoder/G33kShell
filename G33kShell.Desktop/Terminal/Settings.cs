@@ -16,9 +16,9 @@ using CSharp.Core.Settings;
 
 namespace G33kShell.Desktop.Terminal;
 
-public class AppSettings : UserSettingsBase
+public class Settings : UserSettingsBase
 {
-    public static AppSettings Instance { get; } = new AppSettings();
+    public static Settings Instance { get; } = new Settings();
 
     public List<string> UsedCommands
     {
@@ -29,6 +29,18 @@ public class AppSettings : UserSettingsBase
     public DirectoryInfo Cwd
     {
         get => Get<DirectoryInfo>();
+        set => Set(value);
+    }
+
+    public string WindowBounds
+    {
+        get => Get<string>();
+        set => Set(value);
+    }
+    
+    public long ScreenIndex
+    {
+        get => Get<long>();
         set => Set(value);
     }
 
