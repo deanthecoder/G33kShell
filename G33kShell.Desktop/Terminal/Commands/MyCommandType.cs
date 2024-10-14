@@ -70,4 +70,8 @@ public enum MyCommandType
     [Command(typeof(WhereIsCommand), LongName = "whereis", Description = "Finds an executable located in the system’s PATH.")]
     [CommandDescription("Locates an executable file in the system’s PATH that matches the specified name or pattern.", "Example: whereis git")]
     WhereIs,
+
+    [Command(typeof(VerCommand), LongName = "ver", Description = "Report the G33kShell application version.")]
+    [CommandDescription("Report the G33kShell application version.")]
+    Ver,
 }
