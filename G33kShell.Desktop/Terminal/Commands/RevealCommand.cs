@@ -16,7 +16,7 @@ using CSharp.Core.Extensions;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
-public class OpenCommand : LocationCommand
+public class RevealCommand : LocationCommand
 {
     public override async Task<bool> Run(ITerminalState state)
     {

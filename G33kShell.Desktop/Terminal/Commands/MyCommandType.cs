@@ -55,10 +55,6 @@ public enum MyCommandType
     [CommandDescription("Report the current date and time.")]
     Now,
 
-    [Command(typeof(OpenCommand), LongName = "open", Description = "View the target in the OS file browser.")]
-    [CommandDescription("Opens the specified file or directory in the OS file browser or associated application.", "Example: open myfile.txt")]
-    Open,
-
     [Command(typeof(PopDCommand), LongName = "popd", Description = "Restore to the previously 'pushed' directory.")]
     [CommandDescription("Navigate to the previously 'pushed' folder.", "See: pushd")]
     PopD,
@@ -66,6 +62,10 @@ public enum MyCommandType
     [Command(typeof(PushDCommand), LongName = "pushd", Description = "Change the current directory.")]
     [CommandDescription("Navigate to a folder and push it onto the directory stack.", "See: popd")]
     PushD,
+
+    [Command(typeof(RevealCommand), LongName = "reveal", Description = "View the target in the OS file browser.")]
+    [CommandDescription("View the specified file or directory in the OS file browser.", "Example: reveal myfile.txt")]
+    Reveal,
 
     [Command(typeof(WhereIsCommand), LongName = "whereis", Description = "Finds an executable located in the system’s PATH.")]
     [CommandDescription("Locates an executable file in the system’s PATH that matches the specified name or pattern.", "Example: whereis git")]
