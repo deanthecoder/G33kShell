@@ -210,6 +210,7 @@ public class TextBox : TextBlock
     {
         m_s.Append(s);
         SetCursor(m_s.Length);
+        InvalidateVisual();
     }
 
     private bool Return()
@@ -257,6 +258,7 @@ public class TextBox : TextBlock
     {
         m_s.Insert(m_cursorIndex, s);
         MoveCursor(s.Length);
+        InvalidateVisual();
     }
 
     private int GetDistanceToWordStart()
@@ -326,6 +328,7 @@ public class TextBox : TextBlock
     {
         m_s.Clear();
         SetCursor(0);
+        InvalidateVisual();
         return true;
     }
     
@@ -333,6 +336,7 @@ public class TextBox : TextBlock
     {
         m_s.Remove(--m_cursorIndex, 1);
         MoveCursor(0);
+        InvalidateVisual();
         return true;
     }
     
@@ -340,6 +344,7 @@ public class TextBox : TextBlock
     {
         m_s.Remove(m_cursorIndex, 1);
         MoveCursor(0);
+        InvalidateVisual();
         return true;
     }
 

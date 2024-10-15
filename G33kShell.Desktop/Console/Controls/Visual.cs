@@ -310,8 +310,12 @@ public abstract class Visual
     /// </summary>
     public void ScrollChildren(int dy)
     {
+        if (dy == 0)
+            return;
+        
         foreach (var child in Children)
             child.Y += dy;
+        InvalidateVisual();
     }
 
     /// <summary>
