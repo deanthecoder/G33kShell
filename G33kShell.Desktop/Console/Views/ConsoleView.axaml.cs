@@ -136,7 +136,7 @@ public partial class ConsoleView : Control
         }
         
         // Draw the screen cursor.
-        if (m_windowManager?.CursorPos.HasValue == true)
+        if (m_windowManager?.CursorPos.HasValue == true && !m_windowManager.HideCursor)
         {
             var cursorX = m_windowManager.CursorPos.Value.X;
             var cursorY = m_windowManager.CursorPos.Value.Y;

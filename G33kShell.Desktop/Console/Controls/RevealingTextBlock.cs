@@ -99,9 +99,10 @@ public class RevealingTextBlock : TextBlock
             Waiter.Set();
         }, m_cancellationTokenSource.Token);
 
-    public override void OnLoaded()
+    public override void OnLoaded(WindowManager windowManager)
     {
-        base.OnLoaded();
+        base.OnLoaded(windowManager);
+        
         if (m_toReveal.Any())
             m_revealTask = StartTextReveal();
     }

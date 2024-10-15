@@ -29,6 +29,7 @@ public abstract class Visual
     private int m_x;
     private Rgb m_foreground;
     private Rgb m_background;
+    private bool m_isVisible = true;
 
     public event EventHandler<(int X, int Y)?> CursorPosChanged;
 
@@ -145,6 +146,18 @@ public abstract class Visual
     /// </summary>
     public bool IsInvalidatedVisual { get; internal set; } = true;
 
+    public bool IsVisible
+    {
+        get => m_isVisible && (Parent == null || Parent.IsVisible);
+        set
+        {
+            if (m_isVisible == value)
+                return;
+            m_isVisible = value;
+            InvalidateVisual();
+        }
+    }
+
     /// <summary>
     /// Internal flag to indicate whether <see cref="OnLoaded"/> needs to be called.
     /// </summary>
@@ -212,7 +225,7 @@ public abstract class Visual
     /// <summary>
     /// Called prior to the visual being rendered for the first time.
     /// </summary>
-    public virtual void OnLoaded()
+    public virtual void OnLoaded(WindowManager windowManager)
     {
         // Do nothing.
     }

@@ -59,7 +59,7 @@ public abstract class AnimatedCanvas : Visual
         {
             if (!m_stopwatch.IsRunning)
                 m_stopwatch.Start();
-            if (m_stopwatch.ElapsedMilliseconds < m_frameTimeMs)
+            if (m_stopwatch.ElapsedMilliseconds < m_frameTimeMs || !IsVisible)
             {
                 // Skip this frame, too soon to render again.
                 Thread.Sleep(10);
@@ -78,9 +78,9 @@ public abstract class AnimatedCanvas : Visual
         }
     }
 
-    public override void OnLoaded()
+    public override void OnLoaded(WindowManager windowManager)
     {
-        base.OnLoaded();
+        base.OnLoaded(windowManager);
         
         // Start the animation asynchronously.
         m_running = true;

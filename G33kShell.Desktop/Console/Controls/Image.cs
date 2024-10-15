@@ -106,9 +106,10 @@ public class Image : Visual
         return this;
     }
 
-    public override void OnLoaded()
+    public override void OnLoaded(WindowManager windowManager)
     {
-        base.OnLoaded();
+        base.OnLoaded(windowManager);
+        
         _ = new Animation(m_fadeInDuration, f =>
         {
             m_opacity = f;

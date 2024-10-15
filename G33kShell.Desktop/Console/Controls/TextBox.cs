@@ -97,9 +97,10 @@ public class TextBox : TextBlock
     {
     }
 
-    public override void OnLoaded()
+    public override void OnLoaded(WindowManager windowManager)
     {
-        base.OnLoaded();
+        base.OnLoaded(windowManager);
+        
         SetCursor(0);
     }
 

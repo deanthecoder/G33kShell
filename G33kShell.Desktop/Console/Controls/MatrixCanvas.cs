@@ -26,9 +26,9 @@ public class MatrixCanvas : AnimatedCanvas
     {
     }
 
-    public override void OnLoaded()
+    public override void OnLoaded(WindowManager windowManager)
     {
-        base.OnLoaded();
+        base.OnLoaded(windowManager);
 
         using (Screen.Lock(out var screen))
         {

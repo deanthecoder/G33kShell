@@ -67,6 +67,11 @@ public class WindowManager
         }
     }
 
+    /// <summary>
+    /// Gets or sets a value indicating whether the cursor should be hidden.
+    /// </summary>
+    public bool HideCursor { get; set; }
+
     public WindowManager(int width, int height, SkinBase skin)
     {
         Root = new RootCanvas(width, height);
@@ -92,7 +97,7 @@ public class WindowManager
             {
                 targetScreen.ClearChars('\0');
                 targetScreen.ClearColor(Root.Foreground, Root.Background);
-                foreach (var visual in GetVisualTree(Root).Skip(1))
+                foreach (var visual in GetVisualTree(Root).Skip(1).Where(o => o.IsVisible))
                 {
                     var pos = GetAbsolutePos(visual);
                     visual.ActualX = pos.x;
@@ -121,7 +126,7 @@ public class WindowManager
                 {
                     visual.LoadOnFirstRender = false;
                     visual.CursorPosChanged += OnCursorPosChangeRequested;
-                    visual.OnLoaded();
+                    visual.OnLoaded(this);
                 }
                 
                 visual.IsInvalidatedVisual = false;

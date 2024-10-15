@@ -84,6 +84,8 @@ public class ShellViewModel : ViewModelBase, IDisposable
         WindowManager.Root.AddChild(cliPrompt);
 
         m_terminalState = new TerminalState(Settings.Instance.Cwd, cliPrompt);
+
+        WindowManager.Root.AddChild(new ScreensaverControl(WindowManager.Root.Width, WindowManager.Root.Height, 60));
     }
 
     private static async Task<(SKBitmap Image, FaceFinder.FaceDetails Face)?> CaptureFaceAsync()
