@@ -39,13 +39,15 @@ public class ExecutableCommand : CommandBase
     {
         try
         {
+            var exe = WhereIsCommand.FindExecutables(m_args.First()).First();
+            
             // Set up the command we want to run.
-            var command = Cli.Wrap(m_args.First())
+            var command = Cli.Wrap(exe.FullName)
                 .WithArguments(m_args.Skip(1))
                 .WithValidation(CommandResultValidation.None)
                 .WithWorkingDirectory(state.CurrentDirectory.FullName);
 
-            if (IsGuiApp(m_args.First()))
+            if (IsGuiApp(exe))
             {
                 // Don't capture output on GUI apps - Launch and forget.
                 command.ExecuteAsync();
@@ -56,12 +58,12 @@ public class ExecutableCommand : CommandBase
             var result = await command.ExecuteBufferedAsync();
 
             // Output the result to the console.
-            foreach (var s in result.StandardOutput.Split('\n'))
+            foreach (var s in result.StandardOutput.ReplaceLineEndings("\n").TrimEnd().Split('\n'))
                 WriteLine(s);
 
             if (!string.IsNullOrWhiteSpace(result.StandardError))
             {
-                foreach (var s in result.StandardError.Split('\n'))
+                foreach (var s in result.StandardError.ReplaceLineEndings("\n").TrimEnd().Split('\n'))
                     WriteLine(s);
             }
 
@@ -74,10 +76,10 @@ public class ExecutableCommand : CommandBase
         }
     }
 
-    private static bool IsGuiApp(string filePath)
+    private static bool IsGuiApp(FileInfo filePath)
     {
         // Check file extension to ensure it's an executable
-        var extension = Path.GetExtension(filePath).ToLower();
+        var extension = filePath.Extension.ToLower();
         if (extension != ".exe" && extension != ".dll")
         {
             // Non-Windows executables
@@ -85,7 +87,7 @@ public class ExecutableCommand : CommandBase
         }
 
         // Use PeNet to read the PE headers and check if the subsystem is Windows GUI.
-        var peFile = new PeFile(filePath);
+        var peFile = new PeFile(filePath.FullName);
         return peFile.ImageNtHeaders?.OptionalHeader.Subsystem == PeNet.Header.Pe.SubsystemType.WindowsGui;
     }
 }
