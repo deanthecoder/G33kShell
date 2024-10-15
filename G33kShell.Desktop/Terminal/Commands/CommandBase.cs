@@ -29,6 +29,8 @@ public abstract class CommandBase : Command
     private ITerminalState m_state;
 
     private CliPrompt CliPrompt => m_state.CliPrompt;
+
+    public virtual bool IsSupported => true;
     
     public CommandBase SetState(ITerminalState state)
     {
@@ -40,6 +42,12 @@ public abstract class CommandBase : Command
     
     public override async Task<NClap.Metadata.CommandResult> ExecuteAsync(CancellationToken cancel)
     {
+        if (!IsSupported)
+        {
+            WriteLine("Command is not supported.");
+            return NClap.Metadata.CommandResult.Success;
+        }
+        
         try
         {
             var commandSuccess = await Run(m_state);
@@ -73,14 +81,12 @@ public abstract class CommandBase : Command
         if (commandAttribute == null)
             throw new ArgumentNullException(nameof(commandAttribute));
         
-        // Get the type of the current command subclass
-        var commandType = GetType();
-        
         // Get the CommandAttribute to fetch the command name and description
         var commandName = commandAttribute.LongName ?? commandAttribute.ShortName;
         var commandDescription = commandAttribute.Description ?? "No description available.";
 
         // Retrieve all properties marked with PositionalArgument or NamedArgument attributes
+        var commandType = GetType();
         var positionalArguments = commandType.GetProperties()
             .Where(p => p.GetCustomAttributes(typeof(PositionalArgumentAttribute), false).Length > 0)
             .Select(p => new

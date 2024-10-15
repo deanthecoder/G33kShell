@@ -67,6 +67,10 @@ public enum MyCommandType
     [CommandDescription("View the specified file or directory in the OS file browser.", "Example: reveal myfile.txt")]
     Reveal,
 
+    [Command(typeof(ShutdownCommand), LongName = "shutdown", Description = "Shut down the OS.")]
+    [CommandDescription("Shut down the OS, taking no prisoners.")]
+    Shutdown,
+
     [Command(typeof(WhereIsCommand), LongName = "whereis", Description = "Finds an executable located in the system’s PATH.")]
     [CommandDescription("Locates an executable file in the system’s PATH that matches the specified name or pattern.", "Example: whereis git")]
     WhereIs,
