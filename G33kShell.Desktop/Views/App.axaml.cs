@@ -44,7 +44,7 @@ public class App : Application
             if (!Design.IsDesignMode)
             {
                 desktop.MainWindow.Closing += (_, _) => Settings.Instance.WindowBounds = desktop.MainWindow.GetPositionString();
-                desktop.MainWindow.SetPositionFromString(Settings.Instance.WindowBounds);
+                desktop.MainWindow.Loaded += (_, _) => desktop.MainWindow.SetPositionFromString(Settings.Instance.WindowBounds);
             }
         }
 
