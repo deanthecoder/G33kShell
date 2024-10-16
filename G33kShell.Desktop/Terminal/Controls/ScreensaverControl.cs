@@ -53,6 +53,7 @@ public class ScreensaverControl : Visual
                 if (m_secondsUntilDisplay > 0)
                     continue; // Not ready yet...
 
+                Y = 0;
                 IsVisible = true;
                 m_windowManager.HideCursor = true;
             }

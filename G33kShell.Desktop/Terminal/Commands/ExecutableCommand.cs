@@ -50,7 +50,7 @@ public class ExecutableCommand : CommandBase
             if (IsGuiApp(exe))
             {
                 // Don't capture output on GUI apps - Launch and forget.
-                command.ExecuteAsync();
+                _ = command.ExecuteAsync();
                 return true;
             }
             
