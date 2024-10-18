@@ -25,7 +25,7 @@ public enum MyCommandType
     Clear,
 
     [Command(typeof(ClipCommand), LongName = "clip", Description = "Copy command output into the clipboard.")]
-    [CommandDescription("Copies the output from the previous command into the system clipboard.")]
+    [CommandDescription("Copies the output from the previous command into the system clipboard.", "All output is copied, unless a specific line number is requested.")]
     Clip,
 
     [Command(typeof(DirCommand), LongName = "dir", ShortName = "ls", Description = "List files and directories.")]

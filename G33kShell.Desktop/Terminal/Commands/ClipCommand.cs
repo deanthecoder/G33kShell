@@ -12,31 +12,38 @@ using System.Linq;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
 using NClap.Metadata;
-using Newtonsoft.Json;
 using TextCopy;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
 public class ClipCommand : CommandBase
 {
+    [NamedArgument(Description = "Capture the command, as well as the output.", LongName = "all", ShortName = "a")]
+    public bool CaptureAll { get; [UsedImplicitly] set; }
+
     [PositionalArgument(0, Description = "Select a single line (1+).")]
     public int? LineNumber { get; [UsedImplicitly] set; }
 
     public override Task<bool> Run(ITerminalState state)
     {
-        var output = state.CommandHistory.Commands.LastOrDefault()?.Output;
-        if (output != null)
+        var lastCommand = state.CommandHistory.Commands.LastOrDefault();
+        var output = lastCommand?.Output;
+        if (output == null)
+            return Task.FromResult(true);
+        
+        if (LineNumber != null)
         {
-            if (LineNumber != null)
-            {
-                var lines = output.ReplaceLineEndings("\n").Split("\n");
-                if (LineNumber >= 1 && LineNumber <= lines.Length)
-                    output = lines[LineNumber.Value - 1];
-            }
-            
-            ClipboardService.SetText(output);
+            var lines = output.ReplaceLineEndings("\n").Split("\n");
+            if (LineNumber >= 1 && LineNumber <= lines.Length)
+                output = lines[LineNumber.Value - 1];
         }
         
+        // Need the command too?
+        if (CaptureAll)
+            output = $">{lastCommand.Command}\n{output}";
+            
+        ClipboardService.SetText(output);
+
         return Task.FromResult(true);
     }
 }
