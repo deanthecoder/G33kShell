@@ -104,11 +104,18 @@ public class DirCommand : CommandBase
             .OrderBy(o => o.FullName)
             .ToArray();
     }
-    
+
     private void DisplayBareFormat(FileSystemInfo[] items)
     {
-        foreach (var item in items)
-            WriteLine(item.FullName);
+        const int chunkSize = 5;
+        var sb = new StringBuilder();
+        for (var i = 0; i < items.Length; i += chunkSize)
+        {
+            sb.Clear();
+            foreach (var item in items.Skip(i).Take(chunkSize))
+                sb.AppendLine(item.FullName);
+            WriteLine(sb.ToString());
+        }
     }
 
     private void DisplayExtendedFormat(FileSystemInfo[] items, int availableWidth)

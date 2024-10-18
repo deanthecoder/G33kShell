@@ -12,6 +12,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
 using NClap.Metadata;
@@ -36,8 +37,15 @@ public class FindCommand : CommandBase
 
             await Task.Run(() =>
             {
-                foreach (var result in results)
-                    WriteLine(result.FullName);
+                const int chunkSize = 5;
+                var sb = new StringBuilder();
+                for (var i = 0; i < results.Length; i += chunkSize)
+                {
+                    sb.Clear();
+                    foreach (var item in results.Skip(i).Take(chunkSize))
+                        sb.AppendLine(item.FullName);
+                    WriteLine(sb.ToString());
+                }
             });
 
             return true;
@@ -46,7 +54,7 @@ public class FindCommand : CommandBase
         {
             WriteLine($"An error occurred: {ex.Message}");
         }
-        
+
         return false;
     }
 
