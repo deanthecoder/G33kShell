@@ -44,39 +44,83 @@ public class TextBox : TextBlock
 
     public event EventHandler<string> ReturnPressed;
 
-    public override string[] Text => WrapText($"{Prefix}{m_s}", Width).ToArray();
+    public override string[] Text => WrapText(Prefix, m_s, Width).ToArray();
     public string TextWithoutPrefix => m_s.ToString();
     public bool IsReadOnly { get; set; }
 
     /// <summary>
-    /// Use 'yield return' to wrap the text string into an array with items up to 'width' characters, splitting at characters (not words).
+    /// Use 'yield return' to wrap the text string into an array with items up to 'maxLength' characters, splitting at characters (not words).
     /// </summary>
-    private static IEnumerable<string> WrapText(string s, int width)
+    private static IEnumerable<string> WrapText(string prefix, StringBuilder content, int maxLength)
     {
-        var lines = s.Split('\n');
-
-        foreach (var line in lines)
+        // No content? Then we just need the prefix.
+        if (content.Length == 0)
         {
-            if (line.Length <= width)
+            yield return prefix;
+            yield break;
+        }
+        
+        var isFirstLine = true;
+        var lines = SplitIntoLines(content, maxLength);
+        foreach (var (lineStart, lineLength) in lines)
+        {
+            // If this is the first line, apply the prefix
+            if (isFirstLine && !string.IsNullOrEmpty(prefix))
             {
-                // String will fit within the available space - All good.
-                yield return line;
+                isFirstLine = false;
+
+                var remainingWidth = maxLength - prefix.Length;
+                if (remainingWidth > 0 && lineLength > remainingWidth)
+                {
+                    // Prefix the first part of the line
+                    yield return prefix + content.ToString(lineStart, remainingWidth);
+                    
+                    // Yield the remaining part of the line
+                    yield return content.ToString(lineStart + remainingWidth, lineLength - remainingWidth);
+                }
+                else
+                {
+                    // If the line fits with the prefix
+                    yield return prefix + content.ToString(lineStart, lineLength);
+                }
             }
             else
             {
-                // Line is too long - Chunk it into 'width' chunks.
-                var temp = new StringBuilder(line);
-                while (temp.Length > width)
-                {
-                    var wrapText = temp.ToString(0, width).TrimEnd();
-                    yield return wrapText;
-                    temp = temp.Remove(0, width);
-                }
-
-                // Any bits left over?
-                if (temp.Length > 0)
-                    yield return temp.ToString();
+                // Subsequent lines, just return the content directly
+                yield return content.ToString(lineStart, lineLength);
             }
+        }
+    }
+    
+    private static IEnumerable<(int lineStart, int lineLength)> SplitIntoLines(StringBuilder content, int maxLength)
+    {
+        var lineStart = 0;
+        var i = 0;
+    
+        while (lineStart < content.Length)
+        {
+            // Find the next newline or end of content
+            while (i < content.Length && content[i] != '\n')
+                i++;
+
+            var lineLength = i - lineStart; // Calculate the length of the current line
+
+            // Split the line into sections if it exceeds maxLength
+            for (var splitStart = lineStart; splitStart < lineStart + lineLength; splitStart += maxLength)
+            {
+                var splitLength = Math.Min(maxLength, lineStart + lineLength - splitStart);
+                yield return (splitStart, splitLength); // Yield the start and length of the line/sub-section
+            }
+
+            if (i == content.Length)
+            {
+                // We're at the end of the last line.
+                yield break;
+            }
+
+            // Move to the next line (skip the newline character)
+            lineStart = i + 1;
+            i = lineStart;
         }
     }
 
@@ -312,10 +356,10 @@ public class TextBox : TextBlock
         var y = x / Width;
         SetCursorPos(x % Width, y);
 
-        var s = Text;
-        if (s.Length > Height)
+        var lineCount = WrapText(Prefix, m_s, Width).Count();
+        if (lineCount > Height)
         {
-            SetHeight(s.Length);
+            SetHeight(lineCount);
             ScrollIntoView();
         }
         
