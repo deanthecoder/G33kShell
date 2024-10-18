@@ -131,8 +131,11 @@ public abstract class CommandBase : Command
             var pairs = new List<(string Command, string Description)>();
             foreach (var arg in namedArguments)
             {
-                var shortName = string.IsNullOrEmpty(arg.Attribute.ShortName) ? "" : $"-{arg.Attribute.ShortName}, ";
-                pairs.Add(($"{shortName}--{arg.Property.Name.ToLower()}", arg.Attribute.Description));
+                var shortName = string.IsNullOrEmpty(arg.Attribute.ShortName) ? "" : $"-{arg.Attribute.ShortName}";
+                if (!string.IsNullOrEmpty(arg.Attribute.LongName))
+                    shortName += $", -{arg.Attribute.LongName}";
+                shortName = shortName.Trim(' ', ',');
+                pairs.Add((shortName, arg.Attribute.Description));
             }
             pairs.AddRange(positionalArguments.Select(arg => ($"<{arg.Property.Name.ToLower()}>", arg.Attribute.Description)));
 
