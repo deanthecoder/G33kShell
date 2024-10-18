@@ -101,7 +101,7 @@ public class DirCommand : CommandBase
         var recurse = Recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
         var infos = DirsOnly ? actualCwd.EnumerateDirectories(mask, recurse) : actualCwd.EnumerateFileSystemInfos(mask, recurse);
         return infos
-            .OrderBy(o => o.Name)
+            .OrderBy(o => o.FullName)
             .ToArray();
     }
     
