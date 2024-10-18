@@ -179,7 +179,7 @@ public abstract class Visual
     /// <remarks>
     /// Applies to this control and all parents.
     /// </remarks>
-    protected void InvalidateVisual()
+    public void InvalidateVisual()
     {
         IsInvalidatedVisual = true;
         Parent?.InvalidateVisual();
@@ -219,6 +219,16 @@ public abstract class Visual
         child.OnUnloaded();
         child.m_children.ToList().ForEach(child.RemoveChild);
         child.Parent = null;
+        InvalidateVisual();
+    }
+
+    /// <summary>
+    /// Move the visual to the end of its parent's child list, ensuring it is drawn last.
+    /// </summary>
+    public void SendToFront()
+    {
+        m_parent?.m_children.Remove(this);
+        m_parent?.m_children.Add(this);
         InvalidateVisual();
     }
 
