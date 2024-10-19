@@ -59,35 +59,24 @@ public class TextBox : TextBlock
             yield return prefix;
             yield break;
         }
-        
-        var isFirstLine = true;
-        var lines = SplitIntoLines(content, maxLength);
-        foreach (var (lineStart, lineLength) in lines)
-        {
-            // If this is the first line, apply the prefix
-            if (isFirstLine && !string.IsNullOrEmpty(prefix))
-            {
-                isFirstLine = false;
 
-                var remainingWidth = maxLength - prefix.Length;
-                if (remainingWidth > 0 && lineLength > remainingWidth)
+        lock (content)
+        {
+            try
+            {
+                content.Insert(0, prefix);
+            
+                var lines = SplitIntoLines(content, maxLength);
+
+                foreach (var (lineStart, lineLength) in lines)
                 {
-                    // Prefix the first part of the line
-                    yield return prefix + content.ToString(lineStart, remainingWidth);
-                    
-                    // Yield the remaining part of the line
-                    yield return content.ToString(lineStart + remainingWidth, lineLength - remainingWidth);
-                }
-                else
-                {
-                    // If the line fits with the prefix
-                    yield return prefix + content.ToString(lineStart, lineLength);
+                    var wrapText = content.ToString(lineStart, lineLength);
+                    yield return wrapText;
                 }
             }
-            else
+            finally
             {
-                // Subsequent lines, just return the content directly
-                yield return content.ToString(lineStart, lineLength);
+                content.Remove(0, prefix.Length);
             }
         }
     }
@@ -291,7 +280,8 @@ public class TextBox : TextBlock
         if (string.IsNullOrEmpty(data))
             return false;
 
-        Paste(data);
+        var trimEnd = string.Join(' ', data.Split('\n').Select(o => o.Trim()));
+        Paste(trimEnd);
 
         return true;
     }
