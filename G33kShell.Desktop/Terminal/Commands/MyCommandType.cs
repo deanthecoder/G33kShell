@@ -59,6 +59,10 @@ public enum MyCommandType
     [CommandDescription("Report the current date and time.")]
     Now,
 
+    [Command(typeof(OpenCommand), LongName = "open", Description = "Launches a file using the associated application based on the operating system settings.")]
+    [CommandDescription("Opens the specified file or folder using the default application on the system.")]
+    Open,
+    
     [Command(typeof(PopDCommand), LongName = "popd", Description = "Restore to the previously 'pushed' directory.")]
     [CommandDescription("Navigate to the previously 'pushed' folder.", "See: pushd")]
     PopD,
