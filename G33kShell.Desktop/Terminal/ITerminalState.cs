@@ -33,4 +33,5 @@ public interface ITerminalState
     Stack<DirectoryInfo> DirStack { get; }
 
     void LoadSkin(SkinBase skin);
+    void LoadScreensaver(string screensaverName);
 }

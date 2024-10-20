@@ -75,6 +75,10 @@ public enum MyCommandType
     [CommandDescription("Opens the specified file or directory in the system’s file explorer.", "Example: reveal myfile.txt")]
     Reveal,
 
+    [Command(typeof(ScreensaverCommand), LongName = "screensaver", Description = "Select and activate the screensaver.")]
+    [CommandDescription("Select and activate the screensaver.")]
+    Screensaver,
+
     [Command(typeof(SkinCommand), LongName = "skin", Description = "List or change the current Terminal skin.")]
     [CommandDescription("List or change the current Terminal skin.")]
     Skin,

@@ -19,12 +19,13 @@ namespace G33kShell.Desktop.Console.Controls;
 /// A canvas to displaying an animated Matrix effect.
 /// </summary>
 [DebuggerDisplay("MatrixCanvas:{X},{Y} {Width}x{Height}")]
-public class MatrixCanvas : AnimatedCanvas
+public class MatrixCanvas : AnimatedCanvas, IScreensaver
 {
     private readonly Random m_random = new Random();
 
     public MatrixCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight, 15)
     {
+        Name = "matrix";
     }
 
     public override void OnLoaded(WindowManager windowManager)

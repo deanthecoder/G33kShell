@@ -31,6 +31,7 @@ namespace G33kShell.Desktop.Terminal;
 public class TerminalState : ITerminalState, IDisposable
 {
     public event EventHandler<SkinBase> SkinLoadRequest;
+    public event EventHandler<string> ScreensaverLoadRequest;
     
     public DirectoryInfo CurrentDirectory
     {
@@ -137,6 +138,12 @@ public class TerminalState : ITerminalState, IDisposable
 
     public void LoadSkin(SkinBase skin) =>
         SkinLoadRequest?.Invoke(this, skin);
+    
+    public void LoadScreensaver(string screensaverName)
+    {
+        Settings.Instance.ScreensaverName = screensaverName;
+        ScreensaverLoadRequest?.Invoke(this, screensaverName);
+    }
 
     public void Dispose()
     {

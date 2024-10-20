@@ -133,7 +133,7 @@ public abstract class CommandBase : Command
             {
                 var shortName = string.IsNullOrEmpty(arg.Attribute.ShortName) ? "" : $"-{arg.Attribute.ShortName}";
                 if (!string.IsNullOrEmpty(arg.Attribute.LongName))
-                    shortName += $", -{arg.Attribute.LongName}";
+                    shortName += $", --{arg.Attribute.LongName}";
                 shortName = shortName.Trim(' ', ',');
                 pairs.Add((shortName, arg.Attribute.Description));
             }

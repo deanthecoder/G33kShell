@@ -198,7 +198,7 @@ public class WindowManager
     private static IEnumerable<Visual> GetVisualTree(Visual visual)
     {
         yield return visual;
-        foreach (var child in visual.Children)
+        foreach (var child in visual.Children.ToArray())
         {
             foreach (var descendant in GetVisualTree(child))
                 yield return descendant;

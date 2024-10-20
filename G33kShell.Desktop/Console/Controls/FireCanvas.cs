@@ -15,15 +15,16 @@ using System.Text;
 namespace G33kShell.Desktop.Console.Controls;
 
 [DebuggerDisplay("FireCanvas:{X},{Y} {Width}x{Height}")]
-public class FireCanvas : AnimatedCanvas
+public class FireCanvas : AnimatedCanvas, IScreensaver
 {
     private readonly string m_fireChars = " ,;+ltgti!lI?/\\|)(1}{][rcvzjftJUOQocxfXhqwWB8&%$#@";
     private readonly int m_maxCharIndex;
     private readonly int[] m_firePixelsArray;
     private readonly Random m_random = new Random();
 
-    public FireCanvas(int width, int height, int targetFps = 30) : base(width, height, targetFps)
+    public FireCanvas(int width, int height) : base(width, height)
     {
+        Name = "fire";
         m_maxCharIndex = m_fireChars.Length;
         m_firePixelsArray = new int[width * (height + 1)];
     }

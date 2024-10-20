@@ -37,7 +37,8 @@ namespace G33kShell.Desktop.ViewModels;
 public class ShellViewModel : ViewModelBase, IDisposable
 {
     private TerminalState m_terminalState;
-    
+    private ScreensaverControl m_screensaverControl;
+
     public WindowManager WindowManager { get; }
 
     // Default constructor, used by the Designer.
@@ -85,8 +86,20 @@ public class ShellViewModel : ViewModelBase, IDisposable
 
         m_terminalState = new TerminalState(Settings.Instance.Cwd, cliPrompt);
         m_terminalState.SkinLoadRequest += (_, skin) => WindowManager.Skin = skin;
+        m_terminalState.ScreensaverLoadRequest += (_, screensaverName) => SetScreensaver(screensaverName, true);
 
-        WindowManager.Root.AddChild(new ScreensaverControl(WindowManager.Root.Width, WindowManager.Root.Height, 60));
+        m_screensaverControl = new ScreensaverControl(WindowManager.Root.Width, WindowManager.Root.Height, 60);
+        m_screensaverControl.SetScreensaver(Settings.Instance.ScreensaverName);
+        WindowManager.Root.AddChild(m_screensaverControl);
+    }
+
+    private void SetScreensaver(string screensaver, bool startNow)
+    {
+        Settings.Instance.ScreensaverName = screensaver;
+        m_screensaverControl.SetScreensaver(screensaver);
+
+        if (startNow)
+            m_screensaverControl.StartNow();
     }
 
     private static async Task<(SKBitmap Image, FaceFinder.FaceDetails Face)?> CaptureFaceAsync()

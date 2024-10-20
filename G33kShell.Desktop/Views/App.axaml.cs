@@ -37,7 +37,7 @@ public class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var skin = SkinCommand.CreateSkins().FirstOrDefault(o => o.Name.Equals(Settings.Instance.SkinName, StringComparison.OrdinalIgnoreCase)) ?? new RetroPlasma();
+            var skin = SkinCommand.CreateSkins().FirstOrDefault(o => o?.Name.Equals(Settings.Instance.SkinName, StringComparison.OrdinalIgnoreCase) == true) ?? new RetroPlasma();
             var viewModel = new ShellViewModel(skin);
             desktop.MainWindow = new MainWindow
             {

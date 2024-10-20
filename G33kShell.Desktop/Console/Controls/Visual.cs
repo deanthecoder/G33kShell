@@ -253,6 +253,7 @@ public abstract class Visual
     /// <summary>
     /// Remove all child visuals, optionally applying an effect to do so.
     /// </summary>
+    /// <see cref="ClearChildren"/>
     public async Task ClearAsync(ClearTransition transition)
     {
         if (!m_children.Any())
@@ -262,8 +263,7 @@ public abstract class Visual
         {
             case ClearTransition.Immediate:
             {
-                while (m_children.Any())
-                    RemoveChild(m_children.Last());
+                ClearChildren();
                 return;
             }
 
@@ -302,6 +302,16 @@ public abstract class Visual
             default:
                 throw new ArgumentException($"Unknown transition: {transition}", nameof(transition));
         }
+    }
+
+    /// <summary>
+    /// Remove all child visuals.
+    /// </summary>
+    /// <see cref="ClearAsync"/>
+    protected void ClearChildren()
+    {
+        while (m_children.Count > 0)
+            RemoveChild(m_children.Last());
     }
 
     /// <summary>

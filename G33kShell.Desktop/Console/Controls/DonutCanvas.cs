@@ -20,7 +20,7 @@ namespace G33kShell.Desktop.Console.Controls;
 /// The DonutCanvas class extends the AnimatedCanvas class.
 /// </remarks>
 [DebuggerDisplay("DonutCanvas:{X},{Y} {Width}x{Height}")]
-public class DonutCanvas : AnimatedCanvas
+public class DonutCanvas : AnimatedCanvas, IScreensaver
 {
     private const double ThetaSpacing = 0.05f;
     private const double PhiSpacing = 0.02f;
@@ -33,10 +33,12 @@ public class DonutCanvas : AnimatedCanvas
 
     public DonutCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight)
     {
+        Name = "donut";
+        
         m_k1 = screenWidth * K2 * 2.0 / (8.0 * (R1 + R2));
         m_zBuffer = new double[screenWidth, screenHeight];
     }
-
+    
     /// <summary>
     /// Modified from the original source by a1kon.
     /// https://www.a1k0n.net/2011/07/20/donut-math.html

@@ -43,11 +43,18 @@ public class Settings : UserSettingsBase
         get => Get<string>();
         set => Set(value);
     }
+    
+    public string ScreensaverName
+    {
+        get => Get<string>();
+        set => Set(value);
+    }
 
     protected override void ApplyDefaults()
     {
         UsedCommands = new List<string>();
         Cwd = Assembly.GetExecutingAssembly().GetDirectory();
         SkinName = "RetroPlasma";
+        ScreensaverName = "matrix";
     }
 }
