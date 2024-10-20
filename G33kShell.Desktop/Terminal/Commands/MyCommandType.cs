@@ -51,6 +51,10 @@ public enum MyCommandType
     [CommandDescription("Displays manual pages for commands, detailing their usage and options.", "Example: man open")]
     Man,
 
+    [Command(typeof(MaxCommand), LongName = "max", Description = "Toggle the terminal window between maximized and restored states.")]
+    [CommandDescription("Maximizes the window if it’s not already, or restores it to its previous size. Useful for adjusting the view of the terminal.")]
+    Max,
+
     [Command(typeof(NowCommand), LongName = "now", Description = "Report the current date and time.")]
     [CommandDescription("Report the current date and time.")]
     Now,
@@ -64,7 +68,7 @@ public enum MyCommandType
     PushD,
 
     [Command(typeof(RevealCommand), LongName = "reveal", Description = "View the target in the OS file browser.")]
-    [CommandDescription("View the specified file or directory in the OS file browser.", "Example: reveal myfile.txt")]
+    [CommandDescription("Opens the specified file or directory in the system’s file explorer.", "Example: reveal myfile.txt")]
     Reveal,
 
     [Command(typeof(ShutdownCommand), LongName = "shutdown", Description = "Shut down the OS.")]

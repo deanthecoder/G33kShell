@@ -10,7 +10,8 @@
         x:Class="G33kShell.Desktop.Views.MainWindow"
         x:DataType="viewModels:ShellViewModel"
         Icon="/Assets/app.ico"
-        Title="G33kShell">
+        Title="G33kShell"
+        MinWidth="640" MinHeight="480">
     <Design.DataContext>
         <viewModels:ShellViewModel />
     </Design.DataContext>

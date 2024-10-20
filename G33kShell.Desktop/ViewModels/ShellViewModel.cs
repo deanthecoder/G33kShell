@@ -50,7 +50,7 @@ public class ShellViewModel : ViewModelBase, IDisposable
         WindowManager = new WindowManager(100, 38, skin);
         _ = StartAsync();
     }
-
+    
     private async Task StartAsync()
     {
 #if !DEBUG
