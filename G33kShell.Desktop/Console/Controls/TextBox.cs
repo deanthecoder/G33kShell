@@ -88,6 +88,14 @@ public class TextBox : TextBlock
     
         while (lineStart < content.Length)
         {
+            if (content[i] == '\n')
+            {
+                // Empty newline.
+                yield return (lineStart++, 0);
+                i = lineStart;
+                continue;
+            }
+            
             // Find the next newline or end of content
             while (i < content.Length && content[i] != '\n')
                 i++;

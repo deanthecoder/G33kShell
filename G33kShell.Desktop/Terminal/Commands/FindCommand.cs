@@ -44,7 +44,7 @@ public class FindCommand : CommandBase
                     sb.Clear();
                     foreach (var item in results.Skip(i).Take(chunkSize))
                         sb.AppendLine(item.FullName);
-                    WriteLine(sb.ToString());
+                    WriteLine(sb.ToString().TrimEnd());
                 }
             });
 
