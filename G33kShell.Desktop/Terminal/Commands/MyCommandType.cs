@@ -75,6 +75,10 @@ public enum MyCommandType
     [CommandDescription("Opens the specified file or directory in the system’s file explorer.", "Example: reveal myfile.txt")]
     Reveal,
 
+    [Command(typeof(SkinCommand), LongName = "skin", Description = "List or change the current Terminal skin.")]
+    [CommandDescription("List or change the current Terminal skin.")]
+    Skin,
+
     [Command(typeof(ShutdownCommand), LongName = "shutdown", Description = "Shut down the OS.")]
     [CommandDescription("Shut down the OS, taking no prisoners.")]
     Shutdown,

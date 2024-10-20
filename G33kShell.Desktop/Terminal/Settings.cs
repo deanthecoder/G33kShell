@@ -32,15 +32,15 @@ public class Settings : UserSettingsBase
         set => Set(value);
     }
 
-    public string WindowBounds
+    public string WindowState
     {
         get => Get<string>();
         set => Set(value);
     }
     
-    public long ScreenIndex
+    public string SkinName
     {
-        get => Get<long>();
+        get => Get<string>();
         set => Set(value);
     }
 
@@ -48,5 +48,6 @@ public class Settings : UserSettingsBase
     {
         UsedCommands = new List<string>();
         Cwd = Assembly.GetExecutingAssembly().GetDirectory();
+        SkinName = "RetroPlasma";
     }
 }

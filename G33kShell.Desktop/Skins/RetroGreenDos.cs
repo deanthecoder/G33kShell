@@ -15,9 +15,11 @@ namespace G33kShell.Desktop.Skins;
 
 public class RetroGreenDos : SkinBase
 {
+    public override string Name => "RetroGreen";
+
     // Font properties
     public override Rgb ForegroundColor { get; } = Color.Parse("#40ff40");
-    public override Rgb BackgroundColor { get; } = Color.Parse("#082008");
+    public override Rgb BackgroundColor { get; } = Color.Parse("#071A07");
     public override double BrightnessBoost => 1.1;
 
     // Shader uniform properties

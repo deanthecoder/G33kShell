@@ -9,6 +9,8 @@
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
+using System;
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -16,6 +18,7 @@ using Avalonia.Markup.Xaml;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Skins;
 using G33kShell.Desktop.Terminal;
+using G33kShell.Desktop.Terminal.Commands;
 using G33kShell.Desktop.ViewModels;
 
 namespace G33kShell.Desktop.Views;
@@ -34,7 +37,8 @@ public class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var viewModel = new ShellViewModel(new RetroPlasma());
+            var skin = SkinCommand.CreateSkins().FirstOrDefault(o => o.Name.Equals(Settings.Instance.SkinName, StringComparison.OrdinalIgnoreCase)) ?? new RetroPlasma();
+            var viewModel = new ShellViewModel(skin);
             desktop.MainWindow = new MainWindow
             {
                 DataContext = viewModel
@@ -43,8 +47,8 @@ public class App : Application
 
             if (!Design.IsDesignMode)
             {
-                desktop.MainWindow.Closing += (_, _) => Settings.Instance.WindowBounds = desktop.MainWindow.GetPositionString();
-                desktop.MainWindow.Loaded += (_, _) => desktop.MainWindow.SetPositionFromString(Settings.Instance.WindowBounds);
+                desktop.MainWindow.Closing += (_, _) => Settings.Instance.WindowState = desktop.MainWindow.GetPositionString();
+                desktop.MainWindow.Loaded += (_, _) => desktop.MainWindow.SetPositionFromString(Settings.Instance.WindowState);
             }
         }
 

@@ -16,6 +16,8 @@ namespace G33kShell.Desktop.Skins;
 
 public class RetroPlasma : SkinBase
 {
+    public override string Name => "RetroPlasma";
+
     // Font properties
     public override Rgb ForegroundColor { get; } = Color.Parse("#ffa000"); // Orange foreground
     public override Rgb BackgroundColor { get; } = Color.Parse("#301800"); // Brownish-orange background

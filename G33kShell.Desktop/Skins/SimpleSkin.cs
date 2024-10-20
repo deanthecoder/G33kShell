@@ -15,6 +15,8 @@ namespace G33kShell.Desktop.Skins;
 
 public class SimpleSkin : SkinBase
 {
+    public override string Name => "Simple";
+
     // Font properties
     public override Rgb ForegroundColor { get; } = Color.Parse("#e0e000");
     public override Rgb BackgroundColor { get; } = Color.Parse("#000080");

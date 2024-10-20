@@ -84,6 +84,7 @@ public class ShellViewModel : ViewModelBase, IDisposable
         WindowManager.Root.AddChild(cliPrompt);
 
         m_terminalState = new TerminalState(Settings.Instance.Cwd, cliPrompt);
+        m_terminalState.SkinLoadRequest += (_, skin) => WindowManager.Skin = skin;
 
         WindowManager.Root.AddChild(new ScreensaverControl(WindowManager.Root.Width, WindowManager.Root.Height, 60));
     }

@@ -15,6 +15,8 @@ namespace G33kShell.Desktop.Skins;
 
 public abstract class SkinBase
 {
+    public abstract string Name { get; }
+    
     // Font properties.
     public abstract Rgb ForegroundColor { get; } // e.g., "#FFFFFF" for white text
     public abstract Rgb BackgroundColor { get; } // e.g., "#000000" for black background

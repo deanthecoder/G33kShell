@@ -17,6 +17,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
+using G33kShell.Desktop.Skins;
 using G33kShell.Desktop.Terminal.Commands;
 using G33kShell.Desktop.Terminal.Controls;
 using JetBrains.Annotations;
@@ -29,6 +30,8 @@ namespace G33kShell.Desktop.Terminal;
 /// </summary>
 public class TerminalState : ITerminalState, IDisposable
 {
+    public event EventHandler<SkinBase> SkinLoadRequest;
+    
     public DirectoryInfo CurrentDirectory
     {
         get => Settings.Instance.Cwd;
@@ -131,6 +134,9 @@ public class TerminalState : ITerminalState, IDisposable
 
         CliPrompt.ScrollIntoView();
     }
+
+    public void LoadSkin(SkinBase skin) =>
+        SkinLoadRequest?.Invoke(this, skin);
 
     public void Dispose()
     {

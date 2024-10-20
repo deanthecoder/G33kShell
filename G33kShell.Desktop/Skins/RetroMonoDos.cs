@@ -15,9 +15,11 @@ namespace G33kShell.Desktop.Skins;
 
 public class RetroMonoDos : SkinBase
 {
+    public override string Name => "RetroMono";
+    
     // Font properties
     public override Rgb ForegroundColor { get; } = Colors.White;
-    public override Rgb BackgroundColor { get; } = Color.Parse("#202020");
+    public override Rgb BackgroundColor { get; } = Color.Parse("#101010");
     public override double BrightnessBoost => 1.0;
 
     // Shader uniform properties
