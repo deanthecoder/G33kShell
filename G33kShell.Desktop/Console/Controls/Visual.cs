@@ -18,6 +18,7 @@ using Avalonia.Media;
 using CSharp.Core;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Events;
+using G33kShell.Desktop.Skins;
 
 namespace G33kShell.Desktop.Console.Controls;
 
@@ -350,5 +351,10 @@ public abstract class Visual
         var linesOffTheBottom = maxBottom - Parent.Height;
         if (linesOffTheBottom > 0)
             Parent.ScrollChildren(-linesOffTheBottom);
+    }
+
+    public virtual void OnSkinChanged(SkinBase skin)
+    {
+        // Do nothing.
     }
 }

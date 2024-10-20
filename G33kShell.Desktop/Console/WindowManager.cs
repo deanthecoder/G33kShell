@@ -43,6 +43,7 @@ public class WindowManager
             {
                 visual.Foreground = m_skin.ForegroundColor;
                 visual.Background = m_skin.BackgroundColor;
+                visual.OnSkinChanged(Skin);
             }
         }
     }

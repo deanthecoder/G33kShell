@@ -11,6 +11,7 @@
 using System;
 using System.Diagnostics;
 using CSharp.Core.Extensions;
+using G33kShell.Desktop.Skins;
 
 namespace G33kShell.Desktop.Console.Controls;
 
@@ -29,7 +30,17 @@ public class MatrixCanvas : AnimatedCanvas
     public override void OnLoaded(WindowManager windowManager)
     {
         base.OnLoaded(windowManager);
+        BuildScreen();
+    }
 
+    public override void OnSkinChanged(SkinBase skin)
+    {
+        base.OnSkinChanged(skin);
+        BuildScreen();
+    }
+
+    private void BuildScreen()
+    {
         using (Screen.Lock(out var screen))
         {
             // Seed screen with invisible characters.
