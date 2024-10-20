@@ -120,7 +120,7 @@ public abstract class CommandBase : Command
         foreach (var arg in namedArguments)
             synopsis.Append($" [-{(string.IsNullOrEmpty(arg.Attribute.ShortName) ? arg.Property.Name.ToLower() : arg.Attribute.ShortName)}]");
         foreach (var arg in positionalArguments)
-            synopsis.Append(arg.Attribute.Flags.HasFlag(ArgumentFlags.Optional) ? $" [<{arg.Property.Name.ToLower()}>]" : $" {arg.Property.Name.ToLower()}");
+            synopsis.Append(arg.Attribute.Flags.HasFlag(ArgumentFlags.Optional) ? $" [<{arg.Property.Name.ToLower()}>]" : $" <{arg.Property.Name.ToLower()}>");
         WriteLine(synopsis.ToString());
         WriteLine();
 
@@ -137,7 +137,7 @@ public abstract class CommandBase : Command
                 shortName = shortName.Trim(' ', ',');
                 pairs.Add((shortName, arg.Attribute.Description));
             }
-            pairs.AddRange(positionalArguments.Select(arg => ($"<{arg.Property.Name.ToLower()}>", arg.Attribute.Description)));
+            pairs.AddRange(positionalArguments.Select(arg => (arg.Property.Name.ToLower(), arg.Attribute.Description)));
 
             var maxLength = pairs.Max(pair => pair.Command.Length);
             foreach (var (command, shortDescription) in pairs)
