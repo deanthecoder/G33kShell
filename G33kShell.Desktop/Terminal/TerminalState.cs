@@ -53,6 +53,7 @@ public class TerminalState : ITerminalState, IDisposable
 
         CliPrompt.Init(CurrentDirectory, CommandHistory);
         CliPrompt.ReturnPressed += OnCliPromptReturnPressed;
+        CliPrompt.CompletionRequest += OnCliPromptCompletionRequest;
 
         CommandLineParserOptions.Quiet();
     }
@@ -130,8 +131,10 @@ public class TerminalState : ITerminalState, IDisposable
         newCliPrompt.Init(CurrentDirectory, CommandHistory);
         CliPrompt.Parent.AddChild(newCliPrompt);
         CliPrompt.ReturnPressed -= OnCliPromptReturnPressed;
+        CliPrompt.CompletionRequest -= OnCliPromptCompletionRequest;
         CliPrompt = newCliPrompt;
         CliPrompt.ReturnPressed += OnCliPromptReturnPressed;
+        CliPrompt.CompletionRequest += OnCliPromptCompletionRequest;
 
         CliPrompt.ScrollIntoView();
     }
@@ -145,6 +148,47 @@ public class TerminalState : ITerminalState, IDisposable
         ScreensaverLoadRequest?.Invoke(this, screensaverName);
     }
 
+    /// <summary>
+    /// Processes the completion request by providing completion suggestions based on the input.
+    /// </summary>
+    private void OnCliPromptCompletionRequest(object sender, CliPrompt.CompletionRequestEventArgs args)
+    {
+        if (args.IsCommand)
+        {
+            args.CompletionResult = CommandsHelper.GetAllCommandNames().FirstOrDefault(o => o.StartsWith(args.CompletionPrefix))?.Substring(args.CompletionPrefix.Length);
+            return;
+        }
+        
+        var targetPath = CurrentDirectory.Resolve(args.CompletionPrefix);
+        
+        try
+        {
+            if (File.Exists(targetPath) || Directory.Exists(targetPath))
+            {
+                // Already complete - We're done.
+                return;
+            }
+        }
+        catch
+        {
+            // Bad path.
+        }
+
+        // Might have a path with a bit extra on the end.
+        try
+        {
+            var file = new FileInfo(targetPath);
+            var wholeDir = file.Directory;
+            var suffix = file.Name;
+            var candidates = wholeDir.TryGetContent(suffix + "*").OrderBy(o => o.Name);
+            args.CompletionResult = candidates.FirstOrDefault()?.Name.Substring(suffix.Length);
+        }
+        catch
+        {
+            // Bad path.
+        }
+    }
+    
     public void Dispose()
     {
         // Save state for the next session.

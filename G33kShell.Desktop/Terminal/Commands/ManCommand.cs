@@ -9,11 +9,8 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using System.Threading.Tasks;
-using G33kShell.Desktop.Terminal.Attributes;
 using JetBrains.Annotations;
 using NClap.Metadata;
 
@@ -27,37 +24,23 @@ public class ManCommand : CommandBase
     public override Task<bool> Run(ITerminalState state)
     {
         var commandEnum =
-            Enum.GetValues<MyCommandType>()
-                .Cast<MyCommandType?>()
-                .FirstOrDefault(o => o != null && GetCommandNames(GetCommandAttribute((MyCommandType)o)).Any(name => name.Equals(CommandName, StringComparison.OrdinalIgnoreCase)));
-        if (commandEnum != null)
-        {
-            // Get the CommandAttribute associated with the enum value
-            var commandAttribute = GetCommandAttribute((MyCommandType)commandEnum);
+            CommandsHelper.GetAllCommandTypes()
+                .FirstOrDefault(o => CommandsHelper.GetCommandNames(o)
+                    .Any(name => name.Equals(CommandName, StringComparison.OrdinalIgnoreCase)));
 
-            // Get the command type from the CommandAttribute
-            var commandType = commandAttribute?.GetImplementingType(null);
-            if (commandType != null && Activator.CreateInstance(commandType) is CommandBase commandInstance)
-            {
-                commandInstance.SetState(state);
-                commandInstance.WriteManPage(commandAttribute, GetCommandDescription((MyCommandType)commandEnum));
-                return Task.FromResult(true);
-            }
+        // Get the CommandAttribute associated with the enum value
+        var commandAttribute = CommandsHelper.GetCommandAttribute(commandEnum);
+
+        // Get the command type from the CommandAttribute
+        var commandType = commandAttribute?.GetImplementingType(null);
+        if (commandType != null && Activator.CreateInstance(commandType) is CommandBase commandInstance)
+        {
+            commandInstance.SetState(state);
+            commandInstance.WriteManPage(commandAttribute, CommandsHelper.GetCommandDescription(commandEnum));
+            return Task.FromResult(true);
         }
 
         WriteLine("Error: Command not found.");
         return Task.FromResult(false);
     }
-
-    private static IEnumerable<string> GetCommandNames(CommandAttribute commandAttr) =>
-        new[]
-        {
-            commandAttr.LongName, commandAttr.ShortName
-        }.Where(o => o != null);
-
-    private static CommandAttribute GetCommandAttribute(MyCommandType command) =>
-        typeof(MyCommandType).GetMember(command.ToString()).FirstOrDefault()?.GetCustomAttribute<CommandAttribute>();
-
-    private static CommandDescriptionAttribute GetCommandDescription(MyCommandType command) =>
-        typeof(MyCommandType).GetMember(command.ToString()).FirstOrDefault()?.GetCustomAttribute<CommandDescriptionAttribute>();
 }

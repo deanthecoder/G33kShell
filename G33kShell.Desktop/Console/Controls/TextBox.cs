@@ -39,13 +39,13 @@ public class TextBox : TextBlock
     private readonly StringBuilder m_s = new StringBuilder();
     private bool m_waitForKeyUp;
     private Key m_previousKey;
-    private int m_cursorIndex;
     private string m_prefix;
 
     public event EventHandler<string> ReturnPressed;
 
     public override string[] Text => WrapText(Prefix, m_s, Width).ToArray();
     public string TextWithoutPrefix => m_s.ToString();
+    public int CursorIndex { get; private set; }
     public bool IsReadOnly { get; set; }
 
     /// <summary>
@@ -172,37 +172,7 @@ public class TextBox : TextBlock
             return;
         }
 
-        // Handle non-printable control keys.
-        var actionKey = RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? KeyModifiers.Meta : KeyModifiers.Control;
-        var controlPressed = keyEvent.Modifiers.HasFlag(actionKey);
-        var actionPerformed = keyEvent.Key switch
-        {
-            Key.Left => MoveCursor(controlPressed ? GetDistanceToWordStart() : -1),
-            Key.Right => MoveCursor(controlPressed ? GetDistanceToWordEnd() : 1),
-            Key.Up => OnUpArrow(),
-            Key.Down => OnDownArrow(),
-            Key.Home => SetCursor(0),
-            Key.End => MoveCursorToEnd(),
-            Key.Back when controlPressed => Clear(),
-            Key.Back when m_cursorIndex > 0 => Backspace(),
-            Key.Delete when m_cursorIndex < m_s.Length => Delete(),
-            Key.V when controlPressed => ClipboardPaste(),
-            Key.Return => Return(),
-            _ => false
-        };
-
-        // Handle printable characters.
-        if (!actionPerformed && !controlPressed)
-        {
-            var ch = keyEvent.GetChar();
-            if (IsPrintableChar(ch))
-            {
-                if (!keyEvent.Modifiers.HasFlag(KeyModifiers.Shift))
-                    ch = char.ToLower(ch);
-                m_s.Insert(m_cursorIndex++, ch);
-                actionPerformed = true;
-            }
-        }
+        var actionPerformed = OnKeyEvent(keyEvent);
 
         if (actionPerformed)
         {
@@ -219,27 +189,43 @@ public class TextBox : TextBlock
     }
 
     /// <summary>
-    /// Perform the logic when the up arrow key is pressed in the TextBox control.
+    /// Override this method to handle key events for the TextBox control.
     /// </summary>
-    /// <returns>
-    /// True if the arrow key functionality was handled.
-    /// </returns>
-    protected virtual bool OnUpArrow()
+    /// <param name="keyEvent">The KeyConsoleEvent representing the key event.</param>
+    /// <returns>True if an action was performed, false otherwise.</returns>
+    protected virtual bool OnKeyEvent(KeyConsoleEvent keyEvent)
     {
-        // Do nothing.
-        return false;
-    }
+        // Handle non-printable control keys.
+        var actionKey = RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? KeyModifiers.Meta : KeyModifiers.Control;
+        var controlPressed = keyEvent.Modifiers.HasFlag(actionKey);
+        var actionPerformed = keyEvent.Key switch
+        {
+            Key.Left => MoveCursor(controlPressed ? GetDistanceToWordStart() : -1),
+            Key.Right => MoveCursor(controlPressed ? GetDistanceToWordEnd() : 1),
+            Key.Home => SetCursor(0),
+            Key.End => MoveCursorToEnd(),
+            Key.Back when controlPressed => Clear(),
+            Key.Back when CursorIndex > 0 => Backspace(),
+            Key.Delete when CursorIndex < m_s.Length => Delete(),
+            Key.V when controlPressed => ClipboardPaste(),
+            Key.Return => Return(),
+            _ => false
+        };
 
-    /// <summary>
-    /// Perform the logic when the down arrow key is pressed in the TextBox control.
-    /// </summary>
-    /// <returns>
-    /// True if the arrow key functionality was handled.
-    /// </returns>
-    protected virtual bool OnDownArrow()
-    {
-        // Do nothing.
-        return false;
+        // Handle printable characters.
+        if (!actionPerformed && !controlPressed)
+        {
+            var ch = keyEvent.GetChar();
+            if (IsPrintableChar(ch))
+            {
+                if (!keyEvent.Modifiers.HasFlag(KeyModifiers.Shift))
+                    ch = char.ToLower(ch);
+                m_s.Insert(CursorIndex++, ch);
+                actionPerformed = true;
+            }
+        }
+        
+        return actionPerformed;
     }
 
     public bool MoveCursorToEnd() =>
@@ -299,17 +285,20 @@ public class TextBox : TextBlock
     /// </summary>
     protected void Paste(string s)
     {
-        m_s.Insert(m_cursorIndex, s);
+        if (string.IsNullOrEmpty(s))
+            return;
+        
+        m_s.Insert(CursorIndex, s);
         MoveCursor(s.Length);
         InvalidateVisual();
     }
 
     private int GetDistanceToWordStart()
     {
-        if (m_cursorIndex <= 0)
+        if (CursorIndex <= 0)
             return 0;
 
-        var distance = m_cursorIndex;
+        var distance = CursorIndex;
         if (char.IsWhiteSpace(m_s[distance - 1]))
         {
             while (distance > 0 && char.IsWhiteSpace(m_s[distance - 1]))
@@ -321,15 +310,15 @@ public class TextBox : TextBlock
                 distance--;
         }
             
-        return distance - m_cursorIndex;
+        return distance - CursorIndex;
     }
 
     private int GetDistanceToWordEnd()
     {
-        if (m_cursorIndex >= m_s.Length)
+        if (CursorIndex >= m_s.Length)
             return 0;
 
-        var distance = m_cursorIndex;
+        var distance = CursorIndex;
         if (char.IsWhiteSpace(m_s[distance]))
         {
             while (distance < m_s.Length && char.IsWhiteSpace(m_s[distance]))
@@ -341,16 +330,16 @@ public class TextBox : TextBlock
                 distance++;
         }
 
-        return distance - m_cursorIndex;
+        return distance - CursorIndex;
     }
 
     private bool MoveCursor(int offset) =>
-        SetCursor(m_cursorIndex + offset);
+        SetCursor(CursorIndex + offset);
 
     private bool SetCursor(int position)
     {
-        m_cursorIndex = position.Clamp(0, m_s.Length);
-        var x = m_cursorIndex + Prefix?.Length ?? 0;
+        CursorIndex = position.Clamp(0, m_s.Length);
+        var x = CursorIndex + Prefix?.Length ?? 0;
         var y = x / Width;
         SetCursorPos(x % Width, y);
 
@@ -375,9 +364,10 @@ public class TextBox : TextBlock
         return true;
     }
     
-    public bool Backspace()
+    public bool Backspace(int count = 1)
     {
-        m_s.Remove(--m_cursorIndex, 1);
+        while (count-- > 0 && CursorIndex > 0)
+            m_s.Remove(--CursorIndex, 1);
         MoveCursor(0);
         InvalidateVisual();
         return true;
@@ -385,7 +375,7 @@ public class TextBox : TextBlock
     
     private bool Delete()
     {
-        m_s.Remove(m_cursorIndex, 1);
+        m_s.Remove(CursorIndex, 1);
         MoveCursor(0);
         InvalidateVisual();
         return true;

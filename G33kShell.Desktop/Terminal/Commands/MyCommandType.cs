@@ -59,7 +59,7 @@ public enum MyCommandType
     [CommandDescription("Report the current date and time.")]
     Now,
 
-    [Command(typeof(OpenCommand), LongName = "open", Description = "Launches a file using the associated application based on the operating system settings.")]
+    [Command(typeof(OpenCommand), LongName = "open", Description = "Launches a file using the associated application based on the OS settings.")]
     [CommandDescription("Opens the specified file or folder using the default application on the system.")]
     Open,
     
