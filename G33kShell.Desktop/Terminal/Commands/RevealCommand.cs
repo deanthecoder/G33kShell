@@ -22,17 +22,7 @@ public class RevealCommand : LocationCommand
     {
         try
         {
-            var targetPath = Path switch
-            {
-                "applications" => Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-                "desktop" => Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
-                "documents" => Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                "downloads" => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + "/Downloads",
-                "programs" => Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-                "temp" => System.IO.Path.GetTempPath(),
-                _ => state.CurrentDirectory.Resolve(Path)
-            };
-
+            var targetPath = GetTargetPath(state);
             var fileInfo = new FileInfo(targetPath);
             if (fileInfo.Exists)
             {

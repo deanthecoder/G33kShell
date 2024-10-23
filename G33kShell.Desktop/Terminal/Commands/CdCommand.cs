@@ -22,7 +22,7 @@ public class CdCommand : LocationCommand
         var newDir = state.CurrentDirectory;
         try
         {
-            newDir = state.CurrentDirectory.Resolve(Path).ToDir();
+            newDir = state.CurrentDirectory.Resolve(GetTargetPath(state)).ToDir();
             if (newDir.Exists)
             {
                 state.CurrentDirectory = newDir;

@@ -20,7 +20,7 @@ public class PushDCommand : LocationCommand
     {
         try
         {
-            var newDir = state.CurrentDirectory.Resolve(Path).ToDir();
+            var newDir = state.CurrentDirectory.Resolve(GetTargetPath(state)).ToDir();
             if (newDir.Exists)
             {
                 state.DirStack.Push(state.CurrentDirectory); // push current directory to stack

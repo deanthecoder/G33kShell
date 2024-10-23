@@ -17,7 +17,19 @@ namespace G33kShell.Desktop.Terminal.Commands;
 public enum MyCommandType
 {
     [Command(typeof(CdCommand), LongName = "cd", Description = "Change the current directory.")]
-    [CommandDescription("Changes the current directory to the specified path.", "Example: cd /home/user/documents")]
+    [CommandDescription(
+        "Changes the current directory to the specified path.",
+        "",
+        "Special path options are available:",
+        "  'applications' - Opens the Program Files folder.",
+        "  'desktop'      - Opens the Desktop.",
+        "  'documents'    - Opens the Documents folder.",
+        "  'downloads'    - Opens the Downloads folder.",
+        "  'home'         - Opens the user's 'home' folder.",
+        "  'programs'     - Opens the Program Files folder.",
+        "  'temp'         - Opens the system's temporary files directory.",
+        "",
+        "Example: cd /home/user/documents")]
     Cd,
 
     [Command(typeof(ClearCommand), LongName = "clear", ShortName = "cls", Description = "Clear the terminal.")]
@@ -68,7 +80,19 @@ public enum MyCommandType
     PopD,
 
     [Command(typeof(PushDCommand), LongName = "pushd", Description = "Change the current directory.")]
-    [CommandDescription("Navigate to a folder and push it onto the directory stack.", "See: popd")]
+    [CommandDescription(
+        "Navigate to a folder and push it onto the directory stack.",
+        "",
+        "Special path options are available:",
+        "  'applications' - Opens the Program Files folder.",
+        "  'desktop'      - Opens the Desktop.",
+        "  'documents'    - Opens the Documents folder.",
+        "  'downloads'    - Opens the Downloads folder.",
+        "  'home'         - Opens the user's 'home' folder.",
+        "  'programs'     - Opens the Program Files folder.",
+        "  'temp'         - Opens the system's temporary files directory.",
+        "",
+        "See: popd")]
     PushD,
 
     [Command(typeof(RevealCommand), LongName = "reveal", Description = "View the target in the OS file browser.")]
@@ -76,12 +100,13 @@ public enum MyCommandType
         "Opens the specified file or directory in the system’s file explorer.",
         "",
         "Special path options are available:",
-        "  'applications' - Opens the Program Files folder",
-        "  'desktop'      - Opens the Desktop",
-        "  'documents'    - Opens the Documents folder",
-        "  'downloads'    - Opens the Downloads folder",
-        "  'programs'     - Opens the Program Files folder",
-        "  'temp'         - Opens the system's temporary files directory",
+        "  'applications' - Opens the Program Files folder.",
+        "  'desktop'      - Opens the Desktop.",
+        "  'documents'    - Opens the Documents folder.",
+        "  'downloads'    - Opens the Downloads folder.",
+        "  'home'         - Opens the user's 'home' folder.",
+        "  'programs'     - Opens the Program Files folder.",
+        "  'temp'         - Opens the system's temporary files directory.",
         "",
         "Example:",
         "  reveal myfile.txt",
