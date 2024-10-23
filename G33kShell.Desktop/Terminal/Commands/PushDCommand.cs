@@ -16,7 +16,7 @@ namespace G33kShell.Desktop.Terminal.Commands;
 
 public class PushDCommand : LocationCommand
 {
-    public override Task<bool> Run(ITerminalState state)
+    protected override Task<bool> Run(ITerminalState state)
     {
         try
         {

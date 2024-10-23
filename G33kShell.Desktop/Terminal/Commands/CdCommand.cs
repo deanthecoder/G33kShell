@@ -17,7 +17,7 @@ namespace G33kShell.Desktop.Terminal.Commands;
 
 public class CdCommand : LocationCommand
 {
-    public override Task<bool> Run(ITerminalState state)
+    protected override Task<bool> Run(ITerminalState state)
     {
         var newDir = state.CurrentDirectory;
         try

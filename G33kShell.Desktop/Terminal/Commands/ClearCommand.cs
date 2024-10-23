@@ -14,7 +14,7 @@ namespace G33kShell.Desktop.Terminal.Commands;
 
 public class ClearCommand : CommandBase
 {
-    public override Task<bool> Run(ITerminalState state)
+    protected override Task<bool> Run(ITerminalState state)
     {
         state.CliPrompt.Parent.ScrollChildren(state.CliPrompt.Parent.Y - state.CliPrompt.Y - 2);
         return Task.FromResult(true);

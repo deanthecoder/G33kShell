@@ -16,7 +16,7 @@ namespace G33kShell.Desktop.Terminal.Commands;
 
 public class ExitCommand : CommandBase
 {
-    public override Task<bool> Run(ITerminalState state)
+    protected override Task<bool> Run(ITerminalState state)
     {
         Application.Current.GetMainWindow().Close();
         return Task.FromResult(true);

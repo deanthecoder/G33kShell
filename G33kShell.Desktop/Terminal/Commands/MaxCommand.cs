@@ -17,7 +17,7 @@ namespace G33kShell.Desktop.Terminal.Commands;
 
 public class MaxCommand : CommandBase
 {
-    public override Task<bool> Run(ITerminalState state)
+    protected override Task<bool> Run(ITerminalState state)
     {
         var window = Application.Current.GetMainWindow();
 

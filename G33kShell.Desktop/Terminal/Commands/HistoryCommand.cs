@@ -15,7 +15,7 @@ namespace G33kShell.Desktop.Terminal.Commands;
 
 public class HistoryCommand : CommandBase
 {
-    public override Task<bool> Run(ITerminalState state)
+    protected override Task<bool> Run(ITerminalState state)
     {
         var commands = state.CommandHistory.Commands.Select(o => o.Command);
         foreach (var cmd in commands.Reverse().Distinct().Reverse())

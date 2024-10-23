@@ -30,7 +30,10 @@ public abstract class CommandBase : Command
 
     private CliPrompt CliPrompt => m_state.CliPrompt;
 
-    public virtual bool IsSupported => true;
+    /// <summary>
+    /// Gets a value indicating whether the command is supported on the current platform.
+    /// </summary>
+    protected virtual bool IsSupported => true;
     
     public CommandBase SetState(ITerminalState state)
     {
@@ -38,7 +41,7 @@ public abstract class CommandBase : Command
         return this;
     }
 
-    public abstract Task<bool> Run(ITerminalState state);
+    protected abstract Task<bool> Run(ITerminalState state);
     
     public override async Task<NClap.Metadata.CommandResult> ExecuteAsync(CancellationToken cancel)
     {

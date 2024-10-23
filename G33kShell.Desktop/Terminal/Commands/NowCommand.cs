@@ -15,7 +15,7 @@ namespace G33kShell.Desktop.Terminal.Commands;
 
 public class NowCommand : CommandBase
 {
-    public override Task<bool> Run(ITerminalState state)
+    protected override Task<bool> Run(ITerminalState state)
     {
         WriteLine(DateTime.Now.ToString("dddd dd MMMM yyyy, h:mm:ss tt"));
         return Task.FromResult(true);

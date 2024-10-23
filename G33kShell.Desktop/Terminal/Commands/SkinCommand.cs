@@ -25,7 +25,7 @@ public class SkinCommand : CommandBase
     [PositionalArgument(ArgumentFlags.Optional, Description = "The name of the skin to apply.")]
     public string Name { get; [UsedImplicitly] set; }
 
-    public override Task<bool> Run(ITerminalState state)
+    protected override Task<bool> Run(ITerminalState state)
     {
         var skinObjects = CreateSkins();
 

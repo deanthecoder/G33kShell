@@ -24,7 +24,7 @@ public class ClipCommand : CommandBase
     [PositionalArgument(0, Description = "Select a single line (1+).")]
     public int? LineNumber { get; [UsedImplicitly] set; }
 
-    public override Task<bool> Run(ITerminalState state)
+    protected override Task<bool> Run(ITerminalState state)
     {
         var lastCommand = state.CommandHistory.Commands.LastOrDefault();
         var output = lastCommand?.Output;

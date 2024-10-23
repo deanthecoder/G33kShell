@@ -34,7 +34,7 @@ public class DirCommand : CommandBase
     [PositionalArgument(ArgumentFlags.Optional, Description = "File mask (e.g. *.exe)")]
     public string FileMask { get; [UsedImplicitly] set; } = "*.*";
 
-    public override async Task<bool> Run(ITerminalState state)
+    protected override async Task<bool> Run(ITerminalState state)
     {
         BareFormat |= Recursive;
 

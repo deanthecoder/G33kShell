@@ -24,7 +24,7 @@ public class FindCommand : CommandBase
     [PositionalArgument(ArgumentFlags.Required, Description = "File mask to search for (e.g. *.txt)")]
     public string FileMask { get; [UsedImplicitly] set; } = "*.*";
 
-    public override async Task<bool> Run(ITerminalState state)
+    protected override async Task<bool> Run(ITerminalState state)
     {
         try
         {

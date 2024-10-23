@@ -18,12 +18,21 @@ namespace G33kShell.Desktop.Terminal.Commands;
 
 public class RevealCommand : LocationCommand
 {
-    public override async Task<bool> Run(ITerminalState state)
+    protected override async Task<bool> Run(ITerminalState state)
     {
         try
         {
-            var targetPath = state.CurrentDirectory.Resolve(Path);
-            
+            var targetPath = Path switch
+            {
+                "applications" => Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                "desktop" => Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                "documents" => Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                "downloads" => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + "/Downloads",
+                "programs" => Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                "temp" => System.IO.Path.GetTempPath(),
+                _ => state.CurrentDirectory.Resolve(Path)
+            };
+
             var fileInfo = new FileInfo(targetPath);
             if (fileInfo.Exists)
             {

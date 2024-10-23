@@ -35,7 +35,7 @@ public class ExecutableCommand : CommandBase
         return !string.IsNullOrWhiteSpace(command) && WhereIsCommand.FindExecutables(command).Any();
     }
 
-    public override async Task<bool> Run(ITerminalState state)
+    protected override async Task<bool> Run(ITerminalState state)
     {
         try
         {

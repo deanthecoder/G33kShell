@@ -25,7 +25,7 @@ public class WhereIsCommand : CommandBase
     [PositionalArgument(ArgumentFlags.Required, Description = "Executable name/pattern to find.")]
     public string Name { get; [UsedImplicitly] set; }
 
-    public override Task<bool> Run(ITerminalState state)
+    protected override Task<bool> Run(ITerminalState state)
     {
         try
         {

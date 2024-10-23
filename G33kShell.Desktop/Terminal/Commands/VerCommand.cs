@@ -15,7 +15,7 @@ namespace G33kShell.Desktop.Terminal.Commands;
 
 public class VerCommand : CommandBase
 {
-    public override Task<bool> Run(ITerminalState state)
+    protected override Task<bool> Run(ITerminalState state)
     {
         WriteLine($"G33kShell v{Assembly.GetExecutingAssembly().GetName().Version}");
         return Task.FromResult(true);

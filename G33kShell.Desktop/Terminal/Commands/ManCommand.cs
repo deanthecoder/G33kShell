@@ -21,7 +21,7 @@ public class ManCommand : CommandBase
     [PositionalArgument(ArgumentFlags.Required, Description = "The name of the command.")]
     public string CommandName { get; [UsedImplicitly] set; }
 
-    public override Task<bool> Run(ITerminalState state)
+    protected override Task<bool> Run(ITerminalState state)
     {
         var commandEnum =
             CommandsHelper.GetAllCommandTypes()

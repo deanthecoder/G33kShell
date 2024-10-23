@@ -72,9 +72,23 @@ public enum MyCommandType
     PushD,
 
     [Command(typeof(RevealCommand), LongName = "reveal", Description = "View the target in the OS file browser.")]
-    [CommandDescription("Opens the specified file or directory in the system’s file explorer.", "Example: reveal myfile.txt")]
+    [CommandDescription(
+        "Opens the specified file or directory in the system’s file explorer.",
+        "",
+        "Special path options are available:",
+        "  'applications' - Opens the Program Files folder",
+        "  'desktop'      - Opens the Desktop",
+        "  'documents'    - Opens the Documents folder",
+        "  'downloads'    - Opens the Downloads folder",
+        "  'programs'     - Opens the Program Files folder",
+        "  'temp'         - Opens the system's temporary files directory",
+        "",
+        "Example:",
+        "  reveal myfile.txt",
+        "  reveal desktop",
+        "  reveal downloads"
+        )]
     Reveal,
-
     [Command(typeof(ScreensaverCommand), LongName = "screensaver", Description = "Select and activate the screensaver.")]
     [CommandDescription("Select and activate the screensaver.")]
     Screensaver,

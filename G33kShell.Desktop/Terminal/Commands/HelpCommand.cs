@@ -18,7 +18,7 @@ namespace G33kShell.Desktop.Terminal.Commands;
 
 public class HelpCommand : CommandBase
 {
-    public override Task<bool> Run(ITerminalState state)
+    protected override Task<bool> Run(ITerminalState state)
     {
         var commands = Enum.GetValues<MyCommandType>()
             .Select(CommandsHelper.GetCommandAttribute)

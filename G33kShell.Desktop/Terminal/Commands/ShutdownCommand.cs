@@ -16,9 +16,9 @@ namespace G33kShell.Desktop.Terminal.Commands;
 
 public class ShutdownCommand : CommandBase
 {
-    public override bool IsSupported => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+    protected override bool IsSupported => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 
-    public override Task<bool> Run(ITerminalState state)
+    protected override Task<bool> Run(ITerminalState state)
     {
         const int delayInSeconds = 2;
 
