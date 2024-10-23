@@ -82,6 +82,8 @@ public class CliPrompt : TextBox
         if (string.IsNullOrEmpty(args.CompletionResult))
             return false;
 
+        if (TextWithoutPrefix.EndsWith('*'))
+            Backspace();
         Paste(args.CompletionResult);
         return true;
     }

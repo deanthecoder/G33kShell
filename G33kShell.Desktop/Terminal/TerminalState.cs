@@ -179,7 +179,7 @@ public class TerminalState : ITerminalState, IDisposable
         {
             var file = new FileInfo(targetPath!);
             var wholeDir = file.Directory;
-            var suffix = file.Name;
+            var suffix = file.Name.TrimEnd('*');
             var candidates = wholeDir.TryGetContent(suffix + "*").OrderBy(o => o.Name);
             args.CompletionResult = candidates.FirstOrDefault()?.Name.Substring(suffix.Length);
         }
