@@ -29,7 +29,8 @@ namespace G33kShell.Desktop.Terminal.Controls;
 /// </remarks>
 public class CliPrompt : TextBox
 {
-    private string[] m_commandHistory;
+    private string[] m_fullCommandHistory;
+    private string[] m_filteredCommandHistory;
     private int m_historyOffset;
 
     public event EventHandler<CompletionRequestEventArgs> CompletionRequest; 
@@ -40,16 +41,24 @@ public class CliPrompt : TextBox
 
     protected override bool OnKeyEvent(KeyConsoleEvent keyEvent)
     {
+        if (keyEvent.Key == Key.Up)
+            return OnUpArrow();
+        if (keyEvent.Key == Key.Down)
+            return OnDownArrow();
+
+        // Any other key resets any up/down command history navigation.
+        ResetHistoryNavigation();
+
         if (base.OnKeyEvent(keyEvent))
             return true;
+        
+        return keyEvent.Key == Key.Tab && OnTab();
+    }
 
-        return keyEvent.Key switch
-        {
-            Key.Up => OnUpArrow(),
-            Key.Down => OnDownArrow(),
-            Key.Tab => OnTab(),
-            _ => false
-        };
+    private void ResetHistoryNavigation()
+    {
+        m_filteredCommandHistory = null;
+        m_historyOffset = 0;
     }
 
     private bool OnTab()
@@ -79,10 +88,13 @@ public class CliPrompt : TextBox
 
     private bool OnUpArrow()
     {
-        if (m_historyOffset > -m_commandHistory.Length)
+        if (m_filteredCommandHistory == null)
+            m_filteredCommandHistory = m_fullCommandHistory.Where(o => o.StartsWith(TextWithoutPrefix.Substring(0, CursorIndex), StringComparison.OrdinalIgnoreCase)).ToArray();
+        
+        if (m_historyOffset > -m_filteredCommandHistory.Length)
         {
             Clear();
-            Paste(m_commandHistory[m_commandHistory.Length + --m_historyOffset]);
+            Paste(m_filteredCommandHistory[m_filteredCommandHistory.Length + --m_historyOffset]);
         }
         
         return true;
@@ -96,7 +108,11 @@ public class CliPrompt : TextBox
         {
             m_historyOffset++;
             if (m_historyOffset < 0)
-                Paste(m_commandHistory[m_commandHistory.Length + m_historyOffset]);
+                Paste(m_filteredCommandHistory[m_filteredCommandHistory.Length + m_historyOffset]);
+        }
+        else
+        {
+            ResetHistoryNavigation();
         }
         
         return true;
@@ -106,7 +122,7 @@ public class CliPrompt : TextBox
     {
         Prefix = $"[{cwd.FullName.TrimEnd('\\', '/').StringOrDefault("/")}]";
 
-        m_commandHistory =
+        m_fullCommandHistory =
             commandHistory.Commands
                 .Select(o => o.Command)
                 .Where(o => !string.IsNullOrWhiteSpace(o))
