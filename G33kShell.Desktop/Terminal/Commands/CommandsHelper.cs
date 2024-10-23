@@ -66,6 +66,6 @@ public static class CommandsHelper
     /// <summary>
     /// Retrieves the command description attribute associated with the specified command.
     /// </summary>
-    public static CommandDescriptionAttribute GetCommandDescription(MyCommandType command) =>
-        typeof(MyCommandType).GetMember(command.ToString()).FirstOrDefault()?.GetCustomAttribute<CommandDescriptionAttribute>();
+    public static CommandDescriptionAttribute GetCommandDescription(CommandBase command) =>
+        command.GetType().GetCustomAttribute<CommandDescriptionAttribute>();
 }

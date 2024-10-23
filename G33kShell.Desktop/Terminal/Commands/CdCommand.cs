@@ -12,9 +12,23 @@
 using System;
 using System.Threading.Tasks;
 using CSharp.Core.Extensions;
+using G33kShell.Desktop.Terminal.Attributes;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
+[CommandDescription(
+    "Changes the current directory to the specified path.",
+    "",
+    "Special path options are available:",
+    "  'applications' - Opens the Program Files folder.",
+    "  'desktop'      - Opens the Desktop.",
+    "  'documents'    - Opens the Documents folder.",
+    "  'downloads'    - Opens the Downloads folder.",
+    "  'home'         - Opens the user's 'home' folder.",
+    "  'programs'     - Opens the Program Files folder.",
+    "  'temp'         - Opens the system's temporary files directory.",
+    "",
+    "Example: cd /home/user/documents")]
 public class CdCommand : LocationCommand
 {
     protected override Task<bool> Run(ITerminalState state)

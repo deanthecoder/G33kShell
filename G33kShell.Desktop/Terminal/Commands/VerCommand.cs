@@ -10,9 +10,11 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System.Reflection;
 using System.Threading.Tasks;
+using G33kShell.Desktop.Terminal.Attributes;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
+[CommandDescription("Report the G33kShell application version.")]
 public class VerCommand : CommandBase
 {
     protected override Task<bool> Run(ITerminalState state)

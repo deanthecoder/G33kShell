@@ -15,11 +15,13 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using CSharp.Core.Extensions;
+using G33kShell.Desktop.Terminal.Attributes;
 using JetBrains.Annotations;
 using NClap.Metadata;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
+[CommandDescription("Locates an executable file in the system’s PATH that matches the specified name or pattern.", "Example: whereis git")]
 public class WhereIsCommand : CommandBase
 {
     [PositionalArgument(ArgumentFlags.Required, Description = "Executable name/pattern to find.")]

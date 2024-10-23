@@ -13,9 +13,11 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using CSharp.Core.Extensions;
+using G33kShell.Desktop.Terminal.Attributes;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
+[CommandDescription("Opens the specified file or folder using the default application on the system.")]
 public class OpenCommand : LocationCommand
 {
     protected override Task<bool> Run(ITerminalState state)

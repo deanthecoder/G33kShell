@@ -13,9 +13,11 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using CSharp.Core.Extensions;
+using G33kShell.Desktop.Terminal.Attributes;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
+[CommandDescription("Provides help information for available commands.")]
 public class HelpCommand : CommandBase
 {
     protected override Task<bool> Run(ITerminalState state)

@@ -10,9 +10,11 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
 using System.Threading.Tasks;
+using G33kShell.Desktop.Terminal.Attributes;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
+[CommandDescription("Report the current date and time.")]
 public class NowCommand : CommandBase
 {
     protected override Task<bool> Run(ITerminalState state)

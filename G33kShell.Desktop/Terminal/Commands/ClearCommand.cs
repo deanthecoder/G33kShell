@@ -9,9 +9,11 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System.Threading.Tasks;
+using G33kShell.Desktop.Terminal.Attributes;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
+[CommandDescription("Clears the terminal screen.")]
 public class ClearCommand : CommandBase
 {
     protected override Task<bool> Run(ITerminalState state)

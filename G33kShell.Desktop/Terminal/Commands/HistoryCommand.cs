@@ -10,9 +10,11 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System.Linq;
 using System.Threading.Tasks;
+using G33kShell.Desktop.Terminal.Attributes;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
+[CommandDescription("List all of the previously-used Terminal commands.")]
 public class HistoryCommand : CommandBase
 {
     protected override Task<bool> Run(ITerminalState state)

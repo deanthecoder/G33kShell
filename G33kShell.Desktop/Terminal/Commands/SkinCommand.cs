@@ -12,11 +12,13 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using G33kShell.Desktop.Skins;
+using G33kShell.Desktop.Terminal.Attributes;
 using JetBrains.Annotations;
 using NClap.Metadata;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
+[CommandDescription("List or change the current Terminal skin.")]
 public class SkinCommand : CommandBase
 {
     [NamedArgument(Description = "List the available options.", LongName = "list", ShortName = "l")]

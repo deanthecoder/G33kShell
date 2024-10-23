@@ -15,7 +15,7 @@ namespace G33kShell.Desktop.Terminal.Attributes;
 /// <summary>
 /// Attribute used to provide a description for a command type.
 /// </summary>
-[AttributeUsage(AttributeTargets.Field)]
+[AttributeUsage(AttributeTargets.Class)]
 public class CommandDescriptionAttribute : Attribute
 {
     public string[] Lines { get; }

@@ -11,12 +11,14 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using G33kShell.Desktop.Terminal.Attributes;
 using G33kShell.Desktop.Terminal.Controls;
 using JetBrains.Annotations;
 using NClap.Metadata;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
+[CommandDescription("Select and activate the screensaver.")]
 public class ScreensaverCommand : CommandBase
 {
     [NamedArgument(Description = "List the available options.", LongName = "list", ShortName = "l")]

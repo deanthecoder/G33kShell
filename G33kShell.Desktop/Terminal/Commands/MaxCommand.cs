@@ -12,9 +12,11 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using CSharp.Core.Extensions;
+using G33kShell.Desktop.Terminal.Attributes;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
+[CommandDescription("Maximizes the window if it’s not already, or restores it to its previous size. Useful for adjusting the view of the terminal.")]
 public class MaxCommand : CommandBase
 {
     protected override Task<bool> Run(ITerminalState state)

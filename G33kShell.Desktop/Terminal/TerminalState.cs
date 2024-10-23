@@ -177,7 +177,7 @@ public class TerminalState : ITerminalState, IDisposable
         // Might have a path with a bit extra on the end.
         try
         {
-            var file = new FileInfo(targetPath);
+            var file = new FileInfo(targetPath!);
             var wholeDir = file.Directory;
             var suffix = file.Name;
             var candidates = wholeDir.TryGetContent(suffix + "*").OrderBy(o => o.Name);

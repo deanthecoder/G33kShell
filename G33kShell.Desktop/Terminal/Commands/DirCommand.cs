@@ -15,11 +15,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using CSharp.Core.Extensions;
+using G33kShell.Desktop.Terminal.Attributes;
 using JetBrains.Annotations;
 using NClap.Metadata;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
+[CommandDescription("Lists files and directories in the current directory.", "Example: dir ..")]
 public class DirCommand : CommandBase
 {
     [NamedArgument(Description = "Display in bare format.", ShortName = "b")]

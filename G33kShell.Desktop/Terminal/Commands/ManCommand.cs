@@ -11,11 +11,13 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using G33kShell.Desktop.Terminal.Attributes;
 using JetBrains.Annotations;
 using NClap.Metadata;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
+[CommandDescription("Displays manual pages for commands, detailing their usage and options.", "Example: man open")]
 public class ManCommand : CommandBase
 {
     [PositionalArgument(ArgumentFlags.Required, Description = "The name of the command.")]
@@ -36,7 +38,7 @@ public class ManCommand : CommandBase
         if (commandType != null && Activator.CreateInstance(commandType) is CommandBase commandInstance)
         {
             commandInstance.SetState(state);
-            commandInstance.WriteManPage(commandAttribute, CommandsHelper.GetCommandDescription(commandEnum));
+            commandInstance.WriteManPage(commandAttribute, CommandsHelper.GetCommandDescription(commandInstance));
             return Task.FromResult(true);
         }
 

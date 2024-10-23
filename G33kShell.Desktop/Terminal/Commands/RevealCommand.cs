@@ -13,9 +13,27 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using CSharp.Core.Extensions;
+using G33kShell.Desktop.Terminal.Attributes;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
+[CommandDescription(
+    "Opens the specified file or directory in the system’s file explorer.",
+    "",
+    "Special path options are available:",
+    "  'applications' - Opens the Program Files folder.",
+    "  'desktop'      - Opens the Desktop.",
+    "  'documents'    - Opens the Documents folder.",
+    "  'downloads'    - Opens the Downloads folder.",
+    "  'home'         - Opens the user's 'home' folder.",
+    "  'programs'     - Opens the Program Files folder.",
+    "  'temp'         - Opens the system's temporary files directory.",
+    "",
+    "Example:",
+    "  reveal myfile.txt",
+    "  reveal desktop",
+    "  reveal downloads"
+)]
 public class RevealCommand : LocationCommand
 {
     protected override async Task<bool> Run(ITerminalState state)

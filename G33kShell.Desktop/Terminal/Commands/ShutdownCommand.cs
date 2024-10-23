@@ -11,9 +11,11 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using G33kShell.Desktop.Terminal.Attributes;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
+[CommandDescription("Shut down the OS, taking no prisoners.")]
 public class ShutdownCommand : CommandBase
 {
     protected override bool IsSupported => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);

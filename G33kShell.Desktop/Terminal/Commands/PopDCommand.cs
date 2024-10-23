@@ -11,9 +11,11 @@
 using System;
 using System.Threading.Tasks;
 using CSharp.Core.Extensions;
+using G33kShell.Desktop.Terminal.Attributes;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
+[CommandDescription("Navigate to the previously 'pushed' folder.", "See: pushd")]
 public class PopDCommand : CommandBase
 {
     protected override Task<bool> Run(ITerminalState state)

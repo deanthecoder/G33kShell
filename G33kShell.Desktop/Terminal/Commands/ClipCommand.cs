@@ -10,12 +10,14 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System.Linq;
 using System.Threading.Tasks;
+using G33kShell.Desktop.Terminal.Attributes;
 using JetBrains.Annotations;
 using NClap.Metadata;
 using TextCopy;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
+[CommandDescription("Copies the output from the previous command into the system clipboard.", "All output is copied, unless a specific line number is requested.")]
 public class ClipCommand : CommandBase
 {
     [NamedArgument(Description = "Capture the command, as well as the output.", LongName = "all", ShortName = "a")]

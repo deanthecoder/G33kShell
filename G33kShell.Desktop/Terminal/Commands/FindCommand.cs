@@ -14,11 +14,13 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using G33kShell.Desktop.Terminal.Attributes;
 using JetBrains.Annotations;
 using NClap.Metadata;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
+[CommandDescription("Searches for files or directories matching the specified name or pattern.", "Example: find *.txt")]
 public class FindCommand : CommandBase
 {
     [PositionalArgument(ArgumentFlags.Required, Description = "File mask to search for (e.g. *.txt)")]
