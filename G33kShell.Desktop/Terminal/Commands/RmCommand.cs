@@ -21,7 +21,16 @@ public class RmCommand : LocationCommand
 {
     protected override async Task<bool> Run(ITerminalState state)
     {
-        var fileSystemInfos = GetItems(state.CurrentDirectory, Path);
+        FileSystemInfo[] fileSystemInfos;
+        if (Path.Contains('*'))
+        {
+            fileSystemInfos = GetItems(state.CurrentDirectory, Path);
+        }
+        else
+        {
+            var path = state.CurrentDirectory.Resolve(Path);
+            fileSystemInfos = File.Exists(path) ? [ path.ToFile() ] : [ path.ToDir() ];
+        }
 
         var success = true;
         foreach (var info in fileSystemInfos)
