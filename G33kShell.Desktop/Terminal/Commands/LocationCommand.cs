@@ -10,6 +10,8 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
 using System;
+using System.IO;
+using System.Linq;
 using CSharp.Core.Extensions;
 using JetBrains.Annotations;
 using NClap.Metadata;
@@ -38,5 +40,38 @@ public abstract class LocationCommand : CommandBase
             _ => state.CurrentDirectory.Resolve(Path)
         };
         return targetPath;
+    }
+
+    protected static FileSystemInfo[] GetItems(DirectoryInfo cwd, string pathAndMask)
+    {
+        var fullPath = cwd.Resolve(pathAndMask);
+        string directory;
+        string mask;
+
+        // Check if the full path is an actual directory
+        if (Directory.Exists(fullPath))
+        {
+            directory = fullPath;
+            mask = "*.*"; // Default to all files
+        }
+        else
+        {
+            // Otherwise, split into directory and mask
+            directory = System.IO.Path.GetDirectoryName(fullPath) ?? throw new InvalidOperationException("Directory name could not be evaluated.");
+            mask = System.IO.Path.GetFileName(fullPath);
+
+            // If mask is empty, default to all files
+            if (string.IsNullOrEmpty(mask))
+            {
+                directory = fullPath;
+                mask = "*.*";
+            }
+        }
+
+        return
+            new DirectoryInfo(directory ?? ".")
+                .EnumerateFileSystemInfos(mask)
+                .OrderBy(o => o.FullName)
+                .ToArray();
     }
 }

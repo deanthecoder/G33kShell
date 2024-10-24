@@ -60,6 +60,9 @@ public enum MyCommandType
     [Command(typeof(RevealCommand), LongName = "reveal", Description = "View the target in the OS file browser.")]
     Reveal,
     
+    [Command(typeof(RmCommand), LongName = "rm", Description = "Recursively delete a folder or file(s).")]
+    Rm,
+    
     [Command(typeof(ScreensaverCommand), LongName = "screensaver", Description = "Select and activate the screensaver.")]
     Screensaver,
 
