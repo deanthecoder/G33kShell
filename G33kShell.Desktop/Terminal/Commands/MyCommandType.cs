@@ -45,6 +45,9 @@ public enum MyCommandType
     [Command(typeof(MaxCommand), LongName = "max", Description = "Toggle the terminal window between maximized and restored states.")]
     Max,
 
+    [Command(typeof(MkdirCommand), LongName = "mkdir", ShortName = "md", Description = "Creates a directory.")]
+    Mkdir,
+
     [Command(typeof(NowCommand), LongName = "now", Description = "Report the current date and time.")]
     Now,
 
