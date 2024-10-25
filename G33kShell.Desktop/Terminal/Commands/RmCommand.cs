@@ -13,18 +13,33 @@ using System.IO;
 using System.Threading.Tasks;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Terminal.Attributes;
+using JetBrains.Annotations;
+using NClap.Metadata;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
 [CommandDescription("Removes files and directories, including recursively deleting folders.", "Example: rm file.txt")]
 public class RmCommand : LocationCommand
 {
+    [NamedArgument(Description = "Recursively delete files.", ShortName = "s")]
+    [UsedImplicitly]
+    public bool Recursive { get; set; }
+
     protected override async Task<bool> Run(ITerminalState state)
     {
         FileSystemInfo[] fileSystemInfos;
         if (Path.Contains('*'))
         {
-            fileSystemInfos = GetItems(state.CurrentDirectory, Path);
+            if (Recursive)
+            {
+                var mask = System.IO.Path.GetFileName(Path);
+                var cwd = state.CurrentDirectory.Resolve(Path).ToFile().Directory;
+                fileSystemInfos = cwd.TryGetContent(mask, SearchOption.AllDirectories);
+            }
+            else
+            {
+                fileSystemInfos = GetItems(state.CurrentDirectory, Path);
+            }
         }
         else
         {

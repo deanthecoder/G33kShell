@@ -42,6 +42,17 @@ public abstract class LocationCommand : CommandBase
         return targetPath;
     }
 
+    /// <summary>
+    /// Retrieves an array of FileSystemInfos based on the provided current working directory and path/mask.
+    /// </summary>
+    /// <param name="cwd">The current working directory.</param>
+    /// <param name="pathAndMask">The path or file mask to search for. This can refer to a specific file, a directory, or contain a wildcard.</param>
+    /// <returns>An array of FileSystemInfo objects representing files and directories that match the criteria.</returns>
+    /// <remarks>
+    /// If <paramref name="pathAndMask"/> points to a directory, the method will retrieve all files within that directory (default mask is "*.*").
+    /// If it points to a file or contains a wildcard, the method will retrieve items based on the file name or mask pattern.
+    /// If the mask is empty (e.g., the provided path ends with a directory), it defaults to retrieving all files ("*.*").
+    /// </remarks>
     protected static FileSystemInfo[] GetItems(DirectoryInfo cwd, string pathAndMask)
     {
         var fullPath = cwd.Resolve(pathAndMask);

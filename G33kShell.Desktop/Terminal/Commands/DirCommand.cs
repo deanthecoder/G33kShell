@@ -25,16 +25,20 @@ namespace G33kShell.Desktop.Terminal.Commands;
 public class DirCommand : CommandBase
 {
     [NamedArgument(Description = "Display in bare format.", ShortName = "b")]
-    public bool BareFormat { get; [UsedImplicitly] set; }
+    [UsedImplicitly]
+    public bool BareFormat { get; set; }
 
     [NamedArgument(Description = "Recursively list files.", ShortName = "s")]
-    public bool Recursive { get; [UsedImplicitly] set; }
+    [UsedImplicitly]
+    public bool Recursive { get; set; }
 
     [NamedArgument(Description = "List directories only.", ShortName = "d")]
-    public bool DirsOnly { get; [UsedImplicitly] set; }
+    [UsedImplicitly]
+    public bool DirsOnly { get; set; }
 
     [PositionalArgument(ArgumentFlags.Optional, Description = "File mask (e.g. *.exe)")]
-    public string FileMask { get; [UsedImplicitly] set; } = "*.*";
+    [UsedImplicitly]
+    public string FileMask { get; set; } = "*.*";
 
     protected override async Task<bool> Run(ITerminalState state)
     {
