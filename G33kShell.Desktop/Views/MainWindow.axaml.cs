@@ -11,10 +11,12 @@
 
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using CSharp.Core.UI;
 using G33kShell.Desktop.Console.Views;
 using G33kShell.Desktop.Skins;
+using G33kShell.Desktop.ViewModels;
 
 namespace G33kShell.Desktop.Views;
 
@@ -55,4 +57,7 @@ public partial class MainWindow : Window
         // Set ShaderControl's source control.
         ((ShaderControl)sender).ControlSource = Source;
     }
+
+    private void OnDoubleTapped(object sender, TappedEventArgs e) =>
+        ((ShellViewModel)DataContext)?.RaiseRevealCwdRequested();
 }

@@ -188,7 +188,13 @@ public class TerminalState : ITerminalState, IDisposable
             // Bad path.
         }
     }
-    
+
+    /// <summary>
+    /// Reveals the current working directory by opening it in the OS's file explorer.
+    /// </summary>
+    public void RevealCwd() =>
+        Task.Run(() => CurrentDirectory?.Explore());
+
     public void Dispose()
     {
         // Save state for the next session.

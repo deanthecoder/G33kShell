@@ -17,7 +17,7 @@
     </Design.DataContext>
 
     <Viewbox>
-        <Panel Width="{Binding Width, ElementName=Source}" Height="{Binding Height, ElementName=Source}">
+        <Panel Width="{Binding Width, ElementName=Source}" Height="{Binding Height, ElementName=Source}" DoubleTapped="OnDoubleTapped">
             <Viewbox>
                 <!-- Margin compensates CRT bevel. -->
                 <Panel x:Name="MarginPanel">

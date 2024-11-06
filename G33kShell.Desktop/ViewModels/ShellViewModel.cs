@@ -39,6 +39,14 @@ public class ShellViewModel : ViewModelBase, IDisposable
     private TerminalState m_terminalState;
     private ScreensaverControl m_screensaverControl;
 
+    /// <summary>
+    /// Occurs when a request is made to reveal the current working directory.
+    /// </summary>
+    /// <remarks>
+    /// This event is triggered to display the current working directory in the OS's file explorer.
+    /// </remarks>
+    public event EventHandler RevealCwdRequested;
+
     public WindowManager WindowManager { get; }
 
     // Default constructor, used by the Designer.
@@ -88,10 +96,21 @@ public class ShellViewModel : ViewModelBase, IDisposable
         m_terminalState.SkinLoadRequest += (_, skin) => WindowManager.Skin = skin;
         m_terminalState.ScreensaverLoadRequest += (_, screensaverName) => SetScreensaver(screensaverName, true);
 
+        RevealCwdRequested += (_, _) => m_terminalState.RevealCwd();
+
         m_screensaverControl = new ScreensaverControl(WindowManager.Root.Width, WindowManager.Root.Height, 60);
         m_screensaverControl.SetScreensaver(Settings.Instance.ScreensaverName);
         WindowManager.Root.AddChild(m_screensaverControl);
     }
+    
+    /// <summary>
+    /// Raises the <see cref="RevealCwdRequested"/> event.
+    /// </summary>
+    /// <remarks>
+    /// This method is used to trigger the event that requests revealing the current working directory.
+    /// </remarks>
+    public void RaiseRevealCwdRequested() =>
+        RevealCwdRequested?.Invoke(this, EventArgs.Empty);
 
     private void SetScreensaver(string screensaver, bool startNow)
     {
