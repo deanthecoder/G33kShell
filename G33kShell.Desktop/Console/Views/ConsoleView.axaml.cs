@@ -11,9 +11,11 @@
 
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Media;
 using CSharp.Core;
 using G33kShell.Desktop.Console.Events;
@@ -44,8 +46,11 @@ public partial class ConsoleView : Control
             topLevel.KeyDown += (_, e) => m_windowManager.QueueEvent(new KeyConsoleEvent(e.Key, e.KeyModifiers, KeyConsoleEvent.KeyDirection.Down));
             topLevel.KeyUp += (_, e) => m_windowManager.QueueEvent(new KeyConsoleEvent(e.Key, e.KeyModifiers, KeyConsoleEvent.KeyDirection.Up));
         };
+
+        AddHandler(DragDrop.DropEvent, OnDrop);
+        AddHandler(DragDrop.DragOverEvent, OnDragOver);
     }
-    
+
     public WindowManager WindowManager
     {
         get => m_windowManager;
@@ -213,5 +218,18 @@ public partial class ConsoleView : Control
         var textGeometry = GetTextGeometry(s.ToString(start, end - start));
         using (context.PushTransform(Matrix.CreateTranslation(x, rect.Y)))
             context.DrawGeometry(GetBrush(foreground), null, textGeometry);
+    }
+
+    private static void OnDragOver(object sender, DragEventArgs e)
+    {
+        var items = e.Data.GetFiles();
+        e.DragEffects = items?.Any() == true ? DragDropEffects.Copy : DragDropEffects.None;
+    }
+
+    private void OnDrop(object sender, DragEventArgs e)
+    {
+        var items = e.Data.GetFiles()?.Select(storageItem => storageItem.Path.LocalPath).ToArray();
+        if (items?.Any() == true)
+            WindowManager.QueueEvent(new PasteEvent(items));
     }
 }

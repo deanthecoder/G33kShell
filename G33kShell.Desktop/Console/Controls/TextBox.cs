@@ -147,7 +147,19 @@ public class TextBox : TextBlock
 
     public override void OnEvent(ConsoleEvent consoleEvent, ref bool handled)
     {
-        if (consoleEvent is not KeyConsoleEvent keyEvent || IsReadOnly)
+        if (IsReadOnly)
+        {
+            base.OnEvent(consoleEvent, ref handled);
+            return;
+        }
+
+        if (consoleEvent is PasteEvent pasteEvent)
+        {
+            Paste(string.Join(" ", pasteEvent.Items));
+            return;
+        }
+        
+        if (consoleEvent is not KeyConsoleEvent keyEvent)
         {
             base.OnEvent(consoleEvent, ref handled);
             return;
