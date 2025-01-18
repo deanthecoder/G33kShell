@@ -140,6 +140,10 @@ public class ShellViewModel : ViewModelBase, IDisposable
 
             return (FaceFinder.CreateFaceBitmap(webcamImage, face), face);
         }
+        catch
+        {
+            return null; // Something went wrong.
+        }
         finally
         {
             webcamImage.Dispose();

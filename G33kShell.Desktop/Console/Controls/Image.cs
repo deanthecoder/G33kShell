@@ -65,32 +65,24 @@ public class Image : Visual
     
     private static double[] AdjustLuminosity(double[] lums)
     {
-        // Calculate the exponent needed to shift the average luminosity.
-        var currentAverage = lums.Average();
-        var exponent = Math.Log(0.55) / Math.Log(currentAverage);
-
-        // Apply the non-linear transformation using the calculated exponent.
-        return lums.Select(o => Math.Pow(o, exponent).Clamp(0.0, 1.0)).ToArray();
+        var ordered = lums.OrderBy(o => o).ToArray();
+        var dark = ordered[(int)(ordered.Length * 0.01)];
+        var light = ordered[(int)(ordered.Length * 0.8)];
+        return lums.Select(o => ((o - dark) / (light - dark)).Clamp(0.0, 1.0)).ToArray();
     }
 
     public override void Render(ScreenData screen)
     {
-        const string gradient = ".,-~:;=!*#$@";
+        const string gradient = " .,;ilS8$@";
         for (var y = 0; y < Height; y++)
         {
             for (var x = 0; x < Width; x++)
             {
                 var lum = m_lums[y * Width + x] * m_opacity;
-                var col = Parent.Foreground;
-
-                if (lum < 0.5)
-                {
-                    // Half brightness
-                    col = Parent.Foreground.SetBrightness(0.5);
-                }
+                var col = Parent.Foreground.SetBrightness(lum.Lerp(0.2, 1.0));
 
                 // Determine the character from the gradient using normalizedLum
-                var ch = gradient[(int)(lum * (gradient.Length - 1))];
+                var ch =  gradient[(int)(lum * (gradient.Length - 1))];
                 screen.PrintAt(x, y, new Attr(ch)
                 {
                     Foreground = col
