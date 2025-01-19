@@ -83,7 +83,7 @@ public class NeoCanvas : AnimatedCanvas, IScreensaver
             for (var y = 0; y < screen.Height; y++)
             {
                 for (var x = 0; x < screen.Width; x++)
-                    screen.PrintAt(x, y, new Attr('█') { Foreground = Background });
+                    screen.PrintAt(x, y, new Attr(m_random.NextDouble() > 0.5 ? '1' : '0') { Foreground = Background });
             }
         }
     }
@@ -126,8 +126,9 @@ public class NeoCanvas : AnimatedCanvas, IScreensaver
         {
             for (var x = 0; x < screen.Width; x++)
             {
-                var lum = m_displayLums[y * screen.Width + x].Clamp(0.0, 1.0);
-                screen.Chars[y][x].Foreground = lum.Lerp(Background, Foreground);
+                var i = y * screen.Width + x;
+                screen.Chars[y][x].Background = m_displayLums[i].Clamp(0.0, 1.0).Lerp(Background, Foreground);
+                screen.Chars[y][x].Foreground = Math.Max(m_backLums[i] * 0.75, m_displayLums[i]).Lerp(Background, Foreground);
             }
         }
     }
