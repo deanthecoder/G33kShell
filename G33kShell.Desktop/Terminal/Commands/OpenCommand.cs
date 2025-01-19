@@ -24,10 +24,14 @@ public class OpenCommand : LocationCommand
     {
         try
         {
-            var fileInfo = new FileInfo(state.CurrentDirectory.Resolve(Path));
-            if (fileInfo.Exists)
+            state.CurrentDirectory.Resolve(Path, out var dir, out var fileName, out _);
+
+            var toOpen = dir.FullName;
+            if (fileName != null)
+                toOpen = System.IO.Path.Combine(toOpen, fileName);
+            if (File.Exists(toOpen) || Directory.Exists(toOpen))
             { 
-                Task.Run(() => Process.Start(new ProcessStartInfo(fileInfo.FullName)
+                Task.Run(() => Process.Start(new ProcessStartInfo(toOpen)
                 {
                     UseShellExecute = true
                 }));

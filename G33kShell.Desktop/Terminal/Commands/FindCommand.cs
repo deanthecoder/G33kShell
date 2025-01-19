@@ -14,6 +14,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using CSharp.Core.Extensions;
 using G33kShell.Desktop.Terminal.Attributes;
 using JetBrains.Annotations;
 using NClap.Metadata;
@@ -62,11 +63,14 @@ public class FindCommand : CommandBase
 
     private static IEnumerable<FileSystemInfo> SearchDirectory(DirectoryInfo directory, string fileMask)
     {
-        foreach (var entry in directory.EnumerateFileSystemInfos(fileMask))
+        directory.Resolve(fileMask, out var dir, out var fileName, out fileMask);
+        fileMask = fileName ?? fileMask;
+        
+        foreach (var entry in dir.EnumerateFileSystemInfos(fileMask))
             yield return entry;
 
         // Recursively search subdirectories
-        foreach (var subDirectory in directory.EnumerateDirectories())
+        foreach (var subDirectory in dir.EnumerateDirectories())
         {
             foreach (var subEntry in SearchDirectory(subDirectory, fileMask))
                 yield return subEntry;

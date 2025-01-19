@@ -9,7 +9,6 @@
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
-using System;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -44,6 +43,7 @@ public class DirCommand : CommandBase
     {
         BareFormat |= Recursive;
 
+        // Display the target path if target is not the cwd.
         var displayFolderPath = FileMask.Contains("..") || FileMask.Contains("/") || FileMask.Contains("\\");
         
         try
@@ -79,31 +79,9 @@ public class DirCommand : CommandBase
 
     private FileSystemInfo[] GetItems(DirectoryInfo cwd, out DirectoryInfo actualCwd)
     {
-        var fullPath = cwd.Resolve(FileMask);
-        string directory;
-        string mask;
-
-        // Check if the full path is an actual directory
-        if (Directory.Exists(fullPath))
-        {
-            directory = fullPath;
-            mask = "*.*"; // Default to all files
-        }
-        else
-        {
-            // Otherwise, split into directory and mask
-            directory = Path.GetDirectoryName(fullPath) ?? throw new InvalidOperationException("Directory name could not be evaluated.");
-            mask = Path.GetFileName(fullPath);
-
-            // If mask is empty, default to all files
-            if (string.IsNullOrEmpty(mask))
-            {
-                directory = fullPath;
-                mask = "*.*";
-            }
-        }
-
-        actualCwd = new DirectoryInfo(directory ?? ".");
+        cwd.Resolve(FileMask, out actualCwd, out var fileName, out var mask);
+        mask = fileName ?? mask ?? "*.*";
+        
         var recurse = Recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
         var infos = DirsOnly ? actualCwd.EnumerateDirectories(mask, recurse) : actualCwd.EnumerateFileSystemInfos(mask, recurse);
         return infos

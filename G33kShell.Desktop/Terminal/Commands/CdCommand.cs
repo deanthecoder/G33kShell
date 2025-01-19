@@ -36,7 +36,7 @@ public class CdCommand : LocationCommand
         var newDir = state.CurrentDirectory;
         try
         {
-            newDir = state.CurrentDirectory.Resolve(GetTargetPath(state)).ToDir();
+            state.CurrentDirectory.Resolve(GetTargetPath(state), out newDir, out _, out _);
             if (newDir.Exists)
             {
                 state.CurrentDirectory = newDir;

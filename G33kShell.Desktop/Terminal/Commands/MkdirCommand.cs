@@ -25,11 +25,9 @@ public class MkdirCommand : CommandBase
 
     protected override Task<bool> Run(ITerminalState state)
     {
-        var fullPath = state.CurrentDirectory.Resolve(Directory);
-
         try
         {
-            var directoryInfo = fullPath.ToDir();
+            state.CurrentDirectory.Resolve(Directory, out var directoryInfo, out _, out _);
             if (!directoryInfo.Exists)
                 directoryInfo.Create();
             else
