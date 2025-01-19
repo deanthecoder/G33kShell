@@ -12,6 +12,7 @@ using System;
 using System.Diagnostics;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Skins;
+using JetBrains.Annotations;
 
 namespace G33kShell.Desktop.Console.Controls;
 
@@ -19,6 +20,7 @@ namespace G33kShell.Desktop.Console.Controls;
 /// A canvas to displaying an animated Matrix effect.
 /// </summary>
 [DebuggerDisplay("MatrixCanvas:{X},{Y} {Width}x{Height}")]
+[UsedImplicitly]
 public class MatrixCanvas : AnimatedCanvas, IScreensaver
 {
     private readonly Random m_random = new Random();
@@ -64,7 +66,7 @@ public class MatrixCanvas : AnimatedCanvas, IScreensaver
                 var y = m_random.Next(0, screen.Height - length - 1);
                 var i = 0;
                 for (; i < length - 1; i++)
-                    screen.SetForeground(x, y + i, Foreground.SetBrightness(0.2 + 0.6 * i / length));
+                    screen.SetForeground(x, y + i, Foreground.WithBrightness(0.2 + 0.6 * i / length));
                 screen.SetForeground(x, y + i, Foreground);
             }
         }

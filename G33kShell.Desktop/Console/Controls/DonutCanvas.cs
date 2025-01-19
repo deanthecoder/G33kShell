@@ -10,6 +10,7 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
 using System.Diagnostics;
+using JetBrains.Annotations;
 
 namespace G33kShell.Desktop.Console.Controls;
 
@@ -20,6 +21,7 @@ namespace G33kShell.Desktop.Console.Controls;
 /// The DonutCanvas class extends the AnimatedCanvas class.
 /// </remarks>
 [DebuggerDisplay("DonutCanvas:{X},{Y} {Width}x{Height}")]
+[UsedImplicitly]
 public class DonutCanvas : AnimatedCanvas, IScreensaver
 {
     private const double ThetaSpacing = 0.05f;

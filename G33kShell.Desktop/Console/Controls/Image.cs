@@ -79,7 +79,7 @@ public class Image : Visual
             for (var x = 0; x < Width; x++)
             {
                 var lum = m_lums[y * Width + x] * m_opacity;
-                var col = Parent.Foreground.SetBrightness(lum.Lerp(0.2, 1.0));
+                var col = Parent.Foreground.WithBrightness(lum.Lerp(0.2, 1.0));
 
                 // Determine the character from the gradient using normalizedLum
                 var ch =  gradient[(int)(lum * (gradient.Length - 1))];

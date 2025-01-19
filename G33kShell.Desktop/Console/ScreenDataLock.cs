@@ -30,6 +30,9 @@ public class ScreenDataLock : IDisposable
     public int Width => m_screenData.Width;
     public int Height => m_screenData.Height;
 
+    /// <summary>
+    /// Acquires a lock on the <see cref="ScreenData"/> object for accessing and modifying it.
+    /// </summary>
     public ScreenDataLock Lock(out ScreenData screenData)
     {
         Monitor.Enter(m_lock);
