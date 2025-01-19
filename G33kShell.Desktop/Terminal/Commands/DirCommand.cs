@@ -35,6 +35,10 @@ public class DirCommand : CommandBase
     [UsedImplicitly]
     public bool DirsOnly { get; set; }
 
+    [NamedArgument(Description = "Include file sizes.", ShortName = "l")]
+    [UsedImplicitly]
+    public bool ShowSizes { get; set; }
+
     [PositionalArgument(ArgumentFlags.Optional, Description = "File mask (e.g. *.exe)")]
     [UsedImplicitly]
     public string FileMask { get; set; } = "*.*";
@@ -63,10 +67,10 @@ public class DirCommand : CommandBase
 
             await Task.Run(() =>
             {
-                if (BareFormat)
+                if (BareFormat && !ShowSizes)
                     DisplayBareFormat(items);
                 else
-                    DisplayExtendedFormat(items, state.CliPrompt.Width);
+                    DisplayExtendedFormat(items, state.CliPrompt.Width, ShowSizes);
             });
         }
         catch (DirectoryNotFoundException)
@@ -106,15 +110,20 @@ public class DirCommand : CommandBase
         }
     }
 
-    private void DisplayExtendedFormat(FileSystemInfo[] items, int availableWidth)
+    private void DisplayExtendedFormat(FileSystemInfo[] items, int availableWidth, bool showSizes)
     {
         var maxWidth = items.Max(item => item.Name.Length) + 3; // Adjust for padding/spacing
-        var maxColumns = availableWidth / maxWidth;
+        var maxColumns = showSizes ? 1 : availableWidth / maxWidth;
 
         if (maxColumns < 2 || items.Length <= 15)
         {
             foreach (var item in items)
-                WriteLine(GetItemName(item));
+            {
+                var s = GetItemName(item);
+                if (showSizes && item is FileInfo file)
+                    s = s.PadRight(availableWidth / 2) + $"  {file.Length:N0} bytes";
+                WriteLine(s);
+            }
             return;
         }
 
