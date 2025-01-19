@@ -98,6 +98,10 @@ public class DirCommand : CommandBase
             sb.Clear();
             foreach (var item in items.Skip(i).Take(chunkSize))
                 sb.AppendLine(item.FullName);
+
+            if (sb.Length > 0 && sb[^1] == '\n')
+                sb.Length--; // Remove the trailing newline
+            
             WriteLine(sb.ToString());
         }
     }
