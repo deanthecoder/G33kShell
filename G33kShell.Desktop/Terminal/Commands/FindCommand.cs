@@ -31,8 +31,11 @@ public class FindCommand : CommandBase
     {
         try
         {
-            var results = SearchDirectory(state.CurrentDirectory, FileMask).ToArray();
-            if (results.Length == 0)
+            var results = new List<FileSystemInfo>();
+            await foreach (var fileSystemInfo in SearchDirectory(state.CurrentDirectory, FileMask))
+                results.Add(fileSystemInfo);
+            
+            if (results.Count == 0)
             {
                 WriteLine("No files or directories found.");
                 return true;
@@ -42,7 +45,7 @@ public class FindCommand : CommandBase
             {
                 const int chunkSize = 5;
                 var sb = new StringBuilder();
-                for (var i = 0; i < results.Length; i += chunkSize)
+                for (var i = 0; i < results.Count; i += chunkSize)
                 {
                     sb.Clear();
                     foreach (var item in results.Skip(i).Take(chunkSize))
@@ -61,18 +64,21 @@ public class FindCommand : CommandBase
         return false;
     }
 
-    private static IEnumerable<FileSystemInfo> SearchDirectory(DirectoryInfo directory, string fileMask)
+    private static async IAsyncEnumerable<FileSystemInfo> SearchDirectory(DirectoryInfo directory, string fileMask)
     {
         directory.Resolve(fileMask, out var dir, out var fileName, out fileMask);
         fileMask = fileName ?? fileMask;
         
         foreach (var entry in dir.EnumerateFileSystemInfos(fileMask))
             yield return entry;
+        
+        // Give the UI a breather.
+        await Task.Yield();
 
         // Recursively search subdirectories
         foreach (var subDirectory in dir.EnumerateDirectories())
         {
-            foreach (var subEntry in SearchDirectory(subDirectory, fileMask))
+            await foreach (var subEntry in SearchDirectory(subDirectory, fileMask))
                 yield return subEntry;
         }
     }

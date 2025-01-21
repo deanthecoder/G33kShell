@@ -39,7 +39,7 @@ public class NeoCanvas : AnimatedCanvas, IScreensaver
 
     public NeoCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight, 20)
     {
-        Name = "Neo";
+        Name = "neo";
     }
 
     public override void OnLoaded(WindowManager windowManager)
