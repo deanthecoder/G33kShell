@@ -81,6 +81,9 @@ public enum MyCommandType
     [Command(typeof(WhereIsCommand), LongName = "whereis", Description = "Finds an executable located in the system’s PATH.")]
     WhereIs,
 
+    [Command(typeof(WorktimeCommand), LongName = "worktime", Description = "How far are you through the working day?")]
+    Worktime,
+
     [Command(typeof(VerCommand), LongName = "ver", Description = "Report the G33kShell application version.")]
     Ver,
 }
