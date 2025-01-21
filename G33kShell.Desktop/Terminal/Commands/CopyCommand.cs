@@ -89,7 +89,7 @@ public class CopyCommand : CommandBase
         return true;
     }
 
-    private static void RunSync(string source, string dest)
+    private void RunSync(string source, string dest)
     {
         var sourceDir = source.ToDir();
         var destDir = dest.ToDir();
@@ -124,10 +124,10 @@ public class CopyCommand : CommandBase
             excessItem.TryDelete();
 
         // Copy the content that does exist.
-        var fileSystemInfos = sourceDir
+        var filesCopied = sourceDir
             .GetFileSystemInfos()
-            .ToList();
-        fileSystemInfos
-            .ForEach(o => o.CopyTo(destDir, true));
+            .Sum(o => o.CopyTo(destDir, true));
+
+        WriteLine($"Operation complete. {excessItems.Length} item(s) removed, {filesCopied} copied.");
     }
 }
