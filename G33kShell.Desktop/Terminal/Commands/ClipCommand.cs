@@ -20,7 +20,7 @@ namespace G33kShell.Desktop.Terminal.Commands;
 [CommandDescription("Copies the output from the previous command into the system clipboard.", "All output is copied, unless a specific line number is requested.")]
 public class ClipCommand : CommandBase
 {
-    [NamedArgument(Description = "Capture the command, as well as the output.", LongName = "all", ShortName = "a")]
+    [NamedArgument(Description = "Capture the command, as well as the output.", ShortName = "a")]
     public bool CaptureAll { get; [UsedImplicitly] set; }
 
     [PositionalArgument(0, Description = "Select a single line (1+).")]

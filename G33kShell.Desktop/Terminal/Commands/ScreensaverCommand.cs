@@ -21,7 +21,7 @@ namespace G33kShell.Desktop.Terminal.Commands;
 [CommandDescription("Select and activate the screensaver.")]
 public class ScreensaverCommand : CommandBase
 {
-    [NamedArgument(Description = "List the available options.", LongName = "list", ShortName = "l")]
+    [NamedArgument(Description = "List the available options.", ShortName = "l")]
     public bool List { get; [UsedImplicitly] set; }
 
     [PositionalArgument(ArgumentFlags.Optional, Description = "The name of the screensaver to apply.")]

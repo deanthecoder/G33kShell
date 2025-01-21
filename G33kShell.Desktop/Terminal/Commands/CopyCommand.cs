@@ -28,7 +28,7 @@ public class CopyCommand : CommandBase
     [UsedImplicitly]
     public string[] Paths { get; set; }
 
-    [NamedArgument(Description = "Sync the content of source and target directories.", LongName = "sync")]
+    [NamedArgument(Description = "Sync the content of source and target directories.", ShortName = "s")]
     [UsedImplicitly]
     public bool Sync { get; set; }
 

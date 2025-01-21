@@ -21,7 +21,7 @@ namespace G33kShell.Desktop.Terminal.Commands;
 [CommandDescription("List or change the current Terminal skin.")]
 public class SkinCommand : CommandBase
 {
-    [NamedArgument(Description = "List the available options.", LongName = "list", ShortName = "l")]
+    [NamedArgument(Description = "List the available options.", ShortName = "l")]
     public bool List { get; [UsedImplicitly] set; }
 
     [PositionalArgument(ArgumentFlags.Optional, Description = "The name of the skin to apply.")]
