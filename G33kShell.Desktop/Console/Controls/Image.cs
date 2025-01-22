@@ -73,7 +73,6 @@ public class Image : Visual
 
     public override void Render(ScreenData screen)
     {
-        const string gradient = " .,;ilS8$@";
         for (var y = 0; y < Height; y++)
         {
             for (var x = 0; x < Width; x++)
@@ -81,9 +80,8 @@ public class Image : Visual
                 var lum = m_lums[y * Width + x] * m_opacity;
                 var col = Parent.Foreground.WithBrightness(lum.Lerp(0.2, 1.0));
 
-                // Determine the character from the gradient using normalizedLum
-                var ch =  gradient[(int)(lum * (gradient.Length - 1))];
-                screen.PrintAt(x, y, new Attr(ch)
+                // Determine the character from the gradient
+                screen.PrintAt(x, y, new Attr(lum.ToAscii())
                 {
                     Foreground = col
                 });

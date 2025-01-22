@@ -83,7 +83,7 @@ public class NeoCanvas : AnimatedCanvas, IScreensaver
             for (var y = 0; y < screen.Height; y++)
             {
                 for (var x = 0; x < screen.Width; x++)
-                    screen.PrintAt(x, y, new Attr(m_random.NextDouble() > 0.5 ? '1' : '0') { Foreground = Background });
+                    screen.PrintAt(x, y, new Attr(m_backLums[y * screen.Width + x].ToAscii()) { Foreground = Background });
             }
         }
     }
