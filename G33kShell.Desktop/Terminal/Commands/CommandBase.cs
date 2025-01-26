@@ -17,6 +17,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using CSharp.Core.Extensions;
+using G33kShell.Desktop.Console;
 using G33kShell.Desktop.Terminal.Attributes;
 using G33kShell.Desktop.Terminal.Controls;
 using JetBrains.Annotations;
@@ -50,9 +51,10 @@ public abstract class CommandBase : Command
             WriteLine("Command is not supported.");
             return NClap.Metadata.CommandResult.Success;
         }
-        
+
         try
         {
+            using var _ = new BusyCursor(m_state.CliPrompt.Cursor);
             var commandSuccess = await Run(m_state);
             var lines = CliPrompt.TextWithoutPrefix.Split('\n');
             var result = new CommandResult(lines.First(), m_state.CurrentDirectory.Clone(), string.Join('\n', lines.Skip(1)).Trim(), commandSuccess);
@@ -62,8 +64,24 @@ public abstract class CommandBase : Command
         {
             // Continue.
         }
-        
+
         return NClap.Metadata.CommandResult.Success;
+    }
+
+    private sealed class BusyCursor : IDisposable
+    {
+        private readonly ConsoleCursor m_cursor;
+        private readonly bool m_wasBusy;
+
+        public BusyCursor(ConsoleCursor cursor)
+        {
+            m_cursor = cursor;
+            m_wasBusy = cursor.IsBusy;
+            cursor.IsBusy = true;
+        }
+
+        public void Dispose() =>
+            m_cursor.IsBusy = m_wasBusy;
     }
 
     protected void WriteLine(string s = null)

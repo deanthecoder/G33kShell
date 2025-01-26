@@ -74,7 +74,7 @@ public class ScreensaverControl : Visual
                 SendToFront();
                 Y = 0;
                 IsVisible = true;
-                m_windowManager.HideCursor = true;
+                m_windowManager.Cursor.IsVisible = false;
             }
         });
 
@@ -98,7 +98,7 @@ public class ScreensaverControl : Visual
     private void ResetTimer()
     {
         IsVisible = false;
-        m_windowManager.HideCursor = false;
+        m_windowManager.Cursor.IsVisible = true;
         m_secondsUntilDisplay = m_timeToSleepSecs;
     }
 

@@ -8,7 +8,6 @@
 // about your modifications. Your contributions are valued!
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
-using System;
 using System.Collections.Generic;
 using System.IO;
 using G33kShell.Desktop.Skins;
@@ -21,8 +20,6 @@ namespace G33kShell.Desktop.Terminal;
 /// </summary>
 public interface ITerminalState
 {
-    event EventHandler<SkinBase> SkinLoadRequest;
-    
     DirectoryInfo CurrentDirectory { get; set; }
     CommandHistory CommandHistory { get; }
     CliPrompt CliPrompt { get; }

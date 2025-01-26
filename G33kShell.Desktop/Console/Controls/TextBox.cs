@@ -34,7 +34,7 @@ namespace G33kShell.Desktop.Console.Controls;
 /// - Clipboard Paste: Allows pasting text from the clipboard using Control-V.
 /// </remarks>
 [DebuggerDisplay("TextBox:{X},{Y} {Width}x{Height} T:{Text}")]
-public class TextBox : TextBlock
+public class TextBox : TextBlock, ICursorHost
 {
     private readonly StringBuilder m_s = new StringBuilder();
     private bool m_waitForKeyUp;
@@ -46,6 +46,7 @@ public class TextBox : TextBlock
     public override string[] Text => WrapText(Prefix, m_s, Width).ToArray();
     public string TextWithoutPrefix => m_s.ToString();
     public int CursorIndex { get; private set; }
+    public ConsoleCursor Cursor { get; private set; }
     public bool IsReadOnly { get; set; }
 
     /// <summary>
@@ -142,6 +143,7 @@ public class TextBox : TextBlock
     {
         base.OnLoaded(windowManager);
         
+        Cursor = windowManager.Cursor;
         SetCursor(0);
     }
 
@@ -353,7 +355,7 @@ public class TextBox : TextBlock
         CursorIndex = position.Clamp(0, m_s.Length);
         var x = CursorIndex + Prefix?.Length ?? 0;
         var y = x / Width;
-        SetCursorPos(x % Width, y);
+        Cursor?.SetPos(X + x % Width, Y + y);
 
         var lineCount = WrapText(Prefix, m_s, Width).Count();
         if (lineCount > Height)

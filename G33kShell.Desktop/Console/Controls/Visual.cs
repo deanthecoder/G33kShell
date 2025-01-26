@@ -32,8 +32,6 @@ public abstract class Visual
     private Rgb m_background;
     private bool m_isVisible = true;
 
-    public event EventHandler<(int X, int Y)?> CursorPosChanged;
-
     /// <summary>
     /// Arbitrary control name. (See WindowManager.Find)
     /// </summary>
@@ -326,12 +324,6 @@ public abstract class Visual
     {
         // Do nothing by default.
     }
-
-    /// <summary>
-    /// Sets the position of the cursor relative to the visual's origin.
-    /// </summary>
-    protected void SetCursorPos(int dx, int dy) =>
-        CursorPosChanged?.Invoke(this, (X + dx, Y + dy));
 
     public void SetHeight(int height)
     {

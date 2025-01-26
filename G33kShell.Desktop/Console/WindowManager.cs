@@ -24,7 +24,7 @@ public class WindowManager
     private readonly object m_renderLock = new object();
     private readonly List<ConsoleEvent> m_consoleEvents = new List<ConsoleEvent>();
     private SkinBase m_skin;
-    private (int X, int Y)? m_cursorPos;
+    private ConsoleCursor m_cursor;
 
     public Visual Root { get; }
 
@@ -47,31 +47,11 @@ public class WindowManager
             }
         }
     }
-
-    /// <summary>
-    /// The time at which the cursor position was last updated.
-    /// </summary>
-    public long CursorMoveTime { get; private set; }
     
     /// <summary>
-    /// The current cursor position.
+    /// The current cursor.
     /// </summary>
-    public (int X, int Y)? CursorPos
-    {
-        get => m_cursorPos;
-        private set
-        {
-            if (m_cursorPos == value)
-                return;
-            m_cursorPos = value;
-            CursorMoveTime = Environment.TickCount64;
-        }
-    }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the cursor should be hidden.
-    /// </summary>
-    public bool HideCursor { get; set; }
+    public ConsoleCursor Cursor => m_cursor ??= new ConsoleCursor();
 
     public WindowManager(int width, int height, SkinBase skin)
     {
@@ -126,7 +106,6 @@ public class WindowManager
                 if (visual.LoadOnFirstRender)
                 {
                     visual.LoadOnFirstRender = false;
-                    visual.CursorPosChanged += OnCursorPosChangeRequested;
                     visual.OnLoaded(this);
                 }
                 
@@ -154,9 +133,6 @@ public class WindowManager
 
         return true;
     }
-    
-    private void OnCursorPosChangeRequested(object sender, (int X, int Y)? cursorPos) =>
-        CursorPos = cursorPos;
 
     private static (int x, int y) GetAbsolutePos(Visual visual)
     {

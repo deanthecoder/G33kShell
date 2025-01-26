@@ -141,17 +141,23 @@ public partial class ConsoleView : Control
         }
         
         // Draw the screen cursor.
-        if (m_windowManager?.CursorPos.HasValue == true && !m_windowManager.HideCursor)
+        var cursor = m_windowManager.Cursor;
+        if (cursor?.IsVisible == true && cursor.X >= 0 && cursor.X < screen.Width && cursor.Y >= 0 && cursor.Y < screen.Height)
         {
-            var cursorX = m_windowManager.CursorPos.Value.X;
-            var cursorY = m_windowManager.CursorPos.Value.Y;
-            if (cursorX >= 0 && cursorX < screen.Width && cursorY >= 0 && cursorY < screen.Height)
+            var foregroundColor = m_windowManager.Skin.ForegroundColor;
+            if (cursor.IsBusy)
             {
-                var isFlashOn = (Environment.TickCount64 - m_windowManager.CursorMoveTime) % 1000 < 500;
+                var animChars = "/-\\|";
+                var animFrame = (Environment.TickCount64 / 100) % animChars.Length;
+                DrawTextRun(context, new StringBuilder(animChars, (int)animFrame, 1, 1), cursor.X, cursor.Y, foregroundColor, screen.Chars[cursor.Y][cursor.X].Background);
+            }
+            else
+            {
+                var isFlashOn = (Environment.TickCount64 - cursor.MoveTime) % 1000 < 500;
                 if (isFlashOn)
                 {
-                    var cursorRect = new Rect(cursorX * CharWidth + Padding.Left, cursorY * CharHeight + Padding.Top, CharWidth, CharHeight);
-                    context.FillRectangle(GetBrush(m_windowManager.Skin.ForegroundColor), cursorRect);
+                    var cursorRect = new Rect(cursor.X * CharWidth + Padding.Left, cursor.Y * CharHeight + Padding.Top, CharWidth, CharHeight);
+                    context.FillRectangle(GetBrush(foregroundColor), cursorRect);
                 }
             }
         }
