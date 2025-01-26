@@ -78,6 +78,9 @@ public enum MyCommandType
     [Command(typeof(ShutdownCommand), LongName = "shutdown", Description = "Shut down the OS.")]
     Shutdown,
 
+    [Command(typeof(TreeCommand), LongName = "tree", Description = "List files and directories in a tree structure.")]
+    Tree,
+
     [Command(typeof(WhereIsCommand), LongName = "whereis", Description = "Finds an executable located in the system’s PATH.")]
     WhereIs,
 
