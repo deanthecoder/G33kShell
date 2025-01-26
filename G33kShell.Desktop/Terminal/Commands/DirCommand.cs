@@ -9,6 +9,7 @@
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -59,19 +60,27 @@ public class DirCommand : CommandBase
                 WriteLine();
             }
 
-            if (items.Length == 0)
+            var maxItemCount = 5000;
+            var clippedItems = items.Take(maxItemCount).OrderBy(o => o.FullName).ToArray();
+            if (clippedItems.Length == 0)
             {
                 WriteLine("No files or directories found.");
                 return true;
             }
-
+            
             await Task.Run(() =>
             {
                 if (BareFormat && !ShowSizes)
-                    DisplayBareFormat(items);
+                    DisplayBareFormat(clippedItems);
                 else
-                    DisplayExtendedFormat(items, state.CliPrompt.Width, ShowSizes);
+                    DisplayExtendedFormat(clippedItems, state.CliPrompt.Width, ShowSizes);
             });
+
+            if (clippedItems.Length == maxItemCount)
+            {
+                WriteLine();
+                WriteLine($"Warning: Output clipped to {clippedItems.Length} items.");
+            }
         }
         catch (DirectoryNotFoundException)
         {
@@ -81,16 +90,13 @@ public class DirCommand : CommandBase
         return true;
     }
 
-    private FileSystemInfo[] GetItems(DirectoryInfo cwd, out DirectoryInfo actualCwd)
+    private IEnumerable<FileSystemInfo> GetItems(DirectoryInfo cwd, out DirectoryInfo actualCwd)
     {
         cwd.Resolve(FileMask, out actualCwd, out var fileName, out var mask);
         mask = fileName ?? mask ?? "*.*";
         
         var recurse = Recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
-        var infos = DirsOnly ? actualCwd.EnumerateDirectories(mask, recurse) : actualCwd.EnumerateFileSystemInfos(mask, recurse);
-        return infos
-            .OrderBy(o => o.FullName)
-            .ToArray();
+        return DirsOnly ? actualCwd.EnumerateDirectories(mask, recurse) : actualCwd.EnumerateFileSystemInfos(mask, recurse);
     }
 
     private void DisplayBareFormat(FileSystemInfo[] items)
