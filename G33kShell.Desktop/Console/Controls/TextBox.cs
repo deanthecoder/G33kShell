@@ -187,7 +187,6 @@ public class TextBox : TextBlock, ICursorHost
         }
 
         var actionPerformed = OnKeyEvent(keyEvent);
-
         if (actionPerformed)
         {
             m_waitForKeyUp = true;
@@ -355,7 +354,7 @@ public class TextBox : TextBlock, ICursorHost
         CursorIndex = position.Clamp(0, m_s.Length);
         var x = CursorIndex + Prefix?.Length ?? 0;
         var y = x / Width;
-        Cursor?.SetPos(X + x % Width, Y + y);
+        Cursor?.SetPos(X + (x % Width), Y + y);
 
         var lineCount = WrapText(Prefix, m_s, Width).Count();
         if (lineCount > Height)

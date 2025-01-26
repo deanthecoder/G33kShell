@@ -53,16 +53,15 @@ public class DirCommand : CommandBase
         
         try
         {
-            var items = GetItems(state.CurrentDirectory, out var actualCwd);
+            var (items, actualCwd) = await GetItems(state.CurrentDirectory);
             if (displayFolderPath)
             {
                 WriteLine($"Path: {actualCwd.FullName}");
                 WriteLine();
             }
 
-            var maxItemCount = 5000;
-            var clippedItems = items.Take(maxItemCount).OrderBy(o => o.FullName).ToArray();
-            if (clippedItems.Length == 0)
+            var sortedItems = items.OrderBy(o => o.FullName).ToArray();
+            if (sortedItems.Length == 0)
             {
                 WriteLine("No files or directories found.");
                 return true;
@@ -71,16 +70,10 @@ public class DirCommand : CommandBase
             await Task.Run(() =>
             {
                 if (BareFormat && !ShowSizes)
-                    DisplayBareFormat(clippedItems);
+                    DisplayBareFormat(sortedItems);
                 else
-                    DisplayExtendedFormat(clippedItems, state.CliPrompt.Width, ShowSizes);
+                    DisplayExtendedFormat(sortedItems, state.CliPrompt.Width, ShowSizes);
             });
-
-            if (clippedItems.Length == maxItemCount)
-            {
-                WriteLine();
-                WriteLine($"Warning: Output clipped to {clippedItems.Length} items.");
-            }
         }
         catch (DirectoryNotFoundException)
         {
@@ -90,20 +83,24 @@ public class DirCommand : CommandBase
         return true;
     }
 
-    private IEnumerable<FileSystemInfo> GetItems(DirectoryInfo cwd, out DirectoryInfo actualCwd)
+    private async Task<(IEnumerable<FileSystemInfo>, DirectoryInfo actualCwd)> GetItems(DirectoryInfo cwd)
     {
-        cwd.Resolve(FileMask, out actualCwd, out var fileName, out var mask);
+        cwd.Resolve(FileMask, out var actualCwd, out var fileName, out var mask);
         mask = fileName ?? mask ?? "*.*";
         
         var recurse = Recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
-        return DirsOnly ? actualCwd.EnumerateDirectories(mask, recurse) : actualCwd.EnumerateFileSystemInfos(mask, recurse);
+        var items = actualCwd.TryGetContentAsync(mask, recurse, () => IsCancelRequested);
+        if (DirsOnly)
+            items = items.OfType<FileInfo>();
+
+        return (await items.ToListAsync(), actualCwd);
     }
 
     private void DisplayBareFormat(FileSystemInfo[] items)
     {
         const int chunkSize = 5;
         var sb = new StringBuilder();
-        for (var i = 0; i < items.Length; i += chunkSize)
+        for (var i = 0; i < items.Length && !IsCancelRequested; i += chunkSize)
         {
             sb.Clear();
             foreach (var item in items.Skip(i).Take(chunkSize))
@@ -113,6 +110,9 @@ public class DirCommand : CommandBase
                 sb.Length--; // Remove the trailing newline
             
             WriteLine(sb.ToString());
+
+            if (IsCancelRequested)
+                break;
         }
     }
 
@@ -129,6 +129,9 @@ public class DirCommand : CommandBase
                 if (showSizes && item is FileInfo file)
                     s = s.PadRight(availableWidth / 2) + $"  {file.Length:N0} bytes";
                 WriteLine(s);
+                
+                if (IsCancelRequested)
+                    break;
             }
             return;
         }

@@ -33,10 +33,29 @@ public class CliPrompt : TextBox
     private string[] m_filteredCommandHistory;
     private int m_historyOffset;
 
-    public event EventHandler<CompletionRequestEventArgs> CompletionRequest; 
+    /// <summary>
+    /// Raised when a tab completion is requested.
+    /// </summary>
+    public event EventHandler<CompletionRequestEventArgs> CompletionRequest;
+    
+    /// <summary>
+    /// Raised when ESCape is pressed, intended for an executing command to abort.
+    /// </summary>
+    public event EventHandler CancelActionRequested;
 
     public CliPrompt(int width) : base(width)
     {
+    }
+
+    public override void OnEvent(ConsoleEvent consoleEvent, ref bool handled)
+    {
+        if (consoleEvent is KeyConsoleEvent { Key: Key.Escape, Direction: KeyConsoleEvent.KeyDirection.Down } && IsReadOnly)
+        {
+            CancelActionRequested?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+        
+        base.OnEvent(consoleEvent, ref handled);
     }
 
     protected override bool OnKeyEvent(KeyConsoleEvent keyEvent)

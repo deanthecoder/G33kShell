@@ -45,12 +45,15 @@ public class FindCommand : CommandBase
             {
                 const int chunkSize = 5;
                 var sb = new StringBuilder();
-                for (var i = 0; i < results.Count; i += chunkSize)
+                for (var i = 0; i < results.Count && !IsCancelRequested; i += chunkSize)
                 {
                     sb.Clear();
                     foreach (var item in results.Skip(i).Take(chunkSize))
                         sb.AppendLine(item.FullName);
                     WriteLine(sb.ToString().TrimEnd());
+                    
+                    if (IsCancelRequested)
+                        break;
                 }
             });
 
@@ -64,25 +67,15 @@ public class FindCommand : CommandBase
         return false;
     }
 
-    private static async IAsyncEnumerable<FileSystemInfo> SearchDirectory(DirectoryInfo directory, string fileMask)
+    private async IAsyncEnumerable<FileSystemInfo> SearchDirectory(DirectoryInfo directory, string fileMask)
     {
         directory.Resolve(fileMask, out var dir, out var fileName, out fileMask);
         fileMask = fileName ?? fileMask;
         
         if (fileMask == null)
             throw new ArgumentException("Invalid/missing file mask.");
-        
-        foreach (var entry in dir.EnumerateFileSystemInfos(fileMask))
-            yield return entry;
-        
-        // Give the UI a breather.
-        await Task.Yield();
 
-        // Recursively search subdirectories
-        foreach (var subDirectory in dir.EnumerateDirectories())
-        {
-            await foreach (var subEntry in SearchDirectory(subDirectory, fileMask))
-                yield return subEntry;
-        }
+        await foreach (var fileSystemInfo in dir.TryGetContentAsync(fileMask, SearchOption.AllDirectories, () => IsCancelRequested))
+            yield return fileSystemInfo;
     }
 }

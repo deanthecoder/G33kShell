@@ -29,8 +29,6 @@ public class ConsoleCursor
 
     public void SetPos(int x, int y)
     {
-        if (x < 0 || y < 0)
-            throw new ArgumentException("Position cannot be negative.");
         if (X == x && Y == y)
             return; // Nothing to do.
         

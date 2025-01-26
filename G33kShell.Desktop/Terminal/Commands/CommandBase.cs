@@ -35,6 +35,11 @@ public abstract class CommandBase : Command
     /// Gets a value indicating whether the command is supported on the current platform.
     /// </summary>
     protected virtual bool IsSupported => true;
+
+    /// <summary>
+    /// Set if the user presses ESCape whilst the command is active.
+    /// </summary>
+    protected bool IsCancelRequested { get; private set; }
     
     public CommandBase SetState(ITerminalState state)
     {
@@ -54,6 +59,9 @@ public abstract class CommandBase : Command
 
         try
         {
+            IsCancelRequested = false;
+            m_state.CliPrompt.CancelActionRequested += OnCancelActionRequested;
+
             using var _ = new BusyCursor(m_state.CliPrompt.Cursor);
             var commandSuccess = await Run(m_state);
             var lines = CliPrompt.TextWithoutPrefix.Split('\n');
@@ -64,10 +72,23 @@ public abstract class CommandBase : Command
         {
             // Continue.
         }
+        finally
+        {
+            m_state.CliPrompt.CancelActionRequested -= OnCancelActionRequested;
+
+            if (IsCancelRequested)
+            {
+                WriteLine();
+                WriteLine("Warning: Command cancelled.");
+                IsCancelRequested = false;
+            }
+        }
 
         return NClap.Metadata.CommandResult.Success;
-    }
 
+        void OnCancelActionRequested(object sender, EventArgs e) => IsCancelRequested = true;
+    }
+    
     private sealed class BusyCursor : IDisposable
     {
         private readonly ConsoleCursor m_cursor;
