@@ -69,6 +69,9 @@ public class FindCommand : CommandBase
         directory.Resolve(fileMask, out var dir, out var fileName, out fileMask);
         fileMask = fileName ?? fileMask;
         
+        if (fileMask == null)
+            throw new ArgumentException("Invalid/missing file mask.");
+        
         foreach (var entry in dir.EnumerateFileSystemInfos(fileMask))
             yield return entry;
         
