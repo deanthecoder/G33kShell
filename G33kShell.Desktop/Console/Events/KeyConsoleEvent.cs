@@ -9,6 +9,7 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using Avalonia.Input;
+using CSharp.Core;
 
 namespace G33kShell.Desktop.Console.Events;
 
@@ -53,13 +54,17 @@ public class KeyConsoleEvent : ConsoleEvent
             
             // Symbol?
             if (shiftPressed)
-                s = ")!@#$%^&*("[int.Parse(s)].ToString();
+            {
+                var symbols = KeyboardLayoutChecker.IsUkKeyboardLayout() ? ")!\"£$%^&*(" : ")!@#$%^&*(";
+                s = symbols[int.Parse(s)].ToString();
+            }
         }
 
         // Single character.
         if (s.Length == 1)
             return s[0];
 
+        var quoteKeyMainSymbol = KeyboardLayoutChecker.IsUkKeyboardLayout() ? '@' : '"';
         return Key switch
         {
             Key.Space => ' ',
@@ -69,7 +74,7 @@ public class KeyConsoleEvent : ConsoleEvent
             Key.OemOpenBrackets => shiftPressed ? '{' : '[',
             Key.OemCloseBrackets => shiftPressed ? '}' : ']',
             Key.OemSemicolon => shiftPressed ? ':' : ';',
-            Key.OemQuotes => shiftPressed ? '"' : '\'',
+            Key.OemQuotes => shiftPressed ? quoteKeyMainSymbol : '\'',
             Key.OemBackslash => shiftPressed ? '|' : '\\',
             Key.OemPipe => shiftPressed ? '|' : '\\',
             Key.OemTilde => shiftPressed ? '~' : '`',
