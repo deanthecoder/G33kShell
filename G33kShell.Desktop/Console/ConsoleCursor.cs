@@ -17,7 +17,7 @@ public class ConsoleCursor
     public int X { get; private set; }
     public int Y { get; private set; }
     public bool IsBusy { get; set; }
-    public bool IsVisible { get; set; } = true;
+    public bool IsVisible { get; set; }
 
     /// <summary>
     /// The time at which the cursor position was last updated.
