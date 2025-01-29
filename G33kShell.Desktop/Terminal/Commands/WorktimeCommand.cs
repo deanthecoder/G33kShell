@@ -49,39 +49,18 @@ public class WorktimeCommand : CommandBase
     private string GetMotivationalMessage(double progress)
     {
         string[] messages;
-
-        var now = DateTime.Now;
-        var isAfterHours = now.Hour >= 18; // After 6 PM
-
-        if (isAfterHours)
+        if (progress < 0.33)
         {
             messages = new[]
             {
-                "Night owl mode activated! Let's crush some bugs while the world sleeps.",
-                "The silence of the evening is the perfect time to write your masterpiece.",
-                "Late-night coding: where legends are born, and caffeine becomes life.",
-                "Dark mode is your ally. Light up the night with brilliant ideas!",
-                "Every keystroke tonight is tomorrow's success.",
-                "You're not just debugging code; you're debugging the fabric of reality.",
-                "When the stars are out, the real devs shine. Keep going!",
-                "Even the moon's impressed by your dedication. Keep at it!",
-                "This is where the magic happens — when everyone else has given up.",
-                "You're the 24/7 build pipeline. Keep shipping greatness!"
-            };
-        }
-        else if (progress < 0.33)
-        {
-            messages = new[]
-            {
-                "You've got this! The day is young, and so are we (in spirit)!",
+                "The day is wrong - You've got this!",
                 "Rise and grind! Coffee in one hand, ambition in the other.",
                 "Early bird gets the worm, but don't overthink it. Worms are gross.",
-                "The day's potential is as big as your imagination. Go wild!",
-                "Rise and shine, dev warrior! Time to squash some bugs and refactor your destiny!",
-                "You're the main method in today's program—run strong!",
+                "The day's potential is as big as your imagination.",
+                "Rise and shine! Time to squash some bugs!",
                 "Think of today as a new repo: commit to making it awesome!",
-                "Coffee is the fuel, code is the engine. Let's build something incredible!",
-                "Fresh day, fresh logs. No errors so far—let's keep it that way!"
+                "Coffee is the fuel, code is the engine.",
+                "Fresh day, fresh logs. No errors so far!"
             };
         }
         else if (progress < 0.67)
@@ -89,18 +68,16 @@ public class WorktimeCommand : CommandBase
             messages = new[]
             {
                 "You're in the zone! Keep up the great work.",
-                "Midday vibes: The perfect mix of coffee buzz and snack motivation.",
-                "You're halfway there — living on more than a prayer!",
-                "Lunch break on the horizon. Finish strong!",
-                "Time flies when you're smashing goals, doesn't it?",
+                "You're halfway there!",
+                "Lunch break on the horizon.",
+                "Time flies when you're smashing goals.",
                 "Midday check: Your code is compiling, and so are your efforts!",
-                "Don't let the imposter syndrome throw an exception—you've got this!",
-                "You're refactoring today's chaos into something beautiful!",
-                "Halfway there! Remember: clean code is happy code.",
-                "You're debugging life one breakpoint at a time — keep stepping through."
+                "Refactor today's chaos into something beautiful.",
+                "Halfway there! Remember: Clean code is happy code.",
+                "You're debugging life one breakpoint at a time."
             };
         }
-        else
+        else if (progress < 1.0)
         {
             messages = new[]
             {
@@ -112,6 +89,33 @@ public class WorktimeCommand : CommandBase
                 "Almost there! Just a few more lines before you can `return;`.",
                 "The day's almost over. Time to run the final tests and celebrate!",
                 "Congratulations! Today's log is full of success messages."
+            };
+        }
+        else if (progress < 1.06)
+        {
+            messages = new[]
+            {
+                "Pack it up! Time to swap code for couch mode.",
+                "The build is complete. Time to deploy yourself home.",
+                "Keyboard down, feet up. You've earned it.",
+                "Clocking out? More like logging off in style!",
+                "You survived another day.",
+                "No more commits today — Merge yourself with the sofa.",
+                "The only bug left to squash is in tonight’s TV show.",
+                "Exit(0); See you tomorrow!"
+            };
+        }
+        else
+        {
+            messages = new[]
+            {
+                "The silence of the evening is the perfect time to write your masterpiece.",
+                "Late-night coding: Where legends are born.",
+                "Dark mode is your ally.",
+                "Every keystroke tonight is tomorrow's success.",
+                "When the stars are out, the real devs shine.",
+                "This is where the magic happens — when everyone else has given up.",
+                "You're the 24/7 build pipeline."
             };
         }
         
