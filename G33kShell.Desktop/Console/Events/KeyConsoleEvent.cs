@@ -47,6 +47,7 @@ public class KeyConsoleEvent : ConsoleEvent
         s = s.Replace("NumPad", "D");
 
         // Support digits.
+        var isUkKeyboard = KeyboardLayoutChecker.IsUk();
         if (s.Length == 2 && s[0] == 'D')
         {
             // Digit.
@@ -55,7 +56,7 @@ public class KeyConsoleEvent : ConsoleEvent
             // Symbol?
             if (shiftPressed)
             {
-                var symbols = KeyboardLayoutChecker.IsUkKeyboardLayout() ? ")!\"£$%^&*(" : ")!@#$%^&*(";
+                var symbols = isUkKeyboard ? ")!\"£$%^&*(" : ")!@#$%^&*(";
                 s = symbols[int.Parse(s)].ToString();
             }
         }
@@ -64,7 +65,6 @@ public class KeyConsoleEvent : ConsoleEvent
         if (s.Length == 1)
             return s[0];
 
-        var quoteKeyMainSymbol = KeyboardLayoutChecker.IsUkKeyboardLayout() ? '@' : '"';
         return Key switch
         {
             Key.Space => ' ',
@@ -74,12 +74,13 @@ public class KeyConsoleEvent : ConsoleEvent
             Key.OemOpenBrackets => shiftPressed ? '{' : '[',
             Key.OemCloseBrackets => shiftPressed ? '}' : ']',
             Key.OemSemicolon => shiftPressed ? ':' : ';',
-            Key.OemQuotes => shiftPressed ? quoteKeyMainSymbol : '\'',
+            Key.OemQuotes => shiftPressed ? isUkKeyboard ? '~' : '"' : isUkKeyboard ? '#' : '\'',
             Key.OemBackslash => shiftPressed ? '|' : '\\',
             Key.OemPipe => shiftPressed ? '|' : '\\',
-            Key.OemTilde => shiftPressed ? '~' : '`',
+            Key.OemTilde => shiftPressed ? isUkKeyboard ? '@' : '~' : isUkKeyboard ? '\'' : '`',
             Key.OemMinus => shiftPressed ? '_' : '-',
             Key.OemPlus => shiftPressed ? '+' : '=',
+            Key.Oem8 =>  shiftPressed ? '¬' : '`',
             _ => '\0'
         };
     }
