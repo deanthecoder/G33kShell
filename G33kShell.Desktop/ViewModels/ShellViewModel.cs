@@ -75,6 +75,8 @@ public class ShellViewModel : ViewModelBase, IDisposable
         
         // Run the terminal.
         _ = Task.Run(RunTerminal);
+
+        //WindowManager.Root.AddChild(new FluidCanvas(WindowManager.Root.Width, WindowManager.Root.Height));
     }
 
     private void RunTerminal()
