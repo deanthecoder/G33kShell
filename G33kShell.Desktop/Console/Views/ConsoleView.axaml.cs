@@ -26,7 +26,7 @@ public partial class ConsoleView : Control
 {
     private const int CharWidth = 8;
     private const int CharHeight = 16;
-    private readonly LruCache<Rgb, IImmutableBrush> m_brushCache = new LruCache<Rgb, IImmutableBrush>(64);
+    private readonly LruCache<Rgb, IImmutableBrush> m_brushCache = new LruCache<Rgb, IImmutableBrush>(512);
     private readonly LruCache<string, Geometry> m_geometryCache = new LruCache<string, Geometry>(4096);
     private WindowManager m_windowManager;
     private FontFamily m_fontFamily;

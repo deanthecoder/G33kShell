@@ -11,6 +11,7 @@
 using System;
 using System.Diagnostics;
 using System.Linq;
+using CSharp.Core;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Skins;
 using JetBrains.Annotations;
@@ -54,7 +55,7 @@ public class FluidCanvas : AnimatedCanvas, IScreensaver
             {
                 for (var x = 0; x < screen.Width; x++)
                 {
-                    screen.PrintAt(x, y, new Attr(' ')
+                    screen.PrintAt(x, y, new Attr('▄')
                     {
                         Foreground = Background
                     });
@@ -77,7 +78,7 @@ public class FluidCanvas : AnimatedCanvas, IScreensaver
         if (!m_isLit)
         {
             dyeToAdd = 0.0;
-            velocityY *= 0.1;
+            velocityY *= 0.5;
         }
 
         m_fluid.AddDensity(m_fluid.Size >> 1, 2, dyeToAdd);
@@ -87,15 +88,28 @@ public class FluidCanvas : AnimatedCanvas, IScreensaver
         m_fluid.Step();
 
         // Update the screen.
-        for (var y = 0; y < m_fluid.Size; y++)
+        var left = (Width >> 1) - m_fluid.Size;
+        for (var y = 0; y < m_fluid.Size - 1; y++)
         {
-            for (var x = 0; x < m_fluid.Size; x++)
+            // Every other row.
+            for (var x = 0; x < m_fluid.Size - 1; x++)
             {
-                var left = (Width >> 1) - m_fluid.Size;
-                var density = m_fluid.Density[m_fluid.Ix(x, m_fluid.Size - y - 1)];
-                var rgb = (density * density).Lerp(Background, Foreground);
-                screen.SetBackground(left + x * 2, y, rgb);
-                screen.SetBackground(left + x * 2 + 1, y, rgb);
+                var leftSide = GetDensityRgb(x, y);
+                screen.SetBackground(left + x * 2, y, leftSide);
+
+                var rightSide = GetDensityRgb(x + 1, y);
+                screen.SetBackground(left + x * 2 + 1, y, 0.5.Lerp(leftSide, rightSide));
+            }
+        }
+
+        // Fill the missing rows.
+        for (var y = 0; y < m_fluid.Size - 2; y++)
+        {
+            for (var x = 0; x < (m_fluid.Size - 1) * 2; x++)
+            {
+                var topSide = screen.Chars[y][left + x].Background;
+                var bottomSide = screen.Chars[y + 1][left + x].Background;
+                screen.SetForeground(left + x, y, 0.5.Lerp(topSide, bottomSide));
             }
         }
 
@@ -112,9 +126,20 @@ public class FluidCanvas : AnimatedCanvas, IScreensaver
         else
         {
             m_fluid.Dim(0.001);
-            if (averageDensity < 0.1)
+            if (averageDensity < 0.15)
                 m_isLit = true; // Light up again.
         }
+    }
+
+    private Rgb GetDensityRgb(int x, int y)
+    {
+        var density = m_fluid.Density[m_fluid.Ix(x, m_fluid.Size - y - 1)];
+
+        // Apply some contrast.
+        const double contrast = 1.75;
+        density = (density - 0.5) * contrast + 0.5;
+
+        return density.Clamp(0.0, 1.0).Lerp(Background, Foreground);
     }
 
     private class FluidCube
@@ -211,7 +236,6 @@ public class FluidCanvas : AnimatedCanvas, IScreensaver
             }
         }
 
-        // todo - params hide fields.
         private void Diffuse(Boundary b, double[] x, double[] x0, double diff, double dt, int iter)
         {
             var a = dt * diff * (Size - 2) * (Size - 2);
@@ -233,9 +257,9 @@ public class FluidCanvas : AnimatedCanvas, IScreensaver
                 }
             }
 
-            SetBoundary(0, div);
-            SetBoundary(0, p);
-            LinSolve(0, p, div, 1, 4, iter);
+            SetBoundary(Boundary.None, div);
+            SetBoundary(Boundary.None, p);
+            LinSolve(Boundary.None, p, div, 1, 4, iter);
 
             for (var j = 1; j < Size - 1; j++)
             {
