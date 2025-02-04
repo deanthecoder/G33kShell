@@ -15,6 +15,9 @@ namespace G33kShell.Desktop.Terminal.Commands;
 
 public enum MyCommandType
 {
+    [Command(typeof(CatCommand), LongName = "cat", ShortName="type", Description = "Write the contents of a file to the console.")]
+    Cat,
+
     [Command(typeof(CdCommand), LongName = "cd", Description = "Change the current directory.")]
     Cd,
 
