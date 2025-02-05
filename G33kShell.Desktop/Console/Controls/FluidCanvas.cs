@@ -28,6 +28,7 @@ public class FluidCanvas : AnimatedCanvas, IScreensaver
     private readonly Random m_random = new Random();
     private FluidCube m_fluid;
     private bool m_isLit;
+    private int m_dyeX;
 
     public FluidCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight)
     {
@@ -64,6 +65,7 @@ public class FluidCanvas : AnimatedCanvas, IScreensaver
             
             // Define the initial state of the fluid.
             m_fluid = new FluidCube(Math.Min(Width, Height), 0.0, 0.0010, 0.15);
+            RefreshDyeX();
             m_isLit = true;
         }
     }
@@ -72,8 +74,10 @@ public class FluidCanvas : AnimatedCanvas, IScreensaver
     {
         // Inject more dye and velocity.
         var dyeToAdd = 0.5 + m_random.NextDouble() * 2.5;
-        var velocityX = (m_random.NextDouble() - 0.5) * 2.0;
-        var velocityY = 0.2 + m_random.NextDouble() * 1.5;
+        var angle = -((m_random.NextDouble() - 0.5) * Math.PI - Math.PI / 2);
+        var speed = 0.5 + 1.5 * m_random.NextDouble();
+        var velocityX = Math.Cos(angle) * speed;
+        var velocityY = Math.Sin(angle) * speed;
         
         if (!m_isLit)
         {
@@ -81,8 +85,8 @@ public class FluidCanvas : AnimatedCanvas, IScreensaver
             velocityY *= 0.5;
         }
 
-        m_fluid.AddDensity(m_fluid.Size >> 1, 2, dyeToAdd);
-        m_fluid.AddVelocity(m_fluid.Size >> 1, 3, velocityX, velocityY);
+        m_fluid.AddDensity(m_dyeX, 2, dyeToAdd);
+        m_fluid.AddVelocity(m_dyeX, 3, velocityX, velocityY);
 
         // Iterate the simulation.
         m_fluid.Step();
@@ -117,7 +121,7 @@ public class FluidCanvas : AnimatedCanvas, IScreensaver
         var averageDensity = m_fluid.Density.Average();
         if (m_isLit)
         {
-            if (averageDensity > 0.6)
+            if (averageDensity > 0.45)
             {
                 // Turn off source until the smoke clears.
                 m_isLit = false;
@@ -126,9 +130,18 @@ public class FluidCanvas : AnimatedCanvas, IScreensaver
         else
         {
             m_fluid.Dim(0.001);
-            if (averageDensity < 0.15)
-                m_isLit = true; // Light up again.
+            if (averageDensity < 0.18)
+            {
+                // Light up again.
+                m_isLit = true;
+                RefreshDyeX();
+            }
         }
+    }
+
+    private void RefreshDyeX()
+    {
+        m_dyeX = (m_fluid.Size >> 1) + (int)((m_random.NextDouble() * 2.0 - 1.0) * m_fluid.Size / 3.0);
     }
 
     private Rgb GetDensityRgb(int x, int y)
