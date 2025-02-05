@@ -51,7 +51,7 @@ public class CatCommand : LocationCommand
         }
     }
 
-    private async IAsyncEnumerable<string> ReadLines(FileInfo fileInfo)
+    private static async IAsyncEnumerable<string> ReadLines(FileInfo fileInfo)
     {
         const int bufferSize = 4096;
         const int maxPrintableChars = 256;
@@ -65,8 +65,8 @@ public class CatCommand : LocationCommand
 
         while ((charsRead = await reader.ReadAsync(buffer, 0, buffer.Length)) > 0)
         {
-            var content = new string(buffer, 0, charsRead);
-            var lines = content.Split([ '\r', '\n'], StringSplitOptions.None);
+            var content = new string(buffer, 0, charsRead).Replace("\r\n", "\n").Replace("\r", "\n");
+            var lines = content.Split('\n');
             foreach (var line in lines)
             {
                 var formattedLine = new StringBuilder();
