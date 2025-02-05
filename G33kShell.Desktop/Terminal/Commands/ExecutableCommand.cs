@@ -29,17 +29,17 @@ public class ExecutableCommand : CommandBase
         m_args = args ?? throw new ArgumentNullException(nameof(args));
     }
 
-    public bool CanExecute()
+    public bool CanExecute(DirectoryInfo cwd)
     {
         var command = m_args.FirstOrDefault();
-        return !string.IsNullOrWhiteSpace(command) && WhereIsCommand.FindExecutables(command).Any();
+        return !string.IsNullOrWhiteSpace(command) && WhereIsCommand.FindExecutables(command, cwd).Any();
     }
 
     protected override async Task<bool> Run(ITerminalState state)
     {
         try
         {
-            var exe = WhereIsCommand.FindExecutables(m_args.First()).First();
+            var exe = WhereIsCommand.FindExecutables(m_args.First(), state.CurrentDirectory).First();
             
             // Set up the command we want to run.
             var command = Cli.Wrap(exe.FullName)

@@ -32,7 +32,7 @@ public class WhereIsCommand : CommandBase
         try
         {
             var foundExecutables = false;
-            foreach (var executablePath in FindExecutables(Name))
+            foreach (var executablePath in FindExecutables(Name, state.CurrentDirectory))
             {
                 WriteLine(executablePath.FullName);
                 foundExecutables = true;
@@ -53,18 +53,22 @@ public class WhereIsCommand : CommandBase
     /// <summary>
     /// Public method that yields paths to executables matching the name.
     /// </summary>
-    public static IEnumerable<FileInfo> FindExecutables(string name)
+    public static IEnumerable<FileInfo> FindExecutables(string name, DirectoryInfo cwd)
     {
         var pathEnv = Environment.GetEnvironmentVariable("PATH");
         var paths = new List<string>
         {
-            "."
+            cwd.FullName
         };
         paths.AddRange(pathEnv?.Split(RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ';' : ':') ?? Array.Empty<string>());
 
         foreach (var dir in paths.Select(o => o.ToDir()).Where(o => o.Exists()))
         {
-            var files = dir.GetFiles(RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? name + ".*": name);
+            var searchPattern = name;
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && string.IsNullOrEmpty(Path.GetExtension(name)))
+                searchPattern = name + ".*";
+            
+            var files = dir.GetFiles(searchPattern);
             foreach (var fileInfo in files.Where(o => o.IsExecutable()))
                 yield return fileInfo;
         }

@@ -82,7 +82,7 @@ public class TerminalState : ITerminalState, IDisposable
         {
             // Unknown command. Could be an executable though?
             var executableCommand = new ExecutableCommand(args);
-            if (!executableCommand.CanExecute())
+            if (!executableCommand.CanExecute(CurrentDirectory))
             {
                 // Unknown command - Completely unknown, or just bad arguments?
                 CliPrompt.IsReadOnly = false;
