@@ -127,7 +127,7 @@ public class DirCommand : CommandBase
             {
                 var s = GetItemName(item);
                 if (showSizes && item is FileInfo file)
-                    s = s.PadRight(availableWidth / 2) + $"  {file.Length:N0} bytes";
+                    s = s.PadRight(availableWidth / 2) + $"  {file.Length.ToSize()}";
                 WriteLine(s);
                 
                 if (IsCancelRequested)

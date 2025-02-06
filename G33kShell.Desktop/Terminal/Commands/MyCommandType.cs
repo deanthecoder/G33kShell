@@ -78,6 +78,9 @@ public enum MyCommandType
     [Command(typeof(SkinCommand), LongName = "skin", Description = "List or change the current Terminal skin.")]
     Skin,
 
+    [Command(typeof(SpaceCommand), LongName = "space", Description = "Display disk space usage.")]
+    Space,
+
     [Command(typeof(ShutdownCommand), LongName = "shutdown", Description = "Shut down the OS.")]
     Shutdown,
 
