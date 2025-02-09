@@ -110,7 +110,10 @@ public class CliPrompt : TextBox
     private bool OnUpArrow()
     {
         if (m_filteredCommandHistory == null)
-            m_filteredCommandHistory = m_fullCommandHistory.Where(o => o.StartsWith(TextWithoutPrefix.Substring(0, CursorIndex), StringComparison.OrdinalIgnoreCase)).ToArray();
+            m_filteredCommandHistory = m_fullCommandHistory?.Where(o => o.StartsWith(TextWithoutPrefix.Substring(0, CursorIndex), StringComparison.OrdinalIgnoreCase)).ToArray();
+        
+        if (m_filteredCommandHistory == null)
+            return true;
         
         if (m_historyOffset > -m_filteredCommandHistory.Length)
         {

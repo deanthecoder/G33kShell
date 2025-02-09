@@ -33,7 +33,7 @@ namespace G33kShell.Desktop.Console.Controls;
 /// - Cursor Navigation: Supports moving the cursor with arrow keys, Home, and End keys.
 /// - Clipboard Paste: Allows pasting text from the clipboard using Control-V.
 /// </remarks>
-[DebuggerDisplay("TextBox:{X},{Y} {Width}x{Height} T:{Text}")]
+[DebuggerDisplay("TextBox:{X},{Y} {Width}x{Height} T:{ToString(),nq}")]
 public class TextBox : TextBlock, ICursorHost
 {
     private readonly StringBuilder m_s = new StringBuilder();
@@ -81,12 +81,10 @@ public class TextBox : TextBlock, ICursorHost
             }
         }
     }
-    
     private static IEnumerable<(int lineStart, int lineLength)> SplitIntoLines(StringBuilder content, int maxLength)
     {
         var lineStart = 0;
         var i = 0;
-    
         while (lineStart < content.Length)
         {
             if (content[i] == '\n')
@@ -96,7 +94,6 @@ public class TextBox : TextBlock, ICursorHost
                 i = lineStart;
                 continue;
             }
-            
             // Find the next newline or end of content
             while (i < content.Length && content[i] != '\n')
                 i++;
@@ -142,7 +139,6 @@ public class TextBox : TextBlock, ICursorHost
     public override void OnLoaded(WindowManager windowManager)
     {
         base.OnLoaded(windowManager);
-        
         Cursor = windowManager.Cursor;
         SetCursor(0);
     }
@@ -160,7 +156,6 @@ public class TextBox : TextBlock, ICursorHost
             Paste(string.Join(" ", pasteEvent.Items));
             return;
         }
-        
         if (consoleEvent is not KeyConsoleEvent keyEvent)
         {
             base.OnEvent(consoleEvent, ref handled);
@@ -171,7 +166,6 @@ public class TextBox : TextBlock, ICursorHost
         if (m_waitForKeyUp && m_previousKey != keyEvent.Key)
             m_waitForKeyUp = false;
         m_previousKey = keyEvent.Key;
-        
         if (m_waitForKeyUp)
         {
             m_waitForKeyUp = keyEvent.Direction == KeyConsoleEvent.KeyDirection.Down;
@@ -193,7 +187,6 @@ public class TextBox : TextBlock, ICursorHost
             InvalidateVisual();
             MoveCursor(0);
             handled = true;
-            
             // Auto-reset the wait for 'key up' after a short delay, to allow press-and-hold key entry.
             Task.Delay(50).ContinueWith(_ => m_waitForKeyUp = false);
         }
@@ -249,7 +242,8 @@ public class TextBox : TextBlock, ICursorHost
     
     public void Append(string s)
     {
-        m_s.Append(s);
+        lock (m_s)
+            m_s.Append(s);
         SetCursor(m_s.Length);
         InvalidateVisual();
     }
@@ -300,9 +294,12 @@ public class TextBox : TextBlock, ICursorHost
     {
         if (string.IsNullOrEmpty(s))
             return;
-        
-        m_s.Insert(CursorIndex, s);
-        MoveCursor(s.Length);
+
+        lock (m_s)
+        {
+            m_s.Insert(CursorIndex, s);
+            MoveCursor(s.Length);
+        }
         InvalidateVisual();
     }
 
@@ -349,12 +346,47 @@ public class TextBox : TextBlock, ICursorHost
     private bool MoveCursor(int offset) =>
         SetCursor(CursorIndex + offset);
 
-    private bool SetCursor(int position)
+    protected override void SetActualY(int value)
     {
-        CursorIndex = position.Clamp(0, m_s.Length);
-        var x = CursorIndex + Prefix?.Length ?? 0;
-        var y = x / Width;
-        Cursor?.SetPos(X + (x % Width), Y + y);
+        base.SetActualY(value);
+        SetCursor(CursorIndex);
+    }
+
+    private bool SetCursor(int charOffset)
+    {
+        lock (m_s)
+        {
+            var cursorIndex = charOffset.Clamp(0, m_s.Length);
+            CursorIndex = cursorIndex;
+        
+            // Position the cursor at the beginning of the string.
+            var x = Prefix?.Length ?? 0;
+            var y = ActualY;
+        
+            // Advance the cursor along the string.
+            for (var i = 0; i < cursorIndex; i++)
+            {
+                // Check for explicit line break.
+                if (m_s[i] == '\n')
+                {
+                    y++;
+                    x = 0;
+                    continue;
+                }
+            
+                // ...or add newline if cursor reaches far screen right.
+                if (x == Width)
+                {
+                    y++;
+                    x = 0;
+                }
+
+                // Just jog the cursor along a character.
+                x++;
+            }
+        
+            Cursor?.SetPos(x, y);
+        }
 
         var lineCount = WrapText(Prefix, m_s, Width).Count();
         if (lineCount > Height)
@@ -362,7 +394,7 @@ public class TextBox : TextBlock, ICursorHost
             SetHeight(lineCount);
             ScrollIntoView();
         }
-        
+
         return true;
     }
 
@@ -371,7 +403,8 @@ public class TextBox : TextBlock, ICursorHost
     /// </summary>
     protected bool Clear()
     {
-        m_s.Clear();
+        lock (m_s)
+            m_s.Clear();
         SetCursor(0);
         InvalidateVisual();
         return true;
@@ -379,11 +412,20 @@ public class TextBox : TextBlock, ICursorHost
     
     public bool Backspace(int count = 1)
     {
-        while (count-- > 0 && CursorIndex > 0)
-            m_s.Remove(--CursorIndex, 1);
+        lock (m_s)
+        {
+            while (count-- > 0 && CursorIndex > 0)
+                m_s.Remove(--CursorIndex, 1);
+        }
+        
         MoveCursor(0);
         InvalidateVisual();
         return true;
+    }
+
+    public void ClearText()
+    {
+        Backspace(m_s.Length);
     }
     
     private bool Delete()
@@ -396,4 +438,13 @@ public class TextBox : TextBlock, ICursorHost
 
     private static bool IsPrintableChar(char ch) =>
         char.IsLetterOrDigit(ch) || char.IsPunctuation(ch) || char.IsSymbol(ch) || char.IsWhiteSpace(ch);
+
+    public override string ToString()
+    {
+        var result = string.Join(Environment.NewLine, m_s);
+        if (string.IsNullOrEmpty(result))
+            return "<Empty>";
+
+        return result.Length > 40 ? result[..40] + "..." : result;
+    }
 }

@@ -31,6 +31,7 @@ public abstract class Visual
     private Rgb m_foreground;
     private Rgb m_background;
     private bool m_isVisible = true;
+    private int m_actualY;
 
     /// <summary>
     /// Arbitrary control name. (See WindowManager.Find)
@@ -46,6 +47,20 @@ public abstract class Visual
                 return;
             m_parent = value;
             InvalidateVisual();
+        }
+    }
+
+    /// <summary>
+    /// Walk the view hierarchy to find the root visual.
+    /// </summary>
+    public Visual Root
+    {
+        get
+        {
+            var visual = this;
+            while (visual.Parent != null)
+                visual = visual.Parent;
+            return visual;
         }
     }
 
@@ -91,8 +106,20 @@ public abstract class Visual
     /// The absolute position of this control relative to the root.
     /// </summary>
     /// <see cref="Y"/>
-    public int ActualY { get; internal set; }
-    
+    public int ActualY
+    {
+        get => m_actualY;
+        internal set
+        {
+            if (m_actualY == value)
+                return;
+            SetActualY(value);
+        }
+    }
+
+    protected virtual void SetActualY(int value) =>
+        m_actualY = value;
+
     public int Width => Screen?.Width ?? 0;
     public int Height => Screen?.Height ?? 0;
 
@@ -352,10 +379,13 @@ public abstract class Visual
         var maxBottom = Parent.Children.Max(o => o.Y + o.Height);
         var linesOffTheBottom = maxBottom - Parent.Height;
         if (linesOffTheBottom > 0)
+        {
+            // Fit the control bottom onto the screen.
             Parent.ScrollChildren(-linesOffTheBottom);
+        }
     }
 
-    public virtual void OnSkinChanged(SkinBase skin)
+    public virtual void OnSkinChanged(SkinBase _)
     {
         // Do nothing.
     }

@@ -84,6 +84,9 @@ public enum MyCommandType
     [Command(typeof(ShutdownCommand), LongName = "shutdown", Description = "Shut down the OS.")]
     Shutdown,
 
+    [Command(typeof(TailCommand), LongName = "tail", Description = "Output the last few lines of a file.")]
+    Tail,
+
     [Command(typeof(TreeCommand), LongName = "tree", Description = "List files and directories in a tree structure.")]
     Tree,
 

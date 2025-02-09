@@ -40,6 +40,8 @@ public abstract class CommandBase : Command
     /// Set if the user presses ESCape whilst the command is active.
     /// </summary>
     protected bool IsCancelRequested { get; private set; }
+
+    public bool WarnIfCancelled { get; init; } = true;
     
     public CommandBase SetState(ITerminalState state)
     {
@@ -79,7 +81,8 @@ public abstract class CommandBase : Command
             if (IsCancelRequested)
             {
                 WriteLine();
-                WriteLine("Warning: Command cancelled.");
+                if (WarnIfCancelled)
+                    WriteLine("Warning: Command cancelled.");
                 IsCancelRequested = false;
             }
         }

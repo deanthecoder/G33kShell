@@ -36,4 +36,7 @@ public class ConsoleCursor
         Y = y;
         MoveTime = Environment.TickCount64;
     }
+
+    public override string ToString() =>
+        $"({X},{Y})";
 }
