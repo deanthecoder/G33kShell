@@ -72,8 +72,9 @@ public class TailCommand : LocationCommand
             {
                 previousSize = fileInfo.Length;
 
+                var command = state.CliPrompt.CommandLine;
                 state.CliPrompt.ClearText();
-                WriteLine();
+                WriteLine(command);
                 await OutputLastLines(fileInfo, state.CliPrompt.Width, state.CliPrompt.Root.Height - 2);
                 WriteLine();
                 state.CliPrompt.ScrollIntoView();

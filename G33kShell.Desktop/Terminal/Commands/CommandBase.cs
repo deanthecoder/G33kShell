@@ -67,7 +67,7 @@ public abstract class CommandBase : Command
             using var _ = new BusyCursor(m_state.CliPrompt.Cursor);
             var commandSuccess = await Run(m_state);
             var lines = CliPrompt.TextWithoutPrefix.Split('\n');
-            var result = new CommandResult(lines.First(), m_state.CurrentDirectory.Clone(), string.Join('\n', lines.Skip(1)).Trim(), commandSuccess);
+            var result = new CommandResult(CliPrompt.CommandLine, m_state.CurrentDirectory.Clone(), string.Join('\n', lines.Skip(1)).Trim(), commandSuccess);
             m_state.CommandHistory.AddCommand(result);
         }
         catch

@@ -47,6 +47,11 @@ public class CliPrompt : TextBox
     {
     }
 
+    /// <summary>
+    /// The first line of the CLI prompt text.
+    /// </summary>
+    public string CommandLine => TextWithoutPrefix[..TextWithoutPrefix.IndexOfAny(['\r', '\n'])];
+
     public override void OnEvent(ConsoleEvent consoleEvent, ref bool handled)
     {
         if (consoleEvent is KeyConsoleEvent { Key: Key.Escape, Direction: KeyConsoleEvent.KeyDirection.Down } && IsReadOnly)
