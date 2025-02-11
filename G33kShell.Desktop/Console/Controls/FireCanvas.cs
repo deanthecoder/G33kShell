@@ -15,7 +15,7 @@ using System.Text;
 namespace G33kShell.Desktop.Console.Controls;
 
 [DebuggerDisplay("FireCanvas:{X},{Y} {Width}x{Height}")]
-public class FireCanvas : AnimatedCanvas, IScreensaver
+public class FireCanvas : ScreensaverBase
 {
     private readonly string m_fireChars = " ,;+ltgti!lI?/\\|)(1}{][rcvzjftJUOQocxfXhqwWB8&%$#@";
     private readonly int m_maxCharIndex;

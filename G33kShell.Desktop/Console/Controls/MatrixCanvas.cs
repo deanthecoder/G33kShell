@@ -11,7 +11,6 @@
 using System;
 using System.Diagnostics;
 using CSharp.Core.Extensions;
-using G33kShell.Desktop.Skins;
 using JetBrains.Annotations;
 
 namespace G33kShell.Desktop.Console.Controls;
@@ -21,7 +20,7 @@ namespace G33kShell.Desktop.Console.Controls;
 /// </summary>
 [DebuggerDisplay("MatrixCanvas:{X},{Y} {Width}x{Height}")]
 [UsedImplicitly]
-public class MatrixCanvas : AnimatedCanvas, IScreensaver
+public class MatrixCanvas : ScreensaverBase
 {
     private readonly Random m_random = new Random();
 
@@ -30,19 +29,7 @@ public class MatrixCanvas : AnimatedCanvas, IScreensaver
         Name = "matrix";
     }
 
-    public override void OnLoaded(WindowManager windowManager)
-    {
-        base.OnLoaded(windowManager);
-        BuildScreen();
-    }
-
-    public override void OnSkinChanged(SkinBase skin)
-    {
-        base.OnSkinChanged(skin);
-        BuildScreen();
-    }
-
-    private void BuildScreen()
+    protected override void BuildScreen()
     {
         using (Screen.Lock(out var screen))
         {

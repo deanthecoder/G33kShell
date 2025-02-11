@@ -13,7 +13,6 @@ using System.Diagnostics;
 using System.Linq;
 using CSharp.Core;
 using CSharp.Core.Extensions;
-using G33kShell.Desktop.Skins;
 using JetBrains.Annotations;
 
 namespace G33kShell.Desktop.Console.Controls;
@@ -23,7 +22,7 @@ namespace G33kShell.Desktop.Console.Controls;
 /// </summary>
 [DebuggerDisplay("FluidCanvas:{X},{Y} {Width}x{Height}")]
 [UsedImplicitly]
-public class FluidCanvas : AnimatedCanvas, IScreensaver
+public class FluidCanvas : ScreensaverBase
 {
     private readonly Random m_random = new Random();
     private FluidCube m_fluid;
@@ -35,19 +34,7 @@ public class FluidCanvas : AnimatedCanvas, IScreensaver
         Name = "fluid";
     }
 
-    public override void OnLoaded(WindowManager windowManager)
-    {
-        base.OnLoaded(windowManager);
-        BuildScreen();
-    }
-
-    public override void OnSkinChanged(SkinBase skin)
-    {
-        base.OnSkinChanged(skin);
-        BuildScreen();
-    }
-
-    private void BuildScreen()
+    protected override void BuildScreen()
     {
         using (Screen.Lock(out var screen))
         {

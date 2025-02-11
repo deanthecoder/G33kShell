@@ -22,7 +22,7 @@ namespace G33kShell.Desktop.Console.Controls;
 /// </remarks>
 [DebuggerDisplay("DonutCanvas:{X},{Y} {Width}x{Height}")]
 [UsedImplicitly]
-public class DonutCanvas : AnimatedCanvas, IScreensaver
+public class DonutCanvas : ScreensaverBase
 {
     private const double ThetaSpacing = 0.05f;
     private const double PhiSpacing = 0.02f;
