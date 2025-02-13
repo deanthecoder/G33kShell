@@ -10,7 +10,6 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
 using System.Diagnostics;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace G33kShell.Desktop.Console.Controls;
@@ -25,8 +24,7 @@ namespace G33kShell.Desktop.Console.Controls;
 /// </remarks>
 public abstract class AnimatedCanvas : Visual
 {
-    private readonly Stopwatch m_stopwatch = new Stopwatch();
-    private readonly long m_frameTimeMs;
+    private readonly int m_frameTimeMs;
     private bool m_running;
     private Task m_animationTask;
 
@@ -36,7 +34,7 @@ public abstract class AnimatedCanvas : Visual
     {
         if (targetFps <= 0)
             throw new ArgumentException("Target FPS must be greater than 0.", nameof(targetFps));
-        m_frameTimeMs = (long)(1000.0 / targetFps); // Frame time in milliseconds
+        m_frameTimeMs = (int)(1000.0 / targetFps); // Frame time in milliseconds
     }
 
     /// <summary>
@@ -53,27 +51,33 @@ public abstract class AnimatedCanvas : Visual
         // Do nothing - Updating the screen is handled in UpdateFrame().
     }
 
-    private void UpdateFrameBase()
+    private async Task UpdateFrameBase()
     {
+        var stopwatch = new Stopwatch();
         while (m_running)
         {
-            if (!m_stopwatch.IsRunning)
-                m_stopwatch.Start();
-            if (m_stopwatch.ElapsedMilliseconds < m_frameTimeMs || !IsVisible)
+            if (!IsVisible)
+            {
+                await Task.Delay(100);
+                continue;
+            }
+            
+            if (!stopwatch.IsRunning)
+                stopwatch.Start();
+            if (stopwatch.ElapsedMilliseconds < m_frameTimeMs || !IsVisible)
             {
                 // Skip this frame, too soon to render again.
-                Thread.Sleep(10);
+                await Task.Delay((int)(m_frameTimeMs - stopwatch.ElapsedMilliseconds));
                 continue;
             }
 
-            m_stopwatch.Restart(); // Reset for the next frame
+            stopwatch.Restart(); // Reset for the next frame
 
             using (Screen.Lock(out var screen))
                 UpdateFrame(screen);
 
             // Request rendering update.
             InvalidateVisual();
-
             FrameNumber++;
         }
     }

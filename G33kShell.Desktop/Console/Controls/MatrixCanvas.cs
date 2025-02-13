@@ -29,33 +29,30 @@ public class MatrixCanvas : ScreensaverBase
         Name = "matrix";
     }
 
-    protected override void BuildScreen()
+    protected override void BuildScreen(ScreenData screen)
     {
-        using (Screen.Lock(out var screen))
+        // Seed screen with invisible characters.
+        for (var y = 0; y < screen.Height; y++)
         {
-            // Seed screen with invisible characters.
-            for (var y = 0; y < screen.Height; y++)
+            for (var x = 0; x < screen.Width; x++)
             {
-                for (var x = 0; x < screen.Width; x++)
+                var ch = (char)('\x3A' + m_random.Next(0, 33));
+                screen.PrintAt(x, y, new Attr(ch)
                 {
-                    var ch = (char)('\x3A' + m_random.Next(0, 33));
-                    screen.PrintAt(x, y, new Attr(ch)
-                    {
-                        Foreground = Background
-                    });
-                }
+                    Foreground = Background
+                });
             }
+        }
 
-            // Add 'trails'.
-            for (var x = 0; x < screen.Width; x += m_random.Next(2, 4))
-            {
-                var length = m_random.Next(6, 12);
-                var y = m_random.Next(0, screen.Height - length - 1);
-                var i = 0;
-                for (; i < length - 1; i++)
-                    screen.SetForeground(x, y + i, Foreground.WithBrightness(0.2 + 0.6 * i / length));
-                screen.SetForeground(x, y + i, Foreground);
-            }
+        // Add 'trails'.
+        for (var x = 0; x < screen.Width; x += m_random.Next(2, 4))
+        {
+            var length = m_random.Next(6, 12);
+            var y = m_random.Next(0, screen.Height - length - 1);
+            var i = 0;
+            for (; i < length - 1; i++)
+                screen.SetForeground(x, y + i, Foreground.WithBrightness(0.2 + 0.6 * i / length));
+            screen.SetForeground(x, y + i, Foreground);
         }
     }
 

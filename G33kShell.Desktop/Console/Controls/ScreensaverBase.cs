@@ -24,21 +24,20 @@ public abstract class ScreensaverBase : AnimatedCanvas, IScreensaver
     public override void OnLoaded(WindowManager windowManager)
     {
         base.OnLoaded(windowManager);
-        BuildScreen();
+        using (Screen.Lock(out var screen))
+            BuildScreen(screen);
     }
 
     public override void OnSkinChanged(SkinBase skin)
     {
         base.OnSkinChanged(skin);
-        BuildScreen();
+        using (Screen.Lock(out var screen))
+            BuildScreen(screen);
     }
 
-    protected virtual void BuildScreen()
+    protected virtual void BuildScreen(ScreenData screen)
     {
-        using (Screen.Lock(out var screen))
-        {
-            screen.ClearChars();
-            screen.ClearColor(Foreground, Background);
-        }
+        screen.ClearChars();
+        screen.ClearColor(Foreground, Background);
     }
 }

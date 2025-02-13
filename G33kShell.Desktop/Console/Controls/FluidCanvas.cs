@@ -34,27 +34,24 @@ public class FluidCanvas : ScreensaverBase
         Name = "fluid";
     }
 
-    protected override void BuildScreen()
+    protected override void BuildScreen(ScreenData screen)
     {
-        using (Screen.Lock(out var screen))
+        // Seed screen with invisible characters.
+        for (var y = 0; y < screen.Height; y++)
         {
-            // Seed screen with invisible characters.
-            for (var y = 0; y < screen.Height; y++)
+            for (var x = 0; x < screen.Width; x++)
             {
-                for (var x = 0; x < screen.Width; x++)
+                screen.PrintAt(x, y, new Attr('▄')
                 {
-                    screen.PrintAt(x, y, new Attr('▄')
-                    {
-                        Foreground = Background
-                    });
-                }
+                    Foreground = Background
+                });
             }
-            
-            // Define the initial state of the fluid.
-            m_fluid = new FluidCube(Math.Min(Width, Height), 0.0, 0.0010, 0.15);
-            RefreshDyeX();
-            m_isLit = true;
         }
+            
+        // Define the initial state of the fluid.
+        m_fluid = new FluidCube(Math.Min(Width, Height), 0.0, 0.0010, 0.15);
+        RefreshDyeX();
+        m_isLit = true;
     }
 
     protected override void UpdateFrame(ScreenData screen)

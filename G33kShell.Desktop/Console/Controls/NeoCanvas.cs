@@ -41,37 +41,34 @@ public class NeoCanvas : ScreensaverBase
         Name = "neo";
     }
 
-    protected override void BuildScreen()
+    protected override void BuildScreen(ScreenData screen)
     {
-        using (Screen.Lock(out var screen))
-        {
-            // Resize background to match ASCII screen dimension.
-            using var original = SKBitmap.Decode(Convert.FromBase64String(m_pngData));
-            using var background = original.Resize(new SKSizeI(screen.Width, screen.Height), SKFilterQuality.Medium);
+        // Resize background to match ASCII screen dimension.
+        using var original = SKBitmap.Decode(Convert.FromBase64String(m_pngData));
+        using var background = original.Resize(new SKSizeI(screen.Width, screen.Height), SKFilterQuality.Medium);
             
-            // Get base luminosity values.
-            m_backLums = new double[screen.Width * screen.Height];
-            for (var y = 0; y < screen.Height; y++)
+        // Get base luminosity values.
+        m_backLums = new double[screen.Width * screen.Height];
+        for (var y = 0; y < screen.Height; y++)
+        {
+            for (var x = 0; x < screen.Width; x++)
             {
-                for (var x = 0; x < screen.Width; x++)
-                {
-                    var rgb = background.GetPixel(x, y);
-                    m_backLums[y * screen.Width + x] = rgb.Red / 255.0;
-                }
+                var rgb = background.GetPixel(x, y);
+                m_backLums[y * screen.Width + x] = rgb.Red / 255.0;
             }
+        }
 
-            // Initialize display luminosity to zero.
-            m_displayLums = new double[screen.Width * screen.Height];
+        // Initialize display luminosity to zero.
+        m_displayLums = new double[screen.Width * screen.Height];
 
-            // Initialize trail heads list.
-            m_trailHeads = new List<(int X, double Y, double dY)>();
+        // Initialize trail heads list.
+        m_trailHeads = new List<(int X, double Y, double dY)>();
 
-            // Seed screen with invisible characters.
-            for (var y = 0; y < screen.Height; y++)
-            {
-                for (var x = 0; x < screen.Width; x++)
-                    screen.PrintAt(x, y, new Attr(m_backLums[y * screen.Width + x].ToAscii()) { Foreground = Background });
-            }
+        // Seed screen with invisible characters.
+        for (var y = 0; y < screen.Height; y++)
+        {
+            for (var x = 0; x < screen.Width; x++)
+                screen.PrintAt(x, y, new Attr(m_backLums[y * screen.Width + x].ToAscii()) { Foreground = Background });
         }
     }
     
