@@ -12,10 +12,11 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using CSharp.Core.Extensions;
+using G33kShell.Desktop.Console.Controls;
 using JetBrains.Annotations;
 using SkiaSharp;
 
-namespace G33kShell.Desktop.Console.Controls;
+namespace G33kShell.Desktop.Console.Screensavers;
 
 /// <summary>
 /// A canvas to displaying an animated Matrix corridor effect.

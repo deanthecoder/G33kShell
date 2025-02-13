@@ -15,7 +15,7 @@ using Avalonia;
 using Avalonia.Controls;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console;
-using G33kShell.Desktop.Console.Controls;
+using G33kShell.Desktop.Console.Screensavers;
 using Visual = G33kShell.Desktop.Console.Controls.Visual;
 
 namespace G33kShell.Desktop.Terminal.Controls;

@@ -11,8 +11,9 @@
 using System;
 using System.Diagnostics;
 using System.Text;
+using G33kShell.Desktop.Console.Controls;
 
-namespace G33kShell.Desktop.Console.Controls;
+namespace G33kShell.Desktop.Console.Screensavers;
 
 [DebuggerDisplay("FireCanvas:{X},{Y} {Width}x{Height}")]
 public class FireCanvas : ScreensaverBase

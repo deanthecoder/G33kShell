@@ -8,6 +8,7 @@
 // about your modifications. Your contributions are valued!
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+using G33kShell.Desktop.Console.Screensavers;
 using G33kShell.Desktop.Skins;
 
 namespace G33kShell.Desktop.Console.Controls;

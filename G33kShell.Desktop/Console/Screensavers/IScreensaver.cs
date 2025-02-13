@@ -8,7 +8,7 @@
 // about your modifications. Your contributions are valued!
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
-namespace G33kShell.Desktop.Console.Controls;
+namespace G33kShell.Desktop.Console.Screensavers;
 
 public interface IScreensaver
 {

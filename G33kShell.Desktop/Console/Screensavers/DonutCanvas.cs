@@ -10,9 +10,10 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
 using System.Diagnostics;
+using G33kShell.Desktop.Console.Controls;
 using JetBrains.Annotations;
 
-namespace G33kShell.Desktop.Console.Controls;
+namespace G33kShell.Desktop.Console.Screensavers;
 
 /// <summary>
 /// A canvas to displaying an animated donut.
