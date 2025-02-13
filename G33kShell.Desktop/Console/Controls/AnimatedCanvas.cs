@@ -29,11 +29,13 @@ public abstract class AnimatedCanvas : Visual
     private Task m_animationTask;
 
     protected int FrameNumber { get; private set; }
+    protected int TargetFps { get; }
 
     protected AnimatedCanvas(int width, int height, int targetFps = 30) : base(width, height)
     {
         if (targetFps <= 0)
             throw new ArgumentException("Target FPS must be greater than 0.", nameof(targetFps));
+        TargetFps = targetFps;
         m_frameTimeMs = (int)(1000.0 / targetFps); // Frame time in milliseconds
     }
 
