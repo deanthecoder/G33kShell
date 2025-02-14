@@ -40,6 +40,7 @@ public class CdCommand : LocationCommand
             if (newDir.Exists)
             {
                 state.CurrentDirectory = newDir;
+                Settings.Instance.AppendPathToHistory(newDir.FullName);
                 return Task.FromResult(true);
             }
         }

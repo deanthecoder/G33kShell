@@ -10,7 +10,6 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
 using System;
-using System.IO;
 using System.Threading.Tasks;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Terminal.Attributes;
@@ -41,17 +40,18 @@ public class RevealCommand : LocationCommand
         try
         {
             var targetPath = GetTargetPath(state);
-            var fileInfo = new FileInfo(targetPath);
+            var fileInfo = targetPath.ToFile();
             if (fileInfo.Exists)
             {
                 await Task.Run(() => fileInfo.Explore());
                 return true;
             }
             
-            var directoryInfo = new DirectoryInfo(targetPath);
+            var directoryInfo = targetPath.ToDir();
             if (directoryInfo.Exists)
             {
                 await Task.Run(() => directoryInfo.Explore());
+                Settings.Instance.AppendPathToHistory(targetPath);
                 return true;
             }
             

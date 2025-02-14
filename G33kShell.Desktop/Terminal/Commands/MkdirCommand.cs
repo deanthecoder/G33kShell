@@ -29,9 +29,14 @@ public class MkdirCommand : CommandBase
         {
             state.CurrentDirectory.Resolve(Directory, out var directoryInfo, out _, out _);
             if (!directoryInfo.Exists)
+            {
                 directoryInfo.Create();
+                Settings.Instance.AppendPathToHistory(directoryInfo.FullName);
+            }
             else
+            {
                 WriteLine("Error: Directory already exists.");
+            }
         }
         catch (Exception ex)
         {

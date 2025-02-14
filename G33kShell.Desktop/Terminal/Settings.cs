@@ -8,8 +8,10 @@
 // about your modifications. Your contributions are valued!
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using CSharp.Core.Extensions;
 using CSharp.Core.Settings;
@@ -50,11 +52,24 @@ public class Settings : UserSettingsBase
         set => Set(value);
     }
 
+    public string[] PathHistory
+    {
+        get => Get<string[]>();
+        set => Set(value);
+    }
+
     protected override void ApplyDefaults()
     {
         UsedCommands = new List<string>();
         Cwd = Assembly.GetExecutingAssembly().GetDirectory();
         SkinName = "RetroPlasma";
         ScreensaverName = "matrix";
+        PathHistory = [];
+    }
+
+    public void AppendPathToHistory(string newPath)
+    {
+        var match = PathHistory.FirstOrDefault(o => o.Equals(newPath, StringComparison.OrdinalIgnoreCase));
+        PathHistory = PathHistory.Except([match]).Append(newPath).ToArray();
     }
 }

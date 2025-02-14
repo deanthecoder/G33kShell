@@ -36,8 +36,8 @@ public class TailCommand : LocationCommand
         try
         {
             var targetPath = GetTargetPath(state);
-            var fileInfo = new FileInfo(targetPath);
-            if (!fileInfo.Exists)
+            var targetFile = targetPath.ToFile();
+            if (!targetFile.Exists)
             {
                 WriteLine($"File not found: {targetPath}");
                 return false;
@@ -45,11 +45,11 @@ public class TailCommand : LocationCommand
 
             if (Watch)
             {
-                await WatchFile(fileInfo, state);
+                await WatchFile(targetFile, state);
             }
             else
             {
-                await OutputLastLines(fileInfo, state.CliPrompt.Width, 10);
+                await OutputLastLines(targetFile, state.CliPrompt.Width, 10);
             }
 
             return true;

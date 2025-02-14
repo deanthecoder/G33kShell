@@ -21,6 +21,9 @@ public enum MyCommandType
     [Command(typeof(CdCommand), LongName = "cd", Description = "Change the current directory.")]
     Cd,
 
+    [Command(typeof(CddCommand), LongName = "cdd", Description = "Change directory using an intelligent look-up.")]
+    Cdd,
+
     [Command(typeof(ClearCommand), LongName = "clear", ShortName = "cls", Description = "Clear the terminal.")]
     Clear,
 

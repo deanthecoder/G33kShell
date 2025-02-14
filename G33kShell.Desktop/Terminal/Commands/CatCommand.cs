@@ -13,6 +13,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using CSharp.Core.Extensions;
 using G33kShell.Desktop.Terminal.Attributes;
 
 namespace G33kShell.Desktop.Terminal.Commands;
@@ -24,13 +25,12 @@ public class CatCommand : LocationCommand
     {
         try
         {
-            var targetPath = GetTargetPath(state);
-            var fileInfo = new FileInfo(targetPath);
-            if (fileInfo.Exists)
+            var targetFile = GetTargetPath(state).ToFile();
+            if (targetFile.Exists)
             {
                 await Task.Run(async () =>
                 {
-                    await foreach (var s in ReadLines(fileInfo))
+                    await foreach (var s in ReadLines(targetFile))
                     {
                         WriteLine(s);
                         if (IsCancelRequested)

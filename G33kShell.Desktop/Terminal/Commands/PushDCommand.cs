@@ -39,6 +39,7 @@ public class PushDCommand : LocationCommand
             {
                 state.DirStack.Push(state.CurrentDirectory); // push current directory to stack
                 state.CurrentDirectory = newDir;             // make new directory current
+                Settings.Instance.AppendPathToHistory(newDir.FullName);
                 return Task.FromResult(true);
             }
         }
