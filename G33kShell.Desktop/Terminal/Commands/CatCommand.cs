@@ -92,7 +92,8 @@ public class CatCommand : LocationCommand
                     if (printableCharCount > maxPrintableChars)
                     {
                         var remainingBytes = fileInfo.Length - stream.Position;
-                        yield return $"[Stopped: {remainingBytes:N0} bytes remaining]";
+                        if (remainingBytes > 0)
+                            yield return $"[Stopped: {remainingBytes:N0} bytes remaining]";
                         yield break;
                     }
                 }
