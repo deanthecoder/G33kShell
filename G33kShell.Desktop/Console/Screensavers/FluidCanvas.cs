@@ -41,12 +41,7 @@ public class FluidCanvas : ScreensaverBase
         for (var y = 0; y < screen.Height; y++)
         {
             for (var x = 0; x < screen.Width; x++)
-            {
-                screen.PrintAt(x, y, new Attr('▄')
-                {
-                    Foreground = Background
-                });
-            }
+                screen.PrintAt(x, y, new Attr('▄', Background));
         }
             
         // Define the initial state of the fluid.

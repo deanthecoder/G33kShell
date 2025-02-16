@@ -106,18 +106,25 @@ public class ScreenData
         }
     }
 
+    /// <summary>
+    /// Set the x,y character, foreground, and background, all at once.
+    /// </summary>
     public void PrintAt(int x, int y, Attr attr)
     {
         if (attr.Ch != '\0' && IsWithinBounds(x, y))
             Chars[y][x].Set(attr);
     }
 
+    /// <summary>
+    /// Set the x,y character (without changing colors).
+    /// </summary>
     public void PrintAt(int x, int y, char ch)
     {
         if (ch != '\0' && IsWithinBounds(x, y))
             Chars[y][x].Set(ch);
     }
 
+    
     public void PrintAt(int x, int y, string s)
     {
         if (y < 0 || y >= Height)
@@ -128,7 +135,7 @@ public class ScreenData
         if (x < 0)
         {
             // Adjust the string and starting position if x is out of bounds to the left
-            s = s.Substring(-x);
+            s = s[-x..];
             maxLength = Math.Min(s.Length, Width); // Adjust the max length
             x = 0;
         }
@@ -138,16 +145,33 @@ public class ScreenData
             Chars[y][x + i].Set(s[i]);
     }
 
+    /// <summary>
+    /// Set the background color at the specified x,y position.
+    /// </summary>
     public void SetBackground(int x, int y, Rgb color)
     {
         if (IsWithinBounds(x, y))
             Chars[y][x].Background = color;
     }
 
+    /// <summary>
+    /// Set the background color at the specified x,y position.
+    /// </summary>
     public void SetForeground(int x, int y, Rgb color)
     {
         if (IsWithinBounds(x, y))
             Chars[y][x].Foreground = color;
+    }
+
+    /// <summary>
+    /// Set the background and foreground colors at the specified x,y position.
+    /// </summary>
+    public void SetColors(int x, int y, Rgb background, Rgb foreground)
+    {
+        if (!IsWithinBounds(x, y))
+            return;
+        Chars[y][x].Background = background;
+        Chars[y][x].Foreground = foreground;
     }
 
     private bool IsWithinBounds(int x, int y) =>

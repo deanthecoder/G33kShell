@@ -41,7 +41,11 @@ public abstract class CommandBase : Command
     /// </summary>
     protected bool IsCancelRequested { get; private set; }
 
-    public bool WarnIfCancelled { get; init; } = true;
+    /// <summary>
+    /// It's OK to cancel some commands (like watching 'cat' output), so ESCape
+    /// shouldn't always be considered an error.
+    /// </summary>
+    protected bool WarnIfCancelled { get; init; } = true;
     
     public CommandBase SetState(ITerminalState state)
     {

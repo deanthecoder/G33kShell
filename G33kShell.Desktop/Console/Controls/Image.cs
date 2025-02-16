@@ -81,10 +81,7 @@ public class Image : Visual
                 var col = Parent.Foreground.WithBrightness(lum.Lerp(0.2, 1.0));
 
                 // Determine the character from the gradient
-                screen.PrintAt(x, y, new Attr(lum.ToAscii())
-                {
-                    Foreground = col
-                });
+                screen.PrintAt(x, y, new Attr(lum.ToAscii(), col));
             }
         }
     }

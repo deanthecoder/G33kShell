@@ -26,6 +26,8 @@ using G33kShell.Desktop.Terminal;
 using G33kShell.Desktop.Terminal.Controls;
 using SkiaSharp;
 
+// ReSharper disable UnusedMember.Local
+
 namespace G33kShell.Desktop.ViewModels;
 
 
@@ -61,6 +63,7 @@ public class ShellViewModel : ViewModelBase, IDisposable
         _ = StartAsync();
     }
     
+#pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
     private async Task StartAsync()
     {
 #if !DEBUG

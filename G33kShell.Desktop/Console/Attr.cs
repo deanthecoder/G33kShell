@@ -30,6 +30,12 @@ public class Attr
     {
         Ch = ch;
     }
+
+    public Attr(char ch, Rgb foreground, Rgb background = null) : this(ch)
+    {
+        Foreground = foreground;
+        Background = background;
+    }
     
     public void Clear() => Ch = ' ';
 

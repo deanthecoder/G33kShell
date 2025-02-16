@@ -100,5 +100,5 @@ public enum MyCommandType
     Worktime,
 
     [Command(typeof(VerCommand), LongName = "ver", Description = "Report the G33kShell application version.")]
-    Ver,
+    Ver
 }

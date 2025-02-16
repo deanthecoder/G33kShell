@@ -9,6 +9,7 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
@@ -35,14 +36,22 @@ public class ScreensaverControl : Visual
 
     public static string[] GetAvailableNames()
     {
-        var screensaverControls = typeof(IScreensaver).Assembly.GetTypes().Where(t => !t.IsAbstract && typeof(IScreensaver).IsAssignableFrom(t));
-        return
-            screensaverControls
-            .Select(o => (IScreensaver)Activator.CreateInstance(o, args: new object[] { 10, 10 }))
-            .Where(o => o != null)
-            .Select(o => o.Name)
-            .OrderBy(o => o)
-            .ToArray();
+        try
+        {
+            var screensaverControls = typeof(IScreensaver).Assembly.GetTypes().Where(t => !t.IsAbstract && typeof(IScreensaver).IsAssignableFrom(t));
+            return
+                screensaverControls
+                    .Select(o => (IScreensaver)Activator.CreateInstance(o, args: new object[] { 10, 10 }))
+                    .Where(o => o != null)
+                    .Select(o => o.Name)
+                    .OrderBy(o => o)
+                    .ToArray();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+            throw;
+        }
     }
 
     public override void OnLoaded(WindowManager windowManager)

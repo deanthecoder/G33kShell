@@ -38,10 +38,7 @@ public class MatrixCanvas : ScreensaverBase
             for (var x = 0; x < screen.Width; x++)
             {
                 var ch = (char)('\x3A' + m_random.Next(0, 33));
-                screen.PrintAt(x, y, new Attr(ch)
-                {
-                    Foreground = Background
-                });
+                screen.PrintAt(x, y, new Attr(ch, Background));
             }
         }
 

@@ -72,8 +72,7 @@ public class MandelbrotCanvas : ScreensaverBase
                 }
 
                 screen.PrintAt(x, y, (iteration * densityMultiplier).ToAscii());
-                screen.SetForeground(x, y, (iteration * densityMultiplier).Lerp(Background, Foreground));
-                screen.SetBackground(x, y, (iteration * densityMultiplier * 0.2).Lerp(Background, Foreground));
+                screen.SetColors(x, y, (iteration * densityMultiplier * 0.2).Lerp(Background, Foreground), (iteration * densityMultiplier).Lerp(Background, Foreground));
             }
         }
     }
