@@ -52,7 +52,7 @@ public class CubesCanvas : ScreensaverBase
 
         // Prepare the scene.
         m_cube.Rotation = new Vector3(1.8f, 0.3f, 0.7f) * time;
-        m_cube.Position = new Vector3(0, 0, 8.0f * (0.5f + 0.5f * MathF.Sin(time)));
+        m_cube.WorldPosition = new Vector3(0, 0, 8.0f * (0.5f + 0.5f * MathF.Sin(time)));
 
         // Draw the scene.
         var scene = new Scene3D(screen, m_background);

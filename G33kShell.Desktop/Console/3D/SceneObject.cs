@@ -1,7 +1,19 @@
+// Code authored by Dean Edis (DeanTheCoder).
+// Anyone is free to copy, modify, use, compile, or distribute this software,
+// either in source code form or as a compiled binary, for any non-commercial
+// purpose.
+//
+// If you modify the code, please retain this copyright header,
+// and consider contributing back to the repository or letting us know
+// about your modifications. Your contributions are valued!
+//
+// THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using CSharp.Core.Extensions;
 
 namespace G33kShell.Desktop.Console._3D;
 
@@ -12,10 +24,11 @@ namespace G33kShell.Desktop.Console._3D;
 public class SceneObject
 {
     public Vector3[] Vertices { get; }
-    public (int, int, int, Attr)[] Faces { get; }
-    
-    public Vector3 Rotation { get; set; }
-    public Vector3 Position { get; set; }
+    public (int i0, int i1, int i2, Attr material)[] Faces { get; }
+
+    public Vector3 LocalPosition { get; set; } = Vector3.Zero;
+    public Vector3 Rotation { get; set; } = Vector3.Zero;
+    public Vector3 WorldPosition { get; set; } = Vector3.Zero;
     public float Scale { get; set; } = 1.0f;
 
     /// <summary>
@@ -33,29 +46,8 @@ public class SceneObject
     /// </summary>
     public IEnumerable<Vector3> GetTransformedVertices() =>
         Vertices
-            .Select(v => RotateVertex(v, Rotation))
+            .Select(v => v + LocalPosition)
+            .Select(v => v.Rotate(Rotation))
             .Select(v => v * Scale)
-            .Select(v => v + Position);
-
-    /// <summary>
-    /// Rotates a vertex by the specified rotation vector.
-    /// </summary>
-    private static Vector3 RotateVertex(Vector3 v, Vector3 r)
-    {
-        var cosX = MathF.Cos(r.X);
-        var sinX = MathF.Sin(r.X);
-        var cosY = MathF.Cos(r.Y);
-        var sinY = MathF.Sin(r.Y);
-        var cosZ = MathF.Cos(r.Z);
-        var sinZ = MathF.Sin(r.Z);
-
-        var y1 = v.Y * cosX - v.Z * sinX;
-        var z1 = v.Y * sinX + v.Z * cosX;
-        var x2 = v.X * cosY + z1 * sinY;
-        var z2 = -v.X * sinY + z1 * cosY;
-        var x3 = x2 * cosZ - y1 * sinZ;
-        var y3 = x2 * sinZ + y1 * cosZ;
-
-        return new Vector3(x3, y3, z2);
-    }
+            .Select(v => v + WorldPosition);
 }

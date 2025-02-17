@@ -1,3 +1,13 @@
+// Code authored by Dean Edis (DeanTheCoder).
+// Anyone is free to copy, modify, use, compile, or distribute this software,
+// either in source code form or as a compiled binary, for any non-commercial
+// purpose.
+//
+// If you modify the code, please retain this copyright header,
+// and consider contributing back to the repository or letting us know
+// about your modifications. Your contributions are valued!
+//
+// THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
 using CSharp.Core;
 using CSharp.Core.Extensions;
@@ -21,6 +31,7 @@ public class ChequeredSceneBackground : SceneBackground
     {
         base.Clear(screen, time);
 
+        var darkColor = m_colorDensity.Lerp(Background, Foreground);
         for (var y = 0; y < screen.Height; y++)
         {
             for (var x = 0; x < screen.Width; x++)
@@ -33,7 +44,7 @@ public class ChequeredSceneBackground : SceneBackground
                 var isOnX = ((xx / sizeX) & 1) == 0;
                 var isOnY = ((yy / sizeY) & 1) == 1;
                 if (isOnX ^ isOnY)
-                    screen.SetBackground(x, y, m_colorDensity.Lerp(Background, Foreground));
+                    screen.SetBackground(x, y, darkColor);
             }
         }
     }
