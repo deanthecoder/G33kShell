@@ -13,7 +13,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using CSharp.Core.Extensions;
+using JetBrains.Annotations;
 
 namespace G33kShell.Desktop.Console._3D;
 
@@ -23,31 +23,54 @@ namespace G33kShell.Desktop.Console._3D;
 /// </summary>
 public class SceneObject
 {
-    public Vector3[] Vertices { get; }
-    public (int i0, int i1, int i2, Attr material)[] Faces { get; }
+    public List<Vector3> Vertices { get; } = [];
+    public List<Face3D> Faces { get; } = [];
 
-    public Vector3 LocalPosition { get; set; } = Vector3.Zero;
-    public Vector3 Rotation { get; set; } = Vector3.Zero;
-    public Vector3 WorldPosition { get; set; } = Vector3.Zero;
-    public float Scale { get; set; } = 1.0f;
+    /// <summary>
+    /// Note: Operations appended to the transform chain occur sooner.
+    /// </summary>
+    public Matrix4x4 Transform { get; set; } = Matrix4x4.Identity;
 
     /// <summary>
     /// Initializes a new instance of a 3D object with specified vertices and faces.
     /// </summary>
-    public SceneObject(IEnumerable<Vector3> vertices, IEnumerable<(int, int, int, Attr)> faces)
+    public SceneObject(IEnumerable<Vector3> vertices, IEnumerable<Face3D> faces) : this()
     {
-        Vertices = vertices?.ToArray() ?? throw new ArgumentNullException(nameof(vertices));
-        Faces = faces?.ToArray() ?? throw new ArgumentNullException(nameof(faces));
+        Add(vertices, faces);
     }
 
-    /// <summary>
-    /// Retrieves the transformed vertices of the object after applying the current position, rotation,
-    /// and scale. The transformations are applied based on the given time (e.g., for animations).
-    /// </summary>
-    public IEnumerable<Vector3> GetTransformedVertices() =>
-        Vertices
-            .Select(v => v + LocalPosition)
-            .Select(v => v.Rotate(Rotation))
-            .Select(v => v * Scale)
-            .Select(v => v + WorldPosition);
+    public SceneObject()
+    {
+    }
+
+    public SceneObject Add(IEnumerable<Vector3> vertices, IEnumerable<Face3D> faces)
+    {
+        var startIndex = Vertices.Count;
+        Vertices.AddRange(vertices);
+        Faces.AddRange(faces.Select(o => new Face3D(o.I0 + startIndex, o.I1 + startIndex, o.I2 + startIndex, o.Material)));
+        return this;
+    }
+
+    public void Add(SceneObject other, Matrix4x4? transform = null)
+    {
+        transform ??= Matrix4x4.Identity;
+        
+        Add(other.Vertices.Select(v => Vector3.Transform(v, (Matrix4x4)transform)), other.Faces);
+    }
+}
+
+public class Face3D
+{
+    public int I0 { get; }
+    public int I1 { get; }
+    public int I2 { get; }
+    public Attr Material { get; set; }
+
+    public Face3D(int i0, int i1, int i2, [NotNull] Attr material)
+    {
+        I0 = i0;
+        I1 = i1;
+        I2 = i2;
+        Material = material ?? throw new ArgumentNullException(nameof(material));
+    }
 }

@@ -42,19 +42,15 @@ public class LandscapeObject : SceneObject
     /// Updates the Y-coordinates of the object's vertices according to the height function. 
     /// This allows dynamic changes to the landscape's height map at runtime.
     /// </summary>
-    /// <param name="time"></param>
     public void Update(float time)
     {
-        for (var i = 0; i < Vertices.Length; i++)
-            Vertices[i].Y = -m_heightFunc(time, Vertices[i]);
-
-        for (var i = 0; i < Faces.Length; i++)
+        for (var i = 0; i < Vertices.Count; i++)
+            Vertices[i] = new Vector3(Vertices[i].X, m_heightFunc(time, Vertices[i]), Vertices[i].Z);
+        
+        foreach (var face in Faces)
         {
-            var i0 = Vertices[Faces[i].i0];
-            var i1 = Vertices[Faces[i].i1];
-            var i2 = Vertices[Faces[i].i2];
-            var vCenter = (i0 + i1 + i2) / 3.0f;
-            Faces[i].material = m_materialFunc(vCenter);
+            var vCenter = (Vertices[face.I0] + Vertices[face.I1] + Vertices[face.I2]) / 3.0f;
+            face.Material = m_materialFunc(vCenter);
         }
     }
 
@@ -76,9 +72,9 @@ public class LandscapeObject : SceneObject
         return vertices;
     }
 
-    private static List<(int, int, int, Attr)> CreateFaces(int gridSize)
+    private static List<Face3D> CreateFaces(int gridSize)
     {
-        List<(int, int, int, Attr)> triangles = new();
+        List<Face3D> triangles = new();
 
         var defaultMaterial = new Attr('.');
         for (var z = 0; z < gridSize - 1; z++)
@@ -91,10 +87,10 @@ public class LandscapeObject : SceneObject
                 var v11 = x + 1 + (z + 1) * gridSize;
 
                 // First triangle
-                triangles.Add((v00, v10, v11, defaultMaterial));
+                triangles.Add(new Face3D(v00, v10, v11, defaultMaterial));
 
                 // Second triangle
-                triangles.Add((v00, v11, v01, defaultMaterial));
+                triangles.Add(new Face3D(v00, v11, v01, defaultMaterial));
             }
         }
 

@@ -11,6 +11,7 @@
 using System;
 using System.Diagnostics;
 using System.Numerics;
+using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console._3D;
 using JetBrains.Annotations;
 
@@ -51,8 +52,13 @@ public class CubesCanvas : ScreensaverBase
         var time = 1.0f * FrameNumber / TargetFps;
 
         // Prepare the scene.
-        m_cube.Rotation = new Vector3(1.8f, 0.3f, 0.7f) * time;
-        m_cube.WorldPosition = new Vector3(0, 0, 8.0f * (0.5f + 0.5f * MathF.Sin(time)));
+        var r = new Vector3(1.8f, 0.3f, 0.7f) * time;
+        m_cube.Transform =
+            Matrix4x4
+                .CreateTranslation(0, 0, 8.0f * (0.5f + 0.5f * MathF.Sin(time)))
+                .RotateYz(r.X)
+                .RotateXz(r.Y)
+                .RotateXy(r.Z);
 
         // Draw the scene.
         var scene = new Scene3D(screen, m_background);

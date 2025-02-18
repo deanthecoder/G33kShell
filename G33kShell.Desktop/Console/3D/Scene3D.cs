@@ -8,6 +8,11 @@
 // about your modifications. Your contributions are valued!
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+//#define VIEW_Z_BUFFER
+
+#if VIEW_Z_BUFFER
+using CSharp.Core;
+#endif
 
 using System;
 using System.Collections.Generic;
@@ -26,7 +31,12 @@ public class Scene3D
 {
     private readonly ScreenData m_screen;
     private readonly SceneBackground m_sceneBackground;
-    private readonly List<SceneObject> m_objects = new();
+    private readonly List<SceneObject> m_objects = [];
+    private float[,] m_depthBuffer;
+#if VIEW_Z_BUFFER
+    private static float m_maxDepth = float.MinValue; // Used for debugging.
+    private static float m_minDepth = float.MaxValue; // Used for debugging.
+#endif
 
     public Scene3D([NotNull] ScreenData screen, [NotNull] SceneBackground sceneBackground)
     {
@@ -45,15 +55,32 @@ public class Scene3D
     public void Render(double time)
     {
         m_sceneBackground.Clear(m_screen, time);
-        
-        foreach (var obj in m_objects.OrderByDescending(o => o.GetTransformedVertices().Average(v => v.Z)))
+        ClearDepthBuffer();
+
+        foreach (var obj in m_objects)
         {
-            var vertices = obj.GetTransformedVertices().ToArray();
+            var vertices =
+                obj
+                    .Vertices
+                    .Select(v => Vector3.Transform(v, obj.Transform)).ToArray();
             foreach (var face in obj.Faces)
-                FillTriangle(vertices[face.i0], vertices[face.i1], vertices[face.i2], face.material);
+                FillTriangle(vertices[face.I0], vertices[face.I1], vertices[face.I2], face.Material);
         }
     }
-    
+
+    private void ClearDepthBuffer()
+    {
+        // Ensure the depth buffer is allocated.
+        m_depthBuffer ??= new float[m_screen.Width, m_screen.Height];
+
+        // Reset content.
+        for (var y = 0; y < m_screen.Height; y++)
+        {
+            for (var x = 0; x < m_screen.Width; x++)
+                m_depthBuffer[x, y] = float.MaxValue;
+        }
+    }
+
     /// <summary>
     /// Prepares a 3D vertex for display onto a 2D plane using a simple perspective transformation.
     /// </summary>
@@ -62,7 +89,7 @@ public class Scene3D
         var perspectiveFactor = 4.0f / (4.0f + v.Z);
         return new Vector2(
             v.X * ((float)m_screen.Width / m_screen.Height),
-            v.Y
+            -v.Y
         ) * perspectiveFactor;
     }
 
@@ -71,9 +98,12 @@ public class Scene3D
     /// </summary>
     private void FillTriangle(Vector3 v0, Vector3 v1, Vector3 v2, Attr material)
     {
+        var screenWidth = m_screen.Width;
+        var screenHeight = m_screen.Height;
+        
         // Project points into the screen space.
-        var majorAxis = Math.Min(m_screen.Width, m_screen.Height) / 2.0f;
-        var worldToScreen = new Vector2(m_screen.Width / 2.0f, m_screen.Height / 2.0f);
+        var majorAxis = Math.Min(screenWidth, screenHeight) / 2.0f;
+        var worldToScreen = new Vector2(screenWidth / 2.0f, screenHeight / 2.0f);
         var p0 = GetProjectedXy(v0) * majorAxis + worldToScreen;
         var p1 = GetProjectedXy(v1) * majorAxis + worldToScreen;
         var p2 = GetProjectedXy(v2) * majorAxis + worldToScreen;
@@ -83,14 +113,14 @@ public class Scene3D
         var right = MathF.Max(MathF.Max(p0.X, p1.X), p2.X);
         var top = MathF.Min(MathF.Min(p0.Y, p1.Y), p2.Y);
         var bottom = MathF.Max(MathF.Max(p0.Y, p1.Y), p2.Y);
-        if (right < 0 || left >= m_screen.Width || bottom < 0 || top >= m_screen.Height)
+        if (right < 0 || left >= screenWidth || bottom < 0 || top >= screenHeight)
             return;
 
         // Crop the triangle to the screen.
         left = MathF.Max(left, 0.0f);
-        right = MathF.Min(right, m_screen.Width - 1.0f);
+        right = MathF.Min(right, screenWidth - 1.0f);
         top = MathF.Max(top, 0.0f);
-        bottom = MathF.Min(bottom, m_screen.Height - 1.0f);
+        bottom = MathF.Min(bottom, screenHeight - 1.0f);
 
         // Triangle area (for barycentric weights)
         var areaInv = 1.0f / (p1 - p0).Cross(p2 - p0);
@@ -101,18 +131,43 @@ public class Scene3D
             for (var x = (int)left; x <= (int)right; x++)
             {
                 var p = new Vector2(x, y);
-                var edge0 = p1 - p;
                 var edge1 = p2 - p;
-                var edge2 = p0 - p;
 
                 // Compute barycentric coordinates
-                var w0 = edge0.Cross(edge1) * areaInv;
-                var w1 = edge1.Cross(edge2) * areaInv;
+                var w0 = (p1 - p).Cross(edge1) * areaInv;
+                var w1 = edge1.Cross(p0 - p) * areaInv;
                 var w2 = 1.0f - w0 - w1;
 
                 if (w0 >= 0 && w1 >= 0 && w2 >= 0)
-                    m_screen.Chars[y][x].Set(material);
+                {
+                    var z = w0 * v0.Z + w1 * v1.Z + w2 * v2.Z;
+
+                    if (z < m_depthBuffer[x, y])
+                    {
+                        m_depthBuffer[x, y] = z;
+                        m_screen.Chars[y][x].Set(material);
+#if VIEW_Z_BUFFER
+                        m_minDepth = Math.Min(z, m_minDepth);
+                        m_maxDepth = Math.Max(z, m_maxDepth);
+#endif
+                    }
+                }
             }
         }
+
+#if VIEW_Z_BUFFER
+        // View the depth buffer.
+        for (var y = 0; y < screenHeight; y++)
+        {
+            for (var x = 0; x < screenWidth; x++)
+            {
+                if (m_depthBuffer[x, y] < float.MaxValue)
+                {
+                    var f = (double)m_depthBuffer[x, y].InverseLerp(m_minDepth, m_maxDepth);
+                    m_screen.SetBackground(x, y, f.Lerp(Rgb.Black, Rgb.White));
+                }
+            }
+        }
+#endif
     }
 }

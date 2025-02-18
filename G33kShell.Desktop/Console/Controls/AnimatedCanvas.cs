@@ -66,10 +66,11 @@ public abstract class AnimatedCanvas : Visual
             
             if (!stopwatch.IsRunning)
                 stopwatch.Start();
-            if (stopwatch.ElapsedMilliseconds < m_frameTimeMs || !IsVisible)
+            var timeToWaitMs = m_frameTimeMs - stopwatch.ElapsedMilliseconds;
+            if (timeToWaitMs > 0 || !IsVisible)
             {
                 // Skip this frame, too soon to render again.
-                await Task.Delay((int)(m_frameTimeMs - stopwatch.ElapsedMilliseconds));
+                await Task.Delay((int)timeToWaitMs);
                 continue;
             }
 

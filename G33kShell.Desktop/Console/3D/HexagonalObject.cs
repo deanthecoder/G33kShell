@@ -52,22 +52,22 @@ public class HexagonalObject : SceneObject
         return vertices;
     }
 
-    private static IEnumerable<(int, int, int, Attr)> CreateFaces(Attr[] materials)
+    private static IEnumerable<Face3D> CreateFaces(Attr[] materials)
     {
-        List<(int, int, int, Attr)> triangles = new();
+        List<Face3D> triangles = new();
 
         // Top hexagon (triangle fan)
         for (var i = 0; i < 6; i++)
         {
             var next = (i + 1) % 6 + 1; // Ensure wraparound
-            triangles.Add((0, i + 1, next, materials[0]));
+            triangles.Add(new Face3D(0, i + 1, next, materials[0]));
         }
 
         // Bottom hexagon (triangle fan)
         for (var i = 0; i < 6; i++)
         {
             var next = (i + 1) % 6 + 8; // Ensure wraparound
-            triangles.Add((7, next, i + 8, materials[1]));
+            triangles.Add(new Face3D(7, next, i + 8, materials[1]));
         }
 
         // Side faces (connecting edges)
@@ -79,8 +79,8 @@ public class HexagonalObject : SceneObject
             var bottomB = (i + 1) % 6 + 8;
 
             // Two triangles per side
-            triangles.Add((topA, bottomA, bottomB, materials[2 + i])); // First triangle
-            triangles.Add((topA, bottomB, topB, materials[2 + i]));    // Second triangle
+            triangles.Add(new Face3D(topA, bottomA, bottomB, materials[2 + i])); // First triangle
+            triangles.Add(new Face3D(topA, bottomB, topB, materials[2 + i]));    // Second triangle
         }
 
         return triangles;

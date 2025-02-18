@@ -23,46 +23,63 @@ public class CubeObject : SceneObject
     /// </summary>
     /// <param name="radius">The distance from the cube's center to any of its vertices.</param>
     /// <param name="materials">An array of six <see cref="Attr"/> objects, each describing the appearance of one face of the cube.</param>
-    public CubeObject(float radius, Attr[] materials) : base(CreateVertices(radius), CreateFaces(materials))
+    public CubeObject(float radius, Attr[] materials) : this(radius * 2.0f, radius * 2.0f, radius * 2.0f, materials)
     {
     }
 
-    private static IEnumerable<Vector3> CreateVertices(float radius) =>
-    [
-        new Vector3(-radius, -radius, -radius), // 0: Bottom-left-back
-        new Vector3(radius, -radius, -radius),  // 1: Bottom-right-back
-        new Vector3(radius, radius, -radius),   // 2: Top-right-back
-        new Vector3(-radius, radius, -radius),  // 3: Top-left-back
-        new Vector3(-radius, -radius, radius),  // 4: Bottom-left-front
-        new Vector3(radius, -radius, radius),   // 5: Bottom-right-front
-        new Vector3(radius, radius, radius),    // 6: Top-right-front
-        new Vector3(-radius, radius, radius)    // 7: Top-left-front
-    ];
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CubeObject"/> class which represents a 3D cube in a scene.
+    /// </summary>
+    /// <param name="width">The width of the cube.</param>
+    /// <param name="height">The height of the cube.</param>
+    /// <param name="depth">The depth of the cube.</param>
+    /// <param name="materials">An array of six <see cref="Attr"/> objects, each describing the appearance of one face of the cube.</param>
+    public CubeObject(float width, float height, float depth, Attr[] materials) : base(CreateVertices(width, height, depth), CreateFaces(materials))
+    {
+    }
 
-    private static IEnumerable<(int, int, int, Attr)> CreateFaces(Attr[] materials) =>
+    private static IEnumerable<Vector3> CreateVertices(float width, float height, float depth)
+    {
+        width /= 2.0f;
+        height /= 2.0f;
+        depth /= 2.0f;
+        return
+        [
+            new Vector3(-width, -height, -depth), // 0: Bottom-left-back
+            new Vector3(width, -height, -depth),  // 1: Bottom-right-back
+            new Vector3(width, height, -depth),   // 2: Top-right-back
+            new Vector3(-width, height, -depth),  // 3: Top-left-back
+            new Vector3(-width, -height, depth),  // 4: Bottom-left-front
+            new Vector3(width, -height, depth),   // 5: Bottom-right-front
+            new Vector3(width, height, depth),    // 6: Top-right-front
+            new Vector3(-width, height, depth)    // 7: Top-left-front
+        ];
+    }
+
+    private static IEnumerable<Face3D> CreateFaces(Attr[] materials) =>
     [
         // Font face
-        (4, 5, 6, materials[0]),
-        (4, 6, 7, materials[0]),
+        new Face3D(4, 5, 6, materials[0]),
+        new Face3D(4, 6, 7, materials[0]),
 
         // Back face
-        (0, 2, 1, materials[1]),
-        (0, 3, 2, materials[1]),
+        new Face3D(0, 2, 1, materials[1]),
+        new Face3D(0, 3, 2, materials[1]),
 
         // Left face
-        (0, 4, 7, materials[2]),
-        (0, 7, 3, materials[2]),
+        new Face3D(0, 4, 7, materials[2]),
+        new Face3D(0, 7, 3, materials[2]),
 
         // Right face
-        (1, 2, 6, materials[3]),
-        (1, 6, 5, materials[3]),
+        new Face3D(1, 2, 6, materials[3]),
+        new Face3D(1, 6, 5, materials[3]),
 
         // Top face
-        (3, 7, 6, materials[4]),
-        (3, 6, 2, materials[4]),
+        new Face3D(3, 7, 6, materials[4]),
+        new Face3D(3, 6, 2, materials[4]),
 
         // Bottom face
-        (0, 1, 5, materials[5]),
-        (0, 5, 4, materials[5])
+        new Face3D(0, 1, 5, materials[5]),
+        new Face3D(0, 5, 4, materials[5])
     ];
 }
