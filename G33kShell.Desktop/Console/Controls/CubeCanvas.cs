@@ -55,7 +55,7 @@ public class CubesCanvas : ScreensaverBase
         var r = new Vector3(1.8f, 0.3f, 0.7f) * time;
         m_cube.Transform =
             Matrix4x4
-                .CreateTranslation(0, 0, 8.0f * (0.5f + 0.5f * MathF.Sin(time)))
+                .CreateTranslation(0, 0, 0.75f + 8.0f * (0.5f + 0.5f * MathF.Sin(time)))
                 .RotateYz(r.X)
                 .RotateXz(r.Y)
                 .RotateXy(r.Z);

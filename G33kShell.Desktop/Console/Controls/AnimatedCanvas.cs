@@ -24,19 +24,28 @@ namespace G33kShell.Desktop.Console.Controls;
 /// </remarks>
 public abstract class AnimatedCanvas : Visual
 {
-    private readonly int m_frameTimeMs;
+    private int m_frameTimeMs;
     private bool m_running;
     private Task m_animationTask;
+    private int m_targetFps;
 
     public int FrameNumber { get; set; }
-    protected int TargetFps { get; }
+    
+    public int TargetFps
+    {
+        get => m_targetFps;
+        set
+        {
+            m_targetFps = value;
+            m_frameTimeMs = (int)(1000.0 / value); // Frame time in milliseconds
+        }
+    }
 
     protected AnimatedCanvas(int width, int height, int targetFps = 30) : base(width, height)
     {
         if (targetFps <= 0)
             throw new ArgumentException("Target FPS must be greater than 0.", nameof(targetFps));
         TargetFps = targetFps;
-        m_frameTimeMs = (int)(1000.0 / targetFps); // Frame time in milliseconds
     }
 
     /// <summary>

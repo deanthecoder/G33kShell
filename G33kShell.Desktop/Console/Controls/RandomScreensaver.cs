@@ -45,6 +45,7 @@ public class RandomScreensaver : ScreensaverBase
         instance.Foreground = Foreground;
         instance.Background = Background;
         m_frameNumber = 0;
+        TargetFps = instance.TargetFps;
         return instance;
     }
 
