@@ -35,7 +35,7 @@ public class FluidCanvas : ScreensaverBase
         Name = "fluid";
     }
 
-    protected override void BuildScreen(ScreenData screen)
+    public override void BuildScreen(ScreenData screen)
     {
         // Seed screen with invisible characters.
         for (var y = 0; y < screen.Height; y++)
@@ -50,7 +50,7 @@ public class FluidCanvas : ScreensaverBase
         m_isLit = true;
     }
 
-    protected override void UpdateFrame(ScreenData screen)
+    public override void UpdateFrame(ScreenData screen)
     {
         // Inject more dye and velocity.
         var dyeToAdd = 0.5 + m_random.NextDouble() * 2.5;

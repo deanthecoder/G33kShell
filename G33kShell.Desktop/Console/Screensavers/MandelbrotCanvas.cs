@@ -26,13 +26,12 @@ public class MandelbrotCanvas : ScreensaverBase
     private const int MaxIter = 800;
     private const double Limit = 4.0;
 
-
     public MandelbrotCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight)
     {
         Name = "mandelbrot";
     }
 
-    protected override void UpdateFrame(ScreenData screen)
+    public override void UpdateFrame(ScreenData screen)
     {
         const double animPeriod = 20.0;
         var t = FrameNumber / (TargetFps * animPeriod);

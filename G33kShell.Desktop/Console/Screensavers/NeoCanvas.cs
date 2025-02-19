@@ -42,7 +42,7 @@ public class NeoCanvas : ScreensaverBase
         Name = "neo";
     }
 
-    protected override void BuildScreen(ScreenData screen)
+    public override void BuildScreen(ScreenData screen)
     {
         // Resize background to match ASCII screen dimension.
         using var original = SKBitmap.Decode(Convert.FromBase64String(m_pngData));
@@ -72,8 +72,8 @@ public class NeoCanvas : ScreensaverBase
                 screen.PrintAt(x, y, new Attr(m_backLums[y * screen.Width + x].ToAscii(), Background));
         }
     }
-    
-    protected override void UpdateFrame(ScreenData screen)
+
+    public override void UpdateFrame(ScreenData screen)
     {
         // Blend display luminosity with background luminosity
         for (var i = 0; i < m_displayLums.Length; i++)

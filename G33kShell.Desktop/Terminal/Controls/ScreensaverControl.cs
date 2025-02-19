@@ -9,6 +9,7 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
@@ -38,11 +39,8 @@ public class ScreensaverControl : Visual
     {
         try
         {
-            var screensaverControls = typeof(IScreensaver).Assembly.GetTypes().Where(t => !t.IsAbstract && typeof(IScreensaver).IsAssignableFrom(t));
             return
-                screensaverControls
-                    .Select(o => (IScreensaver)Activator.CreateInstance(o, args: new object[] { 10, 10 }))
-                    .Where(o => o != null)
+                GetAllScreensavers(10, 10)
                     .Select(o => o.Name)
                     .OrderBy(o => o)
                     .ToArray();
@@ -52,6 +50,13 @@ public class ScreensaverControl : Visual
             Debug.WriteLine(ex);
             throw;
         }
+    }
+
+    private static IEnumerable<IScreensaver> GetAllScreensavers(int width, int height)
+    {
+        return typeof(IScreensaver).Assembly.GetTypes().Where(t => !t.IsAbstract && typeof(IScreensaver).IsAssignableFrom(t))
+            .Select(o => (IScreensaver)Activator.CreateInstance(o, args: [width, height]))
+            .Where(o => o != null);
     }
 
     public override void OnLoaded(WindowManager windowManager)

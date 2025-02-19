@@ -32,7 +32,7 @@ public class CubesCanvas : ScreensaverBase
         Name = "cube";
     }
 
-    protected override void BuildScreen(ScreenData screen)
+    public override void BuildScreen(ScreenData screen)
     {
         base.BuildScreen(screen);
 
@@ -47,7 +47,7 @@ public class CubesCanvas : ScreensaverBase
         ]);
     }
 
-    protected override void UpdateFrame(ScreenData screen)
+    public override void UpdateFrame(ScreenData screen)
     {
         var time = 1.0f * FrameNumber / TargetFps;
 

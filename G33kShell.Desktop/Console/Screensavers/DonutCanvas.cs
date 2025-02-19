@@ -46,7 +46,7 @@ public class DonutCanvas : ScreensaverBase
     /// Modified from the original source by a1kon.
     /// https://www.a1k0n.net/2011/07/20/donut-math.html
     /// </summary>
-    protected override void UpdateFrame(ScreenData screen)
+    public override void UpdateFrame(ScreenData screen)
     {
         var a = 0.1 + 0.05 * FrameNumber;
         var b = 0.1 + 0.02 * FrameNumber;

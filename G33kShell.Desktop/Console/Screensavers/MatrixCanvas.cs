@@ -30,7 +30,7 @@ public class MatrixCanvas : ScreensaverBase
         Name = "matrix";
     }
 
-    protected override void BuildScreen(ScreenData screen)
+    public override void BuildScreen(ScreenData screen)
     {
         // Seed screen with invisible characters.
         for (var y = 0; y < screen.Height; y++)
@@ -54,7 +54,7 @@ public class MatrixCanvas : ScreensaverBase
         }
     }
 
-    protected override void UpdateFrame(ScreenData screen)
+    public override void UpdateFrame(ScreenData screen)
     {
         // Screen the color values so the trails appear to move down the screen.
         for (var x = 0; x < screen.Width; x++)

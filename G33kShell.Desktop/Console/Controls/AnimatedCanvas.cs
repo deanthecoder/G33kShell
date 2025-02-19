@@ -28,7 +28,7 @@ public abstract class AnimatedCanvas : Visual
     private bool m_running;
     private Task m_animationTask;
 
-    protected int FrameNumber { get; private set; }
+    public int FrameNumber { get; set; }
     protected int TargetFps { get; }
 
     protected AnimatedCanvas(int width, int height, int targetFps = 30) : base(width, height)
@@ -46,7 +46,7 @@ public abstract class AnimatedCanvas : Visual
     /// This method is called on its own thread at the required FPS and should be
     /// implemented by subclasses to update the 'Screen' data as required.
     /// </remarks>
-    protected abstract void UpdateFrame(ScreenData screen);
+    public abstract void UpdateFrame(ScreenData screen);
 
     public override void Render(ScreenData _)
     {
@@ -100,5 +100,11 @@ public abstract class AnimatedCanvas : Visual
         m_animationTask?.Wait();
         m_animationTask = null;
         base.OnUnloaded();
+    }
+
+    public void Stop()
+    {
+        m_running = false;
+        m_animationTask?.Wait();
     }
 }

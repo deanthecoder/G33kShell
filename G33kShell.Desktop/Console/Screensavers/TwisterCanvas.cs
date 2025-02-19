@@ -79,7 +79,7 @@ public class TwisterCanvas : ScreensaverBase
         }
     }
 
-    protected override void UpdateFrame(ScreenData screen)
+    public override void UpdateFrame(ScreenData screen)
     {
         // Get the current frame data.
         var frame = m_frame++ % 120;

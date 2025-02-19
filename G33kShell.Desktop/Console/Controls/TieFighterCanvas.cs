@@ -35,7 +35,7 @@ public class TieFighterCanvas : ScreensaverBase
         Name = "tiefighter";
     }
 
-    protected override void BuildScreen(ScreenData screen)
+    public override void BuildScreen(ScreenData screen)
     {
         base.BuildScreen(screen);
 
@@ -121,7 +121,7 @@ public class TieFighterCanvas : ScreensaverBase
         return f * 0.6f;
     }
 
-    protected override void UpdateFrame(ScreenData screen)
+    public override void UpdateFrame(ScreenData screen)
     {
         var time = 1.0f * FrameNumber / TargetFps;
 

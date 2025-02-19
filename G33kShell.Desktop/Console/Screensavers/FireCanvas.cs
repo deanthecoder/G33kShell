@@ -33,7 +33,7 @@ public class FireCanvas : ScreensaverBase
     /// <summary>
     /// Algorithm based on https://github.com/SnippetsDevelop/snippetsdevelop.github.io/blob/master/codes/FireChars.html
     /// </summary>
-    protected override void UpdateFrame(ScreenData screen)
+    public override void UpdateFrame(ScreenData screen)
     {
         // Create fire at the bottom row
         for (var i = 0; i < Width; i++)
