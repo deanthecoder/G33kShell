@@ -27,8 +27,10 @@ public class TieFighterCanvas : ScreensaverBase
     private SceneBackground m_background;
     private SceneObject m_tie;
     private LandscapeObject m_landscape;
+    private float? m_tieHeight;
+    private CubeObject m_peow;
 
-    public TieFighterCanvas(int width, int height) : base(width, height, 20)
+    public TieFighterCanvas(int width, int height) : base(width, height)
     {
         Name = "tiefighter";
     }
@@ -51,15 +53,15 @@ public class TieFighterCanvas : ScreensaverBase
         ]);
         var cockpit = new HexagonalObject(0.25f, 0.3f, [
             new Attr('O', Foreground, Background),
-            new Attr('B', Foreground, Background),
+            new Attr('o', Foreground, Background),
             new Attr('\\', Foreground, Background),
-            new Attr('D', Foreground, Background),
-            new Attr('E', Foreground, Background),
-            new Attr('F', Foreground, Background),
+            new Attr('o', Foreground, Background),
+            new Attr('o', Foreground, Background),
+            new Attr('o', Foreground, Background),
             new Attr('o', Foreground, Background),
             new Attr('/', Foreground, Background)
         ]);
-        var spar = new CubeObject(0.7f, 0.1f, 0.1f, new[]
+        var spar = new CubeObject(0.6f, 0.1f, 0.1f, new[]
         {
             new Attr('1', Foreground, Background),
             new Attr('2', Foreground, Background),
@@ -69,8 +71,8 @@ public class TieFighterCanvas : ScreensaverBase
             new Attr('6', Foreground, Background),
         });
         m_tie = new SceneObject();
-        m_tie.Add(wing, Matrix4x4.Identity.Translate(-0.4f, 0, 0).RotateXy(MathF.PI / 2.0f));
-        m_tie.Add(wing, Matrix4x4.Identity.Translate(0.4f, 0, 0).RotateXy(MathF.PI / 2.0f));
+        m_tie.Add(wing, Matrix4x4.Identity.Translate(-0.35f, 0, 0).RotateXy(MathF.PI / 2.0f));
+        m_tie.Add(wing, Matrix4x4.Identity.Translate(0.35f, 0, 0).RotateXy(MathF.PI / 2.0f));
         m_tie.Add(cockpit);
         m_tie.Add(spar);
 
@@ -86,10 +88,20 @@ public class TieFighterCanvas : ScreensaverBase
             new Attr('o', glassRgb, Background)
         ]);
         m_tie.Add(glass);
+
+        var dash = new Attr('-', Foreground.WithBrightness(1.2), Background);
+        m_peow = new CubeObject(0.05f, 0.05f, 1.0f, [
+            dash,
+            dash,
+            dash,
+            dash,
+            dash,
+            dash
+        ]);
         
         m_landscape = new LandscapeObject(15, 0.5f, GetTerrainHeight, GetLandscapeMaterial)
         {
-            Transform = Matrix4x4.Identity.Translate(0, -1.0f, 0.0f).RotateYz(-0.16f)
+            Transform = Matrix4x4.Identity.Translate(0, -1.5f, 0.0f).RotateYz(-0.16f)
         };
         return;
 
@@ -109,7 +121,6 @@ public class TieFighterCanvas : ScreensaverBase
         return f * 0.6f;
     }
 
-    private float? m_tieHeight;
     protected override void UpdateFrame(ScreenData screen)
     {
         var time = 1.0f * FrameNumber / TargetFps;
@@ -129,11 +140,28 @@ public class TieFighterCanvas : ScreensaverBase
                 .RotateXz(0.1f + (time * 7.0f).SmoothNoise() * 0.2f)
                 .RotateYz(-MathF.PI / 2.0f);
         m_landscape.Update(time);
+        
+        // Peow peow.
+        var bulletTime = time * 10.0f;
+        var bulletZ = bulletTime % 5.0f;
+        var shotIndex = MathF.Floor(bulletTime / 10.0f);
+        var showBullet = (shotIndex * 20.0f).SmoothNoise() > 0.55f;
+
+        m_peow.Transform =
+            Matrix4x4.Identity
+            .Translate(tieX, (float)m_tieHeight, tieZ)
+            .RotateYz(-0.1f)
+            .RotateXz(0.3f + (time * 7.0f).SmoothNoise() * 0.2f)
+            .Translate(0, -0.2f, -bulletZ);
 
         // Draw the scene.
         var scene = new Scene3D(screen, m_background);
         scene.AddObject(m_landscape);
         scene.AddObject(m_tie);
+        
+        if (showBullet)
+            scene.AddObject(m_peow);
+        
         scene.Render(time);
     }
 }

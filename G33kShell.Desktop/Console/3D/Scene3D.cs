@@ -98,6 +98,10 @@ public class Scene3D
     /// </summary>
     private void FillTriangle(Vector3 v0, Vector3 v1, Vector3 v2, Attr material)
     {
+        var maxZ = MathF.Max(MathF.Max(v0.Z, v1.Z), v2.Z);
+        if (maxZ < 0.0f)
+            return; // Behind the camera plane.
+
         var screenWidth = m_screen.Width;
         var screenHeight = m_screen.Height;
         
@@ -141,6 +145,9 @@ public class Scene3D
                 if (w0 >= 0 && w1 >= 0 && w2 >= 0)
                 {
                     var z = w0 * v0.Z + w1 * v1.Z + w2 * v2.Z;
+                    
+                    if (z < 0.0f)
+                        continue; // Behind the camera plane.
 
                     if (z < m_depthBuffer[x, y])
                     {
