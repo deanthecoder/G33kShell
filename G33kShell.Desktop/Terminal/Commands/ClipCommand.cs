@@ -23,6 +23,9 @@ public class ClipCommand : CommandBase
     [NamedArgument(Description = "Capture the command, as well as the output.", ShortName = "a")]
     public bool CaptureAll { get; [UsedImplicitly] set; }
 
+    [NamedArgument(Description = "Show line numbers.", ShortName = "n")]
+    public bool ShowLineNumbers { get; [UsedImplicitly] set; }
+
     [PositionalArgument(0, Description = "Select a single line (1+).")]
     public int? LineNumber { get; [UsedImplicitly] set; }
 
@@ -32,10 +35,18 @@ public class ClipCommand : CommandBase
         var output = lastCommand?.Output;
         if (output == null)
             return Task.FromResult(true);
+
+        var lines = output.ReplaceLineEndings("\n").Split("\n");
+        if (ShowLineNumbers)
+        {
+            var i = 0;
+            foreach (var line in lines)
+                WriteLine($"{++i,2}: {line}");
+            return Task.FromResult(true);
+        }
         
         if (LineNumber != null)
         {
-            var lines = output.ReplaceLineEndings("\n").Split("\n");
             if (LineNumber >= 1 && LineNumber <= lines.Length)
                 output = lines[LineNumber.Value - 1];
         }
