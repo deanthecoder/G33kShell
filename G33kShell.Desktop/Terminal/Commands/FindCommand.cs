@@ -21,16 +21,30 @@ using NClap.Metadata;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
-[CommandDescription("Searches for files or directories matching the specified name or pattern.", "Example: find *.txt")]
+[CommandDescription(
+    "Searches for files or directories matching the specified name or pattern.",
+    "Example: find *.txt",
+    "",
+    "Also can optionally search for (and replace) text.",
+    "Example: find *.txt \"some text\" replacement")]
 public class FindCommand : CommandBase
 {
     [PositionalArgument(ArgumentFlags.Required, Description = "File mask to search for (e.g. *.txt)")]
     public string FileMask { get; [UsedImplicitly] set; } = "*.*";
-
+    
+    [PositionalArgument(ArgumentFlags.Optional, Position = 1, Description = "Text to search for.")]
+    [UsedImplicitly]
+    public string Text { get; set; }
+    
+    [PositionalArgument(ArgumentFlags.Optional, Position = 2, Description = "Text to replace with.")]
+    [UsedImplicitly]
+    public string Replace { get; set; }
+    
     protected override async Task<bool> Run(ITerminalState state)
     {
         try
         {
+            // Find all the files/folders/
             var results = new List<FileSystemInfo>();
             await foreach (var fileSystemInfo in SearchDirectory(state.CurrentDirectory, FileMask))
                 results.Add(fileSystemInfo);
@@ -40,7 +54,40 @@ public class FindCommand : CommandBase
                 WriteLine("No files or directories found.");
                 return true;
             }
+            
+            // Need to do text search/replace?
+            if (!string.IsNullOrEmpty(Text))
+            {
+                if (Replace == null)
+                {
+                    // Text search only.
+                    results = results
+                        .AsParallel()
+                        .OfType<FileInfo>()
+                        .Where(o => o.ReadAllText().Contains(Text))
+                        .Cast<FileSystemInfo>()
+                        .ToList();
+                }
+                else
+                {
+                    // Search and replace.
+                    results = results
+                        .AsParallel()
+                        .OfType<FileInfo>()
+                        .Select(FileSystemInfo (o) =>
+                        {
+                            var text = o.ReadAllText();
+                            if (!text.Contains(Replace))
+                                return null;
+                            o.WriteAllText(text.Replace(Text, Replace));
+                            return o;
+                        })
+                        .Where(o => o != null)
+                        .ToList();
+                }
+            }
 
+            // Write out the results.
             await Task.Run(() =>
             {
                 const int chunkSize = 5;
