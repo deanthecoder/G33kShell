@@ -56,34 +56,34 @@ public class FindCommand : CommandBase
             }
             
             // Need to do text search/replace?
+            int? modifiedCount = null;
             if (!string.IsNullOrEmpty(Text))
             {
+                // Filter to get the text-only files.
+                var textFiles = await Task.Run(() => results.OfType<FileInfo>().AsParallel().Where(o => o.IsTextFile() && !IsCancelRequested).ToArray());
+
                 if (Replace == null)
                 {
                     // Text search only.
-                    results = results
-                        .AsParallel()
-                        .OfType<FileInfo>()
-                        .Where(o => o.ReadAllText().Contains(Text))
-                        .Cast<FileSystemInfo>()
-                        .ToList();
+                    var found = textFiles.AsParallel().Where(o => o.ReadAllText().Contains(Text) && !IsCancelRequested);
+                    results = await Task.Run(() => found.Cast<FileSystemInfo>().ToList());
                 }
                 else
                 {
                     // Search and replace.
-                    results = results
+                    var modified = textFiles
                         .AsParallel()
-                        .OfType<FileInfo>()
                         .Select(FileSystemInfo (o) =>
                         {
                             var text = o.ReadAllText();
-                            if (!text.Contains(Replace))
+                            if (!text.Contains(Text))
                                 return null;
                             o.WriteAllText(text.Replace(Text, Replace));
                             return o;
                         })
-                        .Where(o => o != null)
-                        .ToList();
+                        .Where(o => o != null && !IsCancelRequested);
+                    results = await Task.Run(() => modified.ToList());
+                    modifiedCount = results.Count;
                 }
             }
 
@@ -103,6 +103,10 @@ public class FindCommand : CommandBase
                         break;
                 }
             });
+
+            WriteLine($"{results.Count} item(s) found.");
+            if (modifiedCount.HasValue)
+                WriteLine($"{modifiedCount} file(s) modified.");
 
             return true;
         }

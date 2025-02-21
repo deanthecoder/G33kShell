@@ -78,7 +78,7 @@ public class CatCommand : LocationCommand
                         formattedLine.Append("  "); // Replace tab with two spaces
                         printableCharCount += 2;
                     }
-                    else if (IsPrintable(ch))
+                    else if (ch.IsPrintable())
                     {
                         formattedLine.Append(ch);
                         printableCharCount++;
@@ -102,7 +102,4 @@ public class CatCommand : LocationCommand
             }
         }
     }
-
-    private static bool IsPrintable(char ch) =>
-        !char.IsControl(ch) && char.IsAscii(ch);
 }
