@@ -32,6 +32,10 @@ public enum MyCommandType
     [Command(typeof(FindCommand), LongName = "find", Description = "Search for files or directories by name.")]
     [CommandCategory(CommandType.File)]
     Find,
+    
+    [Command(typeof(GrepCommand), LongName = "grep", Description = "Search(/replace) for text within files.")]
+    [CommandCategory(CommandType.File)]
+    Grep,
 
     [Command(typeof(MkdirCommand), LongName = "mkdir", ShortName = "md", Description = "Creates a directory.")]
     [CommandCategory(CommandType.File)]

@@ -1,4 +1,4 @@
-﻿// Code authored by Dean Edis (DeanTheCoder).
+// Code authored by Dean Edis (DeanTheCoder).
 // Anyone is free to copy, modify, use, compile, or distribute this software,
 // either in source code form or as a compiled binary, for any non-commercial
 //  purpose.

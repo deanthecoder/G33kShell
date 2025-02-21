@@ -22,26 +22,71 @@ using NClap.Metadata;
 namespace G33kShell.Desktop.Terminal.Commands;
 
 [CommandDescription(
-    "Searches for files or directories matching the specified name or pattern.",
-    "Example: find *.txt")]
-public class FindCommand : CommandBase
+    "Searches(/replaces) text in files the specified name or pattern.",
+    "Example:",
+    "  grep *.txt \"some text\"",
+    "  grep *.txt \"some text\" replacement")]
+public class GrepCommand : CommandBase
 {
     [PositionalArgument(ArgumentFlags.Required, Description = "File mask to search for (e.g. *.txt)")]
+    [UsedImplicitly]
     public string FileMask { get; [UsedImplicitly] set; } = "*.*";
+    
+    [PositionalArgument(ArgumentFlags.Required, Position = 1, Description = "Text to search for.")]
+    [UsedImplicitly]
+    public string Text { get; set; }
+    
+    [PositionalArgument(ArgumentFlags.Optional, Position = 2, Description = "Text to replace with.")]
+    [UsedImplicitly]
+    public string Replace { get; set; }
     
     protected override async Task<bool> Run(ITerminalState state)
     {
         try
         {
-            // Find all the files/folders.
+            // Find all the files/.
             var results = new List<FileSystemInfo>();
             await foreach (var fileSystemInfo in SearchDirectory(state.CurrentDirectory, FileMask))
                 results.Add(fileSystemInfo);
             
             if (results.Count == 0)
             {
-                WriteLine("No files or directories found.");
+                WriteLine("No matching files found.");
                 return true;
+            }
+
+            if (string.IsNullOrEmpty(Text))
+            {
+                WriteLine("No text to search for.");
+                return false;
+            }
+            
+            // Filter to get the text-only files.
+            int? modifiedCount = null;
+            var textFiles = await Task.Run(() => results.OfType<FileInfo>().AsParallel().Where(o => o.IsTextFile() && !IsCancelRequested).ToArray());
+
+            if (Replace == null)
+            {
+                // Text search only.
+                var found = textFiles.AsParallel().Where(o => o.ReadAllText().Contains(Text) && !IsCancelRequested);
+                results = await Task.Run(() => found.Cast<FileSystemInfo>().ToList());
+            }
+            else
+            {
+                // Search and replace.
+                var modified = textFiles
+                    .AsParallel()
+                    .Select(FileSystemInfo (o) =>
+                    {
+                        var text = o.ReadAllText();
+                        if (!text.Contains(Text))
+                            return null;
+                        o.WriteAllText(text.Replace(Text, Replace));
+                        return o;
+                    })
+                    .Where(o => o != null && !IsCancelRequested);
+                results = await Task.Run(() => modified.ToList());
+                modifiedCount = results.Count;
             }
 
             // Write out the results.
@@ -61,6 +106,11 @@ public class FindCommand : CommandBase
                 }
             });
 
+            if (modifiedCount.HasValue)
+                WriteLine($"{textFiles.Length} file(s) found, {results.Count} contain search text, {modifiedCount} modified.");
+            else
+                WriteLine($"{textFiles.Length} file(s) found, {results.Count} contain search text.");
+            
             return true;
         }
         catch (Exception ex)
