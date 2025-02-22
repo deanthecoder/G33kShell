@@ -117,7 +117,7 @@ public class WindowManager
         }
 
         // ...and recurse. 
-        foreach (var child in visual.Children.Where(o => o.IsInvalidatedVisual))
+        foreach (var child in visual.Children.ToArray().Where(o => o.IsInvalidatedVisual))
             Render(child);
     }
 
