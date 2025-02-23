@@ -62,7 +62,7 @@ public class GrepCommand : CommandBase
             }
             
             // Filter to get the text-only files.
-            int? modifiedCount = null;
+            int matchCount;
             var textFiles = await Task.Run(() => results.OfType<FileInfo>().Where(o => o.IsTextFile()).ToArray());
 
             List<string> output;
@@ -73,12 +73,21 @@ public class GrepCommand : CommandBase
                     textFiles
                         .AsParallel()
                         .SelectMany(file =>
-                            file
-                                .ReadAllLines()
-                                .Select((s, lineIndex) => (file, lineIndex, s))
-                                .Where(o => o.s.Contains(Text) && !IsCancelRequested));
+                        {
+                            try
+                            {
+                                return file.ReadAllLines()
+                                    .Select((s, lineIndex) => (file, lineIndex, s))
+                                    .Where(o => o.s.Contains(Text) && !IsCancelRequested);
+                            }
+                            catch (Exception)
+                            {
+                                return [];
+                            }
+                        });
                 var allMatches = await Task.Run(() => matches.GroupBy(o => o.file).ToList());
-                output = new List<string>();
+                matchCount = allMatches.Count;
+                output = [];
                 foreach (var match in allMatches)
                 {
                     output.Add(match.Key.FullName);
@@ -93,16 +102,23 @@ public class GrepCommand : CommandBase
                     .AsParallel()
                     .Select(FileSystemInfo (o) =>
                     {
-                        var text = o.ReadAllText();
-                        if (!text.Contains(Text))
+                        try
+                        {
+                            var text = o.ReadAllText();
+                            if (!text.Contains(Text))
+                                return null;
+                            o.WriteAllText(text.Replace(Text, Replace));
+                            return o;
+                        }
+                        catch (Exception)
+                        {
                             return null;
-                        o.WriteAllText(text.Replace(Text, Replace));
-                        return o;
+                        }
                     })
                     .Where(o => o != null && !IsCancelRequested)
                     .Select(o => o.FullName);
                 output = await Task.Run(() => modified.ToList());
-                modifiedCount = results.Count;
+                matchCount = output.Count;
             }
 
             // Write out the results.
@@ -122,10 +138,7 @@ public class GrepCommand : CommandBase
                 }
             });
 
-            if (modifiedCount.HasValue)
-                WriteLine($"{textFiles.Length} file(s) found, {modifiedCount} modified.");
-            else
-                WriteLine($"{textFiles.Length} file(s) found, {results.Count} contain search text.");
+            WriteLine($"{textFiles.Length} file(s) found, {matchCount} match(es) found.");
             
             return true;
         }
@@ -162,7 +175,12 @@ public class GrepCommand : CommandBase
                 throw new ArgumentException("Invalid/missing file mask.");
 
             await foreach (var fileSystemInfo in dir.TryGetContentAsync(newMask, SearchOption.AllDirectories, () => IsCancelRequested))
-                yield return fileSystemInfo;
+            {
+                // Skip hidden folders.
+                var isHidden = fileSystemInfo is DirectoryInfo dirInfo && dirInfo.Attributes.HasFlag(FileAttributes.Hidden);
+                if (!isHidden)
+                    yield return fileSystemInfo;
+            }
         }
     }
 }
