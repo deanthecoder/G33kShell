@@ -25,7 +25,7 @@ namespace G33kShell.Desktop.Terminal.Commands;
     "Searches(/replaces) text in files the specified name or pattern.",
     "Example:",
     "  grep *.txt \"some text\"",
-    "  grep *.txt \"some text\" replacement")]
+    "  grep *.txt;*.ext \"some text\" replacement")]
 public class GrepCommand : CommandBase
 {
     [PositionalArgument(ArgumentFlags.Required, Description = "File mask to search for (e.g. *.txt)")]
@@ -152,13 +152,17 @@ public class GrepCommand : CommandBase
 
     private async IAsyncEnumerable<FileSystemInfo> SearchDirectory(DirectoryInfo directory, string fileMask)
     {
-        directory.Resolve(fileMask, out var dir, out var fileName, out fileMask);
-        fileMask = fileName ?? fileMask;
-        
-        if (fileMask == null)
-            throw new ArgumentException("Invalid/missing file mask.");
+        var components = fileMask.Split(';').Distinct();
+        foreach (var mask in components)
+        {
+            directory.Resolve(mask, out var dir, out var fileName, out var newMask);
+            newMask = fileName ?? newMask;
 
-        await foreach (var fileSystemInfo in dir.TryGetContentAsync(fileMask, SearchOption.AllDirectories, () => IsCancelRequested))
-            yield return fileSystemInfo;
+            if (fileMask == null)
+                throw new ArgumentException("Invalid/missing file mask.");
+
+            await foreach (var fileSystemInfo in dir.TryGetContentAsync(newMask, SearchOption.AllDirectories, () => IsCancelRequested))
+                yield return fileSystemInfo;
+        }
     }
 }
