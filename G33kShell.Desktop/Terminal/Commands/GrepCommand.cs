@@ -63,13 +63,28 @@ public class GrepCommand : CommandBase
             
             // Filter to get the text-only files.
             int? modifiedCount = null;
-            var textFiles = await Task.Run(() => results.OfType<FileInfo>().AsParallel().Where(o => o.IsTextFile() && !IsCancelRequested).ToArray());
+            var textFiles = await Task.Run(() => results.OfType<FileInfo>().Where(o => o.IsTextFile()).ToArray());
 
+            List<string> output;
             if (Replace == null)
             {
                 // Text search only.
-                var found = textFiles.AsParallel().Where(o => o.ReadAllText().Contains(Text) && !IsCancelRequested);
-                results = await Task.Run(() => found.Cast<FileSystemInfo>().ToList());
+                var matches =
+                    textFiles
+                        .AsParallel()
+                        .SelectMany(file =>
+                            file
+                                .ReadAllLines()
+                                .Select((s, lineIndex) => (file, lineIndex, s))
+                                .Where(o => o.s.Contains(Text) && !IsCancelRequested));
+                var allMatches = await Task.Run(() => matches.GroupBy(o => o.file).ToList());
+                output = new List<string>();
+                foreach (var match in allMatches)
+                {
+                    output.Add(match.Key.FullName);
+                    output.AddRange(match.Select(o => GetFormattedFindResult(state, o)));
+                    output.Add(string.Empty);
+                }
             }
             else
             {
@@ -84,8 +99,9 @@ public class GrepCommand : CommandBase
                         o.WriteAllText(text.Replace(Text, Replace));
                         return o;
                     })
-                    .Where(o => o != null && !IsCancelRequested);
-                results = await Task.Run(() => modified.ToList());
+                    .Where(o => o != null && !IsCancelRequested)
+                    .Select(o => o.FullName);
+                output = await Task.Run(() => modified.ToList());
                 modifiedCount = results.Count;
             }
 
@@ -94,11 +110,11 @@ public class GrepCommand : CommandBase
             {
                 const int chunkSize = 5;
                 var sb = new StringBuilder();
-                for (var i = 0; i < results.Count && !IsCancelRequested; i += chunkSize)
+                for (var i = 0; i < output.Count && !IsCancelRequested; i += chunkSize)
                 {
                     sb.Clear();
-                    foreach (var item in results.Skip(i).Take(chunkSize))
-                        sb.AppendLine(item.FullName);
+                    foreach (var match in output.Skip(i).Take(chunkSize))
+                        sb.AppendLine(match);
                     WriteLine(sb.ToString().TrimEnd());
                     
                     if (IsCancelRequested)
@@ -107,7 +123,7 @@ public class GrepCommand : CommandBase
             });
 
             if (modifiedCount.HasValue)
-                WriteLine($"{textFiles.Length} file(s) found, {results.Count} contain search text, {modifiedCount} modified.");
+                WriteLine($"{textFiles.Length} file(s) found, {modifiedCount} modified.");
             else
                 WriteLine($"{textFiles.Length} file(s) found, {results.Count} contain search text.");
             
@@ -119,6 +135,19 @@ public class GrepCommand : CommandBase
         }
 
         return false;
+    }
+
+    private static string GetFormattedFindResult(ITerminalState state, (FileInfo file, int lineIndex, string s) o)
+    {
+        var sb = new StringBuilder($"Line {o.lineIndex + 1}: {o.s.Trim()}");
+        if (sb.Length >= state.CliPrompt.Width)
+        {
+            var maxLength = state.CliPrompt.Width - 4;
+            sb.Remove(maxLength, sb.Length - maxLength);
+            sb.Append("...");
+        }
+        
+        return sb.ToString().Trim();
     }
 
     private async IAsyncEnumerable<FileSystemInfo> SearchDirectory(DirectoryInfo directory, string fileMask)
