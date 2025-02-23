@@ -42,6 +42,8 @@ public class Scene3D
     {
         m_screen = screen ?? throw new ArgumentNullException(nameof(screen));
         m_sceneBackground = sceneBackground ?? throw new ArgumentNullException(nameof(sceneBackground));
+        
+        ClearDepthBuffer();
     }
 
     /// <summary>
@@ -176,5 +178,30 @@ public class Scene3D
             }
         }
 #endif
+    }
+
+    public void Plot(Vector3 p, Attr material)
+    {
+        if (p.Z < 0.0f)
+            return;
+
+        var screenWidth = m_screen.Width;
+        var screenHeight = m_screen.Height;
+
+        // Project points into the screen space.
+        var majorAxis = Math.Min(screenWidth, screenHeight) / 2.0f;
+        var worldToScreen = new Vector2(screenWidth / 2.0f, screenHeight / 2.0f);
+        var xy = GetProjectedXy(p) * majorAxis + worldToScreen;
+
+        var px = (int)Math.Round(xy.X);
+        var py = (int)Math.Round(xy.Y);
+        if (px < 0 || px >= m_screen.Width || py < 0 || py >= m_screen.Height)
+            return; // Off screen.
+
+        if (p.Z >= m_depthBuffer[px, py])
+            return; // Point obscured by nearer content.
+        
+        m_depthBuffer[px, py] = p.Z;
+        m_screen.Chars[py][px].Set(material);
     }
 }
