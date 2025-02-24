@@ -10,6 +10,7 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
 using System.Diagnostics;
+using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
 using JetBrains.Annotations;
 
@@ -26,7 +27,7 @@ namespace G33kShell.Desktop.Console.Screensavers;
 public class DonutCanvas : ScreensaverBase
 {
     private const double ThetaSpacing = 0.05f;
-    private const double PhiSpacing = 0.02f;
+    private const double PhiSpacing = 0.015f;
     private const double R1 = 0.7;
     private const double R2 = 2;
     private const double K2 = 5;
@@ -108,8 +109,7 @@ public class DonutCanvas : ScreensaverBase
                     if (ooz > m_zBuffer[xp, yp])
                     {
                         m_zBuffer[xp, yp] = ooz;
-                        var luminanceIndex = (int)(l * 8);
-                        screen.PrintAt(xp, yp, ".,-~:;=!*#$@"[Math.Min(11, luminanceIndex)]);
+                        screen.PrintAt(xp, yp, (0.1 + 0.8 * l).ToAscii());
                     }
                 }
             }
