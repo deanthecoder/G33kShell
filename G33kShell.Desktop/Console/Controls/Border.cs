@@ -11,6 +11,7 @@
 
 using System.Collections.Generic;
 using System.Diagnostics;
+using G33kShell.Desktop.Console.Extensions;
 
 namespace G33kShell.Desktop.Console.Controls;
 
@@ -53,33 +54,6 @@ public class Border : Visual
         Padding = new BorderThickness(1);
     }
 
-    public override void Render(ScreenData screen)
-    {
-        var boxChars = LineCharacters[m_style];
-        var topLeft = boxChars[0];
-        var topRight = boxChars[1];
-        var bottomLeft = boxChars[2];
-        var bottomRight = boxChars[3];
-        var hTop = boxChars[4];
-        var hBottom = boxChars[5];
-        var vLeft = boxChars[6];
-        var vRight = boxChars[7];
-
-        // Top border
-        screen.PrintAt(0, 0, topLeft);
-        screen.PrintAt(1, 0, new string(hTop, Width - 2));
-        screen.PrintAt(Width - 1, 0, topRight);
-
-        // Bottom border
-        screen.PrintAt(0, Height - 1, bottomLeft);
-        screen.PrintAt(1, Height - 1, new string(hBottom, Width - 2));
-        screen.PrintAt(Width - 1, Height - 1, bottomRight);
-
-        // Vertical borders
-        for (var i = 1; i < Height - 1; i++)
-        {
-            screen.PrintAt(0, i, vLeft);
-            screen.PrintAt(Width - 1, i, vRight);
-        }
-    }
+    public override void Render(ScreenData screen) =>
+        screen.DrawBox(X, Y, X + Width - 1, Y + Height - 1, LineCharacters[m_style]);
 }
