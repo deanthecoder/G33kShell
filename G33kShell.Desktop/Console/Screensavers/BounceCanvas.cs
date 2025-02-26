@@ -40,23 +40,25 @@ public class BounceCanvas : ScreensaverBase
         m_brickAttr[1] = new Attr(' ', Foreground);
 
         var quarterWidth = screen.Width / 4.0;
-        m_balls[0] = new Ball(quarterWidth, m_random.Next(2, screen.Height - 2), m_random.NextBool() ? -1 : 1, m_random.NextBool() ? -1 : 1);
-        m_balls[1] = new Ball(quarterWidth * 3.0, m_random.Next(2, screen.Height - 2), m_random.NextBool() ? -1 : 1, m_random.NextBool() ? -1 : 1);
-        m_balls[2] = new Ball(quarterWidth, m_random.Next(2, screen.Height - 2), m_random.NextBool() ? -1 : 1, m_random.NextBool() ? -1 : 1);
-        m_balls[3] = new Ball(quarterWidth * 3.0, m_random.Next(2, screen.Height - 2), m_random.NextBool() ? -1 : 1, m_random.NextBool() ? -1 : 1);
+        m_balls[0] = SpawnBall(screen, quarterWidth * 1.5);
+        m_balls[1] = SpawnBall(screen, quarterWidth * 0.5);
+        m_balls[2] = SpawnBall(screen, quarterWidth * 3.5);
+        m_balls[3] = SpawnBall(screen, quarterWidth * 2.5);
 
         m_bricks = new bool[screen.Width, screen.Height];
         for (var y = 1; y < screen.Height - 1; y++)
         {
-            var startX = screen.Width / 2;
-            startX += (int)(((y * 10.0).SmoothNoise() - 0.5) * quarterWidth);
-            for (var x = startX; x < screen.Width - 1; x++)
+            for (var x = 1; x < screen.Width - 1; x++)
             {
-                m_bricks[x, y] = true;
-                screen.PrintAt(x, y, m_brickAttr[0]);
+                var isBrick = ((x - 1) / (screen.Width / 4)) % 2 == 0;
+                m_bricks[x, y] = isBrick;
+                screen.PrintAt(x, y, m_brickAttr[isBrick ? 0 : 1]);
             }
         }
     }
+
+    private Ball SpawnBall(ScreenData screen, double x) =>
+        new Ball(x, m_random.Next(2, screen.Height - 2), m_random.NextBool() ? -1 : 1, m_random.NextBool() ? -1 : 1);
 
     public override void UpdateFrame(ScreenData screen)
     {
@@ -108,6 +110,20 @@ public class BounceCanvas : ScreensaverBase
                 }
             }
         }
+
+        var filled = 0.0;
+        for (var y = 1; y < screen.Height - 1; y++)
+        {
+            for (var x = 1; x < screen.Width - 1; x++)
+            {
+                if (m_bricks[x, y])
+                    filled++;
+            }
+        }
+        
+        filled /= screen.Width * screen.Height;
+        screen.PrintAt(4, screen.Height - 1, $"╡ ☻ {filled,3:P0} ╞");
+        screen.PrintAt(screen.Width - 13, screen.Height - 1, $"╡ ☺ {1.0 - filled,3:P0} ╞");
     }
     
     private record Ball(double X, double Y, int Dx, int Dy);
