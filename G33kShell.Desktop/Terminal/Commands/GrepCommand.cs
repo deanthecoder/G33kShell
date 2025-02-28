@@ -44,7 +44,7 @@ public class GrepCommand : CommandBase
     {
         try
         {
-            // Find all the files/.
+            // Find all the files.
             var results = new List<FileSystemInfo>();
             await foreach (var fileSystemInfo in SearchDirectory(state.CurrentDirectory, FileMask))
                 results.Add(fileSystemInfo);
@@ -78,7 +78,7 @@ public class GrepCommand : CommandBase
                             {
                                 return file.ReadAllLines()
                                     .Select((s, lineIndex) => (file, lineIndex, s))
-                                    .Where(o => o.s.Contains(Text) && !IsCancelRequested);
+                                    .Where(o => o.s.Contains(Text, StringComparison.OrdinalIgnoreCase) && !IsCancelRequested);
                             }
                             catch (Exception)
                             {
@@ -105,9 +105,9 @@ public class GrepCommand : CommandBase
                         try
                         {
                             var text = o.ReadAllText();
-                            if (!text.Contains(Text))
+                            if (!text.Contains(Text, StringComparison.OrdinalIgnoreCase))
                                 return null;
-                            o.WriteAllText(text.Replace(Text, Replace));
+                            o.WriteAllText(text.Replace(Text, Replace, StringComparison.OrdinalIgnoreCase));
                             return o;
                         }
                         catch (Exception)
