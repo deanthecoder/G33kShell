@@ -63,7 +63,7 @@ public class GrepCommand : CommandBase
             
             // Filter to get the text-only files.
             int matchCount;
-            var textFiles = await Task.Run(() => results.OfType<FileInfo>().Where(o => o.IsTextFile()).ToArray());
+            var textFiles = await Task.Run(() => results.OfType<FileInfo>().Where(IsTextFile).ToArray());
 
             List<string> output;
             if (Replace == null)
@@ -148,6 +148,18 @@ public class GrepCommand : CommandBase
         }
 
         return false;
+    }
+
+    private static bool IsTextFile(FileInfo o)
+    {
+        try
+        {
+            return o.IsTextFile();
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     private static string GetFormattedFindResult(ITerminalState state, (FileInfo file, int lineIndex, string s) o)
