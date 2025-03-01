@@ -129,6 +129,8 @@ public class ScreenData
     {
         if (y < 0 || y >= Height)
             return;
+        if (x > Width || x + s.Length < 0)
+            return;
 
         // Find the portion of the string that is within the bounds of the screen
         var maxLength = Math.Min(Width - x, s.Length);

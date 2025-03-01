@@ -49,7 +49,7 @@ public class CubesCanvas : ScreensaverBase
 
     public override void UpdateFrame(ScreenData screen)
     {
-        var time = 1.0f * FrameNumber / TargetFps;
+        var time = (float)Time;
 
         // Prepare the scene.
         var r = new Vector3(1.8f, 0.3f, 0.7f) * time;

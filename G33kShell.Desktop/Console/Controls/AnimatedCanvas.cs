@@ -28,18 +28,21 @@ public abstract class AnimatedCanvas : Visual
     private bool m_running;
     private Task m_animationTask;
     private int m_targetFps;
+    private Stopwatch m_stopwatch;
 
     public int FrameNumber { get; set; }
     
     public int TargetFps
     {
         get => m_targetFps;
-        set
+        protected set
         {
             m_targetFps = value;
             m_frameTimeMs = (int)(1000.0 / value); // Frame time in milliseconds
         }
     }
+    
+    public double Time => m_stopwatch?.Elapsed.TotalSeconds ?? 0.0;
 
     protected AnimatedCanvas(int width, int height, int targetFps = 30) : base(width, height)
     {
@@ -64,6 +67,7 @@ public abstract class AnimatedCanvas : Visual
 
     private async Task UpdateFrameBase()
     {
+        m_stopwatch = Stopwatch.StartNew();
         var stopwatch = new Stopwatch();
         while (m_running)
         {
@@ -105,9 +109,7 @@ public abstract class AnimatedCanvas : Visual
 
     protected override void OnUnloaded()
     {
-        m_running = false;
-        m_animationTask?.Wait();
-        m_animationTask = null;
+        Stop();
         base.OnUnloaded();
     }
 
@@ -115,5 +117,7 @@ public abstract class AnimatedCanvas : Visual
     {
         m_running = false;
         m_animationTask?.Wait();
+        m_animationTask = null;
+        m_stopwatch = null;
     }
 }

@@ -20,6 +20,7 @@
         <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
         <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.2.3" />
         <PackageReference Include="CliWrap" Version="3.7.1" />
+        <PackageReference Include="FIGlet.Net" Version="1.1.2" />
         <PackageReference Include="FuzzySharp" Version="2.0.2" />
         <PackageReference Include="JetBrains.Annotations" Version="2024.3.0" />
         <PackageReference Include="NClap" Version="3.0.0" />
@@ -53,5 +54,12 @@
       <AvaloniaResource Include="Assets\crt.sksl" />
       <None Remove="Assets\Fonts\VGA\PxPlus_IBM_VGA8.ttf" />
       <AvaloniaResource Include="Assets\Fonts\VGA\PxPlus_IBM_VGA8.ttf" />
+      <None Update="Assets\Fonts\Figlet\DOSRebel.flf">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Assets\Fonts\Figlet\" />
     </ItemGroup>
 </Project>
