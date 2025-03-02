@@ -29,7 +29,9 @@ public class HighResScreen
         var isTopPixel = (y & 1) == 0;
         y >>= 1;
 
-        m_screen.PrintAt(x, y, '▀');
+        if (m_screen.Chars[y][x].Ch != '▀')
+            m_screen.PrintAt(x, y, new Attr('▀', m_screen.Chars[y][x].Background, m_screen.Chars[y][x].Background));
+        
         if (isTopPixel)
             m_screen.SetForeground(x, y, foreground);
         else

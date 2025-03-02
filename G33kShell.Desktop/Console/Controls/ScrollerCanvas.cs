@@ -37,7 +37,7 @@ public class ScrollerCanvas : ScreensaverBase
     {
         base.BuildScreen(screen);
 
-        const string message = "                            DTC forging pixels from pure ASCII since the ZX Spectrum.   Scanlines are my canvas.   CRT effects or bust.   Shoutout to all oldskool coders  -  Hack the planet!!!          ";
+        const string message = "                            DTC forging pixels from pure ASCII since the ZX Spectrum.   Scanlines are my canvas.   CRT effects or bust.   Keep calm and press ALT+ENTER  -  Hack the planet!!!          ";
 
         var font = LoadFont();
         var alphabet = message.Distinct().ToDictionary(ch => ch, ch => LoadLetter(font, ch));
@@ -102,7 +102,7 @@ public class ScrollerCanvas : ScreensaverBase
             }
         }
 
-        var scrollX = (int)(Time * 35.0);
+        var scrollX = (int)(Time * 25.0);
         for (var x = 0; x < screen.Width; x++)
         {
             var columnIndex = (x + scrollX) % m_textColumns.Count;
