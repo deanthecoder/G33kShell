@@ -13,9 +13,10 @@ using System.Diagnostics;
 using System.Numerics;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console._3D;
+using G33kShell.Desktop.Console.Controls;
 using JetBrains.Annotations;
 
-namespace G33kShell.Desktop.Console.Controls;
+namespace G33kShell.Desktop.Console.Screensavers;
 
 /// <summary>
 /// A canvas to displaying an animated 3D scene.
