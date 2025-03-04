@@ -24,6 +24,7 @@ public class ShutdownCommand : CommandBase
     {
         const int delayInSeconds = 2;
 
+        Settings.Instance.Save();
         var success = Process.Start(new ProcessStartInfo
         {
             FileName = "shutdown", Arguments = $"/s /f /t {delayInSeconds}", CreateNoWindow = true, UseShellExecute = false
