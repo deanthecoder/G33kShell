@@ -13,9 +13,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Layout;
+using CSharp.Core;
 using G33kShell.Desktop.Console.Controls;
 using G33kShell.Desktop.Console.Events;
 using G33kShell.Desktop.Skins;
+using JetBrains.Annotations;
 
 namespace G33kShell.Desktop.Console;
 
@@ -96,24 +98,34 @@ public class WindowManager
     /// <remarks>
     /// The collection of screens will be composited later.
     /// </remarks>
-    private void Render(Visual visual)
+    private void Render([NotNull] Visual visual)
     {
-        // Ask the visual to render its own content.
-        if (visual.IsInvalidatedVisual)
+        if (visual == null)
+            throw new ArgumentNullException(nameof(visual));
+        
+        try
         {
-            using (visual.Screen.Lock(out var screen))
+            // Ask the visual to render its own content.
+            if (visual.IsInvalidatedVisual)
             {
-                if (visual.LoadOnFirstRender)
+                using (visual.Screen.Lock(out var screen))
                 {
-                    visual.LoadOnFirstRender = false;
-                    visual.OnLoaded(this);
+                    if (visual.LoadOnFirstRender)
+                    {
+                        visual.LoadOnFirstRender = false;
+                        visual.OnLoaded(this);
+                    }
+                
+                    visual.IsInvalidatedVisual = false;
+                
+                    if (IsOnScreen(visual))
+                        visual.Render(screen);
                 }
-                
-                visual.IsInvalidatedVisual = false;
-                
-                if (IsOnScreen(visual))
-                    visual.Render(screen);
             }
+        }
+        catch (Exception e)
+        {
+            Logger.Instance.Exception($"Failed to update render frame ('{visual.Name ?? visual.GetType().ToString()}')).", e);
         }
 
         // ...and recurse. 

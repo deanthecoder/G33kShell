@@ -17,7 +17,7 @@ using G33kShell.Desktop.Terminal.Attributes;
 namespace G33kShell.Desktop.Terminal.Commands;
 
 [CommandDescription(
-    "Opens the specified file or directory in the system’s file explorer.",
+    "Reveal the specified file or directory in the system’s file explorer.",
     "",
     "Special path options are available:",
     "  'applications' - Opens the Program Files folder.",
@@ -25,6 +25,7 @@ namespace G33kShell.Desktop.Terminal.Commands;
     "  'documents'    - Opens the Documents folder.",
     "  'downloads'    - Opens the Downloads folder.",
     "  'home'         - Opens the user's 'home' folder.",
+    "  'log'          - Opens the application log folder.",
     "  'programs'     - Opens the Program Files folder.",
     "  'temp'         - Opens the system's temporary files directory.",
     "",

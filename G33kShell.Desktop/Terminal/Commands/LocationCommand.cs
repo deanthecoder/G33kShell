@@ -12,6 +12,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using CSharp.Core;
 using CSharp.Core.Extensions;
 using JetBrains.Annotations;
 using NClap.Metadata;
@@ -35,6 +36,7 @@ public abstract class LocationCommand : CommandBase
             "documents" => Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
             "downloads" => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + "/Downloads",
             "home" => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "log" => Logger.Instance.File.FullName,
             "programs" => Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
             "temp" => System.IO.Path.GetTempPath(),
             _ => state.CurrentDirectory.Resolve(Path)

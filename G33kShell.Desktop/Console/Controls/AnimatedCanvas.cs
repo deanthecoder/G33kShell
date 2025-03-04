@@ -11,6 +11,7 @@
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
+using CSharp.Core;
 
 namespace G33kShell.Desktop.Console.Controls;
 
@@ -67,34 +68,41 @@ public abstract class AnimatedCanvas : Visual
 
     private async Task UpdateFrameBase()
     {
-        m_stopwatch = Stopwatch.StartNew();
-        var stopwatch = new Stopwatch();
-        while (m_running)
+        try
         {
-            if (!IsVisible)
+            m_stopwatch = Stopwatch.StartNew();
+            var stopwatch = new Stopwatch();
+            while (m_running)
             {
-                await Task.Delay(100);
-                continue;
-            }
+                if (!IsVisible)
+                {
+                    await Task.Delay(100);
+                    continue;
+                }
             
-            if (!stopwatch.IsRunning)
-                stopwatch.Start();
-            var timeToWaitMs = m_frameTimeMs - stopwatch.ElapsedMilliseconds;
-            if (timeToWaitMs > 0 || !IsVisible)
-            {
-                // Skip this frame, too soon to render again.
-                await Task.Delay((int)timeToWaitMs);
-                continue;
+                if (!stopwatch.IsRunning)
+                    stopwatch.Start();
+                var timeToWaitMs = m_frameTimeMs - stopwatch.ElapsedMilliseconds;
+                if (timeToWaitMs > 0 || !IsVisible)
+                {
+                    // Skip this frame, too soon to render again.
+                    await Task.Delay((int)timeToWaitMs);
+                    continue;
+                }
+
+                stopwatch.Restart(); // Reset for the next frame
+
+                using (Screen.Lock(out var screen))
+                    UpdateFrame(screen);
+
+                // Request rendering update.
+                InvalidateVisual();
+                FrameNumber++;
             }
-
-            stopwatch.Restart(); // Reset for the next frame
-
-            using (Screen.Lock(out var screen))
-                UpdateFrame(screen);
-
-            // Request rendering update.
-            InvalidateVisual();
-            FrameNumber++;
+        }
+        catch (Exception e)
+        {
+            Logger.Instance.Exception("Failed to update render frame.", e);
         }
     }
 
