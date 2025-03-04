@@ -60,7 +60,7 @@ public class TunnelCanvas : ScreensaverBase
             var y = point.Y + bendY;
 
             var density = Math.Pow(1.0f - z / MaxDepth, 2.0f);
-            var ch = ".,oO"[(int)density.Lerp(0.0, 3.9)];
+            var ch = ".•oO"[(int)density.Lerp(0.0, 3.9)];
             scene3D.Plot(new Vector3(x, y, z), new Attr(ch, density.Lerp(Background, Foreground)));
         }
     }
