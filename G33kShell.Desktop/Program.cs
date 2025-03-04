@@ -11,6 +11,7 @@
 
 using System;
 using Avalonia;
+using CSharp.Core;
 using G33kShell.Desktop.Terminal;
 using G33kShell.Desktop.Views;
 
@@ -24,6 +25,7 @@ static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        Logger.Instance.SysInfo();
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         
         Settings.Instance.Dispose();
