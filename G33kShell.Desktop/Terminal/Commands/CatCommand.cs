@@ -41,7 +41,7 @@ public class CatCommand : LocationCommand
                 return true;
             }
 
-            WriteLine($"File not found: {Path}");
+            WriteLine($"File not found: {targetFile}");
             return false;
         }
         catch (Exception ex)
@@ -54,14 +54,14 @@ public class CatCommand : LocationCommand
     private static async IAsyncEnumerable<string> ReadLines(FileInfo fileInfo)
     {
         const int bufferSize = 4096;
-        const int maxPrintableChars = 256;
+        const int maxUnprintableChars = 256;
 
         await using var stream = fileInfo.OpenRead();
         using var reader = new StreamReader(stream, leaveOpen: true);
-
+        
         var buffer = new char[bufferSize];
         int charsRead;
-        var printableCharCount = 0;
+        var unprintableCharCount = 0;
 
         while ((charsRead = await reader.ReadAsync(buffer, 0, buffer.Length)) > 0)
         {
@@ -76,20 +76,19 @@ public class CatCommand : LocationCommand
                     if (ch == '\t')
                     {
                         formattedLine.Append("  "); // Replace tab with two spaces
-                        printableCharCount += 2;
                     }
                     else if (ch.IsPrintable())
                     {
                         formattedLine.Append(ch);
-                        printableCharCount++;
                     }
                     else
                     {
                         formattedLine.Append('.');
+                        unprintableCharCount++;
                     }
 
                     // Check if we've exceeded the limit.
-                    if (printableCharCount > maxPrintableChars)
+                    if (unprintableCharCount > maxUnprintableChars)
                     {
                         var remainingBytes = fileInfo.Length - stream.Position;
                         if (remainingBytes > 0)
