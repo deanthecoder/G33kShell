@@ -11,6 +11,7 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using CSharp.Core;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Terminal.Attributes;
 using JetBrains.Annotations;
@@ -72,16 +73,19 @@ public class RmCommand : LocationCommand
             catch (IOException ex)
             {
                 WriteLine($"Error: Unable to delete {info} due to I/O error ({ex.Message})");
+                Logger.Instance.Exception($"Unable to delete {info}.", ex);
                 success = false;
             }
             catch (UnauthorizedAccessException ex)
             {
                 WriteLine($"Error: Unauthorized to delete {info} ({ex.Message})");
+                Logger.Instance.Exception($"Unable to delete {info}.", ex);
                 success = false;
             }
             catch (Exception ex)
             {
                 WriteLine($"Error: Unable to delete {info} ({ex.Message})");
+                Logger.Instance.Exception($"Unable to delete {info}.", ex);
                 success = false;
             }
         }

@@ -10,6 +10,7 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
 using System;
+using System.Threading.Tasks;
 using Avalonia;
 using CSharp.Core;
 using G33kShell.Desktop.Terminal;
@@ -25,15 +26,43 @@ static class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        Logger.Instance.SysInfo();
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
-        
-        Settings.Instance.Dispose();
+        AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+
+        try
+        {
+            Logger.Instance.SysInfo();
+            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+            Logger.Instance.Info("Application ended cleanly.");
+        }
+        catch (Exception ex)
+        {
+            HandleFatalException(ex);
+        }
+        finally
+        {
+            Settings.Instance.Save();
+        }
     }
 
+    private static void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        if (e.ExceptionObject is Exception ex)
+            HandleFatalException(ex);
+    }
+
+    private static void OnUnobservedTaskException(object sender, UnobservedTaskExceptionEventArgs e)
+    {
+        e.SetObserved();
+        Logger.Instance.Exception("Unobserved task exception.", e.Exception);
+    }
+
+    private static void HandleFatalException(Exception ex) =>
+        Logger.Instance.Exception("A fatal error occurred.", ex);
+
     // Avalonia configuration, don't remove; also used by visual designer.
-    private static AppBuilder BuildAvaloniaApp()
-        => AppBuilder.Configure<App>()
+    private static AppBuilder BuildAvaloniaApp() =>
+        AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .WithInterFont()
             .LogToTrace();

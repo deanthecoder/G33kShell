@@ -14,6 +14,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using CSharp.Core;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Terminal.Attributes;
 using JetBrains.Annotations;
@@ -145,6 +146,7 @@ public class GrepCommand : CommandBase
         catch (Exception ex)
         {
             WriteLine($"An error occurred: {ex.Message}");
+            Logger.Instance.Exception("grep failed.", ex);
         }
 
         return false;

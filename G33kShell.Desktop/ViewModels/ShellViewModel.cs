@@ -73,14 +73,13 @@ public class ShellViewModel : ViewModelBase, IDisposable
         // Log-in awesomeness.
         await BiosCheckAsync();
         await LoadOsAsync();
+
         var signInResult = await signInTask;
         await LogInAsync(signInResult);
 #endif
         
         // Run the terminal.
         _ = Task.Run(RunTerminal);
-
-        //WindowManager.Root.AddChild(new FluidCanvas(WindowManager.Root.Width, WindowManager.Root.Height));
     }
 
     private void RunTerminal()
@@ -142,13 +141,17 @@ public class ShellViewModel : ViewModelBase, IDisposable
 
             var face = await faceFinder.DetectFaceAsync(webcamImage);
             if (face == null)
+            {
+                Logger.Instance.Warn("No face detected.");
                 return null; // No face found.
+            }
 
             return (FaceFinder.CreateFaceBitmap(webcamImage, face), face);
         }
-        catch
+        catch (Exception e)
         {
-            return null; // Something went wrong.
+            Logger.Instance.Exception("Failed to detect face.", e);
+            return null;
         }
         finally
         {

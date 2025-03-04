@@ -10,11 +10,11 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using CSharp.Core;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console;
 using G33kShell.Desktop.Console.Screensavers;
@@ -47,7 +47,7 @@ public class ScreensaverControl : Visual
         }
         catch (Exception ex)
         {
-            Debug.WriteLine(ex);
+            Logger.Instance.Exception("Failed to enumerate screensavers.", ex);
             throw;
         }
     }

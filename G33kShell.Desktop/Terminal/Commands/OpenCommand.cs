@@ -12,6 +12,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
+using CSharp.Core;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Terminal.Attributes;
 
@@ -43,6 +44,7 @@ public class OpenCommand : LocationCommand
         catch (Exception ex)
         {
             WriteLine($"An error occurred: {ex.Message}");
+            Logger.Instance.Exception($"Failed to open '{Path}'", ex);
         }
 
         return Task.FromResult(false);

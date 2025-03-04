@@ -12,6 +12,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using CSharp.Core;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Terminal.Attributes;
 using JetBrains.Annotations;
@@ -82,6 +83,7 @@ public class CopyCommand : CommandBase
             catch (Exception ex)
             {
                 WriteLine($"An error occurred copying {Paths[i]} to {Paths[i + 1]}: {ex.Message}");
+                Logger.Instance.Exception($"Failed to copy {Paths[i]} to {Paths[i + 1]}", ex);
                 return false;
             }
         }
