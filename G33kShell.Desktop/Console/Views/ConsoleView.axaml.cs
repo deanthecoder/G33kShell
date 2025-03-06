@@ -26,11 +26,13 @@ public partial class ConsoleView : Control
 {
     private const int CharWidth = 8;
     private const int CharHeight = 16;
+    private readonly Point m_zeroPoint = new Point();
     private readonly LruCache<Rgb, IImmutableBrush> m_brushCache = new LruCache<Rgb, IImmutableBrush>(512);
     private readonly LruCache<string, Geometry> m_geometryCache = new LruCache<string, Geometry>(4096);
     private WindowManager m_windowManager;
     private FontFamily m_fontFamily;
     private Thickness m_padding;
+    private ScreenData m_lastFrame;
 
     public static readonly DirectProperty<ConsoleView, WindowManager> WindowManagerProperty = AvaloniaProperty.RegisterDirect<ConsoleView, WindowManager>(nameof(WindowManager), o => o.WindowManager, (o, v) => o.WindowManager = v);
     public static readonly DirectProperty<ConsoleView, FontFamily> FontFamilyProperty = AvaloniaProperty.RegisterDirect<ConsoleView, FontFamily>(nameof(FontFamily), o => o.FontFamily, (o, v) => o.FontFamily = v);
@@ -74,8 +76,7 @@ public partial class ConsoleView : Control
         get => m_padding;
         set => SetAndRaise(PaddingProperty, ref m_padding, value);
     }
-
-    private ScreenData m_lastFrame;
+    
     public override void Render(DrawingContext context)
     {
         base.Render(context);
@@ -184,7 +185,7 @@ public partial class ConsoleView : Control
         if (m_fontFamily != null)
             formattedText.SetFontFamily(m_fontFamily);
         formattedText.SetFontSize(CharHeight);
-        return formattedText.BuildGeometry(new Point());
+        return formattedText.BuildGeometry(m_zeroPoint);
     }
 
     private void DrawTextRun(DrawingContext context, StringBuilder s, int xStart, int y, Rgb foreground, Rgb background)

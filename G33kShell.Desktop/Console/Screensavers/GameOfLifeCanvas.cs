@@ -46,13 +46,12 @@ public class GameOfLifeCanvas : ScreensaverBase
 
     public override void BuildScreen(ScreenData screen)
     {
+        base.BuildScreen(screen);
+        
         for (var y = 0; y < screen.Height; y++)
         {
             for (var x = 0; x < screen.Width; x++)
-            {
-                var ch = m_cells[x, y] ? '█' : ' '; // Filled block for live cells
-                screen.PrintAt(x, y, new Attr(ch, Foreground, Background));
-            }
+                screen.PrintAt(x, y, m_cells[x, y] ? '█' : ' ');
         }
     }
 
