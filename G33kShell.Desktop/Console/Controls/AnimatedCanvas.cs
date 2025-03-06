@@ -25,11 +25,11 @@ namespace G33kShell.Desktop.Console.Controls;
 /// </remarks>
 public abstract class AnimatedCanvas : Visual
 {
+    private readonly Stopwatch m_stopwatch = new Stopwatch();
     private int m_frameTimeMs;
     private bool m_running;
     private Task m_animationTask;
     private int m_targetFps;
-    private Stopwatch m_stopwatch;
 
     public int FrameNumber { get; set; }
     
@@ -42,8 +42,16 @@ public abstract class AnimatedCanvas : Visual
             m_frameTimeMs = (int)(1000.0 / value); // Frame time in milliseconds
         }
     }
-    
-    public double Time => m_stopwatch?.Elapsed.TotalSeconds ?? 0.0;
+
+    protected double Time
+    {
+        get
+        {
+            if (!m_stopwatch.IsRunning)
+                m_stopwatch.Restart();
+            return m_stopwatch.Elapsed.TotalSeconds;
+        }
+    }
 
     protected AnimatedCanvas(int width, int height, int targetFps = 30) : base(width, height)
     {
@@ -70,8 +78,8 @@ public abstract class AnimatedCanvas : Visual
     {
         try
         {
-            m_stopwatch = Stopwatch.StartNew();
-            var stopwatch = new Stopwatch();
+            m_stopwatch.Restart();
+            var frameStopwatch = new Stopwatch();
             while (m_running)
             {
                 if (!IsVisible)
@@ -80,9 +88,9 @@ public abstract class AnimatedCanvas : Visual
                     continue;
                 }
             
-                if (!stopwatch.IsRunning)
-                    stopwatch.Start();
-                var timeToWaitMs = m_frameTimeMs - stopwatch.ElapsedMilliseconds;
+                if (!frameStopwatch.IsRunning)
+                    frameStopwatch.Start();
+                var timeToWaitMs = m_frameTimeMs - frameStopwatch.ElapsedMilliseconds;
                 if (timeToWaitMs > 0 || !IsVisible)
                 {
                     // Skip this frame, too soon to render again.
@@ -90,7 +98,7 @@ public abstract class AnimatedCanvas : Visual
                     continue;
                 }
 
-                stopwatch.Restart(); // Reset for the next frame
+                frameStopwatch.Restart(); // Reset for the next frame
 
                 using (Screen.Lock(out var screen))
                     UpdateFrame(screen);
@@ -126,6 +134,5 @@ public abstract class AnimatedCanvas : Visual
         m_running = false;
         m_animationTask?.Wait();
         m_animationTask = null;
-        m_stopwatch = null;
     }
 }
