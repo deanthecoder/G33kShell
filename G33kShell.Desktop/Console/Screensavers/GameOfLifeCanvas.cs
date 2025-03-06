@@ -73,14 +73,10 @@ public class GameOfLifeCanvas : ScreensaverBase
         }
 
         if (ShouldReset(nextGen))
-        {
             InitializeRandomCells();
-        }
         else
-        {
             Array.Copy(nextGen, m_cells, Width * Height);
-        }
-        
+
         BuildScreen(screen);
     }
 
@@ -94,7 +90,18 @@ public class GameOfLifeCanvas : ScreensaverBase
                 if (dx == 0 && dy == 0)
                     continue;
                 int nx = x + dx, ny = y + dy;
-                if (nx >= 0 && nx < Width && ny >= 0 && ny < Height && m_cells[nx, ny])
+                
+                // Wrap coordinates to screen edge.
+                if (nx < 0)
+                    nx += Width;
+                else if (nx >= Width)
+                    nx -= Width;
+                if (ny < 0)
+                    ny += Height;
+                else if (ny >= Height)
+                    ny -= Height;
+                
+                if (m_cells[nx, ny])
                     count++;
             }
         }
