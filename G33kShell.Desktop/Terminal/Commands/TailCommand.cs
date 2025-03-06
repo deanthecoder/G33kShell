@@ -87,10 +87,27 @@ public class TailCommand : LocationCommand
 
     private async Task OutputLastLines(FileInfo fileInfo, int width, int count)
     {
-        var lastLines = await Task.Run(() => fileInfo.ReadAllLines()
-            .TakeLast(count)
-            .Select(o => o.Length > width ? o.Substring(0, width) : o)
-            .ToArray());
+        var lastLines = await Task.Run(() =>
+        {
+            try
+            {
+                return fileInfo.ReadAllLines()
+                    .TakeLast(count)
+                    .Select(o => o.Length > width ? o.Substring(0, width) : o)
+                    .ToArray();
+            }
+            catch (IOException)
+            {
+                // File probably in use. Skip...
+                return null;
+            }
+        });
+
+        if (lastLines == null)
+        {
+            WriteLine("[File in use]");
+            return;
+        }
 
         if (lastLines.Length == count)
             lastLines[0] = "...";
