@@ -26,11 +26,15 @@ public class HighResScreen
     
     public void Plot(int x, int y, Rgb foreground)
     {
+        if (x < 0 || x >= m_screen.Width || y < 0 || y >= m_screen.Height * 2)
+            return; // Off screen.
+            
         var isTopPixel = (y & 1) == 0;
         y >>= 1;
 
-        if (m_screen.Chars[y][x].Ch != '▀')
-            m_screen.PrintAt(x, y, new Attr('▀', m_screen.Chars[y][x].Background, m_screen.Chars[y][x].Background));
+        var attr = m_screen.Chars[y][x];
+        if (attr.Ch != '▀')
+            m_screen.PrintAt(x, y, new Attr('▀', attr.Background, attr.Background));
         
         if (isTopPixel)
             m_screen.SetForeground(x, y, foreground);
