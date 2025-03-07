@@ -31,15 +31,15 @@ public class GameOfLifeCanvas : ScreensaverBase
     public GameOfLifeCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight, 15)
     {
         Name = "conway";
-        m_cells = new bool[screenWidth, screenHeight];
+        m_cells = new bool[screenWidth, screenHeight * 2];
         InitializeRandomCells();
     }
 
     private void InitializeRandomCells()
     {
-        for (var y = 0; y < Height; y++)
+        for (var y = 0; y < m_cells.GetLength(1); y++)
         {
-            for (var x = 0; x < Width; x++)
+            for (var x = 0; x < m_cells.GetLength(0); x++)
                 m_cells[x, y] = m_random.NextDouble() < 0.25; // 25% chance of a live cell
         }
     }
@@ -48,20 +48,23 @@ public class GameOfLifeCanvas : ScreensaverBase
     {
         base.BuildScreen(screen);
         
-        for (var y = 0; y < screen.Height; y++)
+        var highResScreen = new HighResScreen(screen);
+
+        for (var y = 0; y < m_cells.GetLength(1); y++)
         {
-            for (var x = 0; x < screen.Width; x++)
-                screen.PrintAt(x, y, m_cells[x, y] ? '█' : ' ');
+            for (var x = 0; x < m_cells.GetLength(0); x++)
+                if (m_cells[x, y])
+                    highResScreen.Plot(x, y, Foreground);
         }
     }
 
     public override void UpdateFrame(ScreenData screen)
     {
-        var nextGen = new bool[Width, Height];
+        var nextGen = new bool[m_cells.GetLength(0), m_cells.GetLength(1)];
         
-        for (var y = 0; y < Height; y++)
+        for (var y = 0; y < m_cells.GetLength(1); y++)
         {
-            for (var x = 0; x < Width; x++)
+            for (var x = 0; x < m_cells.GetLength(0); x++)
             {
                 var liveNeighbors = CountLiveNeighbors(x, y);
                 if (m_cells[x, y])
@@ -74,13 +77,16 @@ public class GameOfLifeCanvas : ScreensaverBase
         if (ShouldReset(nextGen))
             InitializeRandomCells();
         else
-            Array.Copy(nextGen, m_cells, Width * Height);
+            Array.Copy(nextGen, m_cells, m_cells.GetLength(0) * m_cells.GetLength(1));
 
         BuildScreen(screen);
     }
 
     private int CountLiveNeighbors(int x, int y)
     {
+        var width = m_cells.GetLength(0);
+        var height = m_cells.GetLength(1);
+
         var count = 0;
         for (var dy = -1; dy <= 1; dy++)
         {
@@ -92,13 +98,13 @@ public class GameOfLifeCanvas : ScreensaverBase
                 
                 // Wrap coordinates to screen edge.
                 if (nx < 0)
-                    nx += Width;
-                else if (nx >= Width)
-                    nx -= Width;
+                    nx += width;
+                else if (nx >= width)
+                    nx -= width;
                 if (ny < 0)
-                    ny += Height;
-                else if (ny >= Height)
-                    ny -= Height;
+                    ny += height;
+                else if (ny >= height)
+                    ny -= height;
                 
                 if (m_cells[nx, ny])
                     count++;
@@ -123,9 +129,9 @@ public class GameOfLifeCanvas : ScreensaverBase
     private int ComputeChecksum(bool[,] grid)
     {
         var sum = 0;
-        for (var y = 0; y < Height; y++)
+        for (var y = 0; y < m_cells.GetLength(1); y++)
         {
-            for (var x = 0; x < Width; x++)
+            for (var x = 0; x < m_cells.GetLength(0); x++)
                 sum = (sum * 31) + (grid[x, y] ? 1 : 0);
         }
         
