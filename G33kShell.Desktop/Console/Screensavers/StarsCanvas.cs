@@ -54,7 +54,7 @@ public class StarsCanvas : ScreensaverBase
                 z += MaxDepth;
 
             var density = 1.0 - z / MaxDepth;
-            var ch = ".,oO"[(int)density.Lerp(0.0, 3.9)];
+            var ch = ".•oO"[(int)density.Lerp(0.0, 3.9)];
             scene3D.Plot(star with { Z = z }, new Attr(ch, density.Lerp(Background, Foreground)));
         }
     }
