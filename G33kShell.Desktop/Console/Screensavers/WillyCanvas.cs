@@ -20,7 +20,7 @@ using SkiaSharp;
 namespace G33kShell.Desktop.Console.Screensavers;
 
 /// <summary>
-/// A canvas to displaying a Terminator.
+/// A canvas to displaying marching Miner Willys.
 /// </summary>
 [DebuggerDisplay("WillyCanvas:{X},{Y} {Width}x{Height}")]
 [UsedImplicitly]
@@ -44,6 +44,8 @@ public class WillyCanvas : ScreensaverBase
 
     public override void BuildScreen(ScreenData screen)
     {
+        base.BuildScreen(screen);
+        
         // Load willy image frames.
         using var willyImg = SKBitmap.Decode(Convert.FromBase64String(PngData));
         m_frameHeight = willyImg.Height / 4;
