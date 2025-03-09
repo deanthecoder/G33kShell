@@ -59,6 +59,9 @@ public class CrystalCanvas : ScreensaverBase
             var dx = m_rand.Next(3) - 1;
             var dy = m_rand.Next(3) - 1;
             
+            if (dx == 0 && dy == 0)
+                continue;
+            
             var distToCenter = (new Vector2(x + dx, y + dy) - new Vector2(m_screenWidth / 2.0f, m_screenHeight / 2.0f)).LengthSquared();
             if (distToCenter < startingDist)
                 return (dx, dy);
@@ -114,7 +117,21 @@ public class CrystalCanvas : ScreensaverBase
 
         // Start with a single seed.
         m_grid = new bool[m_screenWidth, m_screenHeight];
-        m_grid[m_screenWidth / 2, m_screenHeight / 2] = true;
-        screen.PrintAt(m_screenWidth / 2, m_screenHeight / 2, 'O');
+        InitializeSeeds(screen);
+    }
+
+    private void InitializeSeeds(ScreenData screen)
+    {
+        int numSeeds = 3; // Adjust as needed
+        for (int i = 0; i < numSeeds; i++)
+        {
+            int x = m_rand.Next(screen.Width);
+            int y = m_rand.Next(screen.Height);
+            m_grid[x, y] = true;
+            screen.PrintAt(x, y, 'O');
+        }
+        
+        m_grid[screen.Width / 2, screen.Height / 2] = true;
+        screen.PrintAt(screen.Width / 2, screen.Height / 2, 'O');
     }
 }
