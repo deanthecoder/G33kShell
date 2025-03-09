@@ -130,7 +130,7 @@ public class CrystalCanvas : ScreensaverBase
                     }
 
                     sum /= 9.0;
-                    screen.PrintAt(x, y, ".•oO"[(int)sum.Lerp(0, 3.9)]);
+                    screen.PrintAt(x, y, new Attr(".•oO"[(int)sum.Lerp(0, 3.9)], sum.Lerp(Background, Foreground)));
                 }
             }
         }
