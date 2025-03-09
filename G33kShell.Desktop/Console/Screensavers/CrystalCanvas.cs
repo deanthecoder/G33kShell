@@ -11,6 +11,7 @@
 using System;
 using System.Diagnostics;
 using System.Numerics;
+using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
 using JetBrains.Annotations;
 
@@ -23,36 +24,31 @@ namespace G33kShell.Desktop.Console.Screensavers;
 [UsedImplicitly]
 public class CrystalCanvas : ScreensaverBase
 {
-    private const int MaxCrystals = 1000;
-    private bool[,] m_grid;
-    private readonly Random m_rand = new();
-    private readonly int m_screenWidth;
-    private readonly int m_screenHeight;
+    private const int MaxCrystals = 1500;
+    private readonly Random m_rand = new Random();
     private int m_crystalCount;
 
     public CrystalCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight)
     {
         Name = "crystal";
-        m_screenWidth = screenWidth;
-        m_screenHeight = screenHeight;
     }
     
-    private (int, int) SpawnParticle()
+    private (int, int) SpawnParticle(int width, int height)
     {
         // Spawn particles near the outer edge for efficiency
         var edge = m_rand.Next(4);
         return edge switch
         {
-            0 => (m_rand.Next(m_screenWidth), 0), // Top
-            1 => (m_rand.Next(m_screenWidth), m_screenHeight - 1), // Bottom
-            2 => (0, m_rand.Next(m_screenHeight)), // Left
-            _ => (m_screenWidth - 1, m_rand.Next(m_screenHeight)) // Right
+            0 => (m_rand.Next(width), 0),          // Top
+            1 => (m_rand.Next(width), height - 1), // Bottom
+            2 => (0, m_rand.Next(height)),         // Left
+            _ => (width - 1, m_rand.Next(height))  // Right
         };
     }
     
-    private (int, int) GetPreferredDirection(int x, int y)
+    private (int, int) GetPreferredDirection(int x, int y, int width, int height)
     {
-        var startingDist = (new Vector2(x, y) - new Vector2(m_screenWidth / 2.0f, m_screenHeight / 2.0f)).LengthSquared();
+        var startingDist = (new Vector2(x, y) - new Vector2(width / 2.0f, height / 2.0f)).LengthSquared();
 
         while (true)
         {
@@ -62,7 +58,7 @@ public class CrystalCanvas : ScreensaverBase
             if (dx == 0 && dy == 0)
                 continue;
             
-            var distToCenter = (new Vector2(x + dx, y + dy) - new Vector2(m_screenWidth / 2.0f, m_screenHeight / 2.0f)).LengthSquared();
+            var distToCenter = (new Vector2(x + dx, y + dy) - new Vector2(width / 2.0f, height / 2.0f)).LengthSquared();
             if (distToCenter < startingDist)
                 return (dx, dy);
         }
@@ -70,22 +66,25 @@ public class CrystalCanvas : ScreensaverBase
     
     private void GrowCrystal(ScreenData screen)
     {
-        var (x, y) = SpawnParticle();
+        var (x, y) = SpawnParticle(screen.Width, screen.Height);
 
         while (true)
         {
-            var (dx, dy) = GetPreferredDirection(x, y);
+            var (dx, dy) = GetPreferredDirection(x, y, screen.Width, screen.Height);
             x += dx;
             y += dy;
 
-            if (x < 0 || y < 0 || x >= m_screenWidth || y >= m_screenHeight)
+            if (x < 0 || y < 0 || x >= screen.Width || y >= screen.Height)
                 return; // Particle left the screen, abandon it
 
-            if (m_grid[x, y])
+            if (screen.Chars[y][x].Ch != ' ')
             {
-                m_grid[x - dx, y - dy] = true; // Attach it to the last valid position
-                screen.PrintAt(x - dx, y - dy, 'O');
-                m_crystalCount++;
+                // Attach it to the last valid position
+                if (screen.Chars[y - dy][x - dx].Ch == ' ')
+                {
+                    screen.PrintAt(x - dx, y - dy, '.');
+                    m_crystalCount++;
+                }
                 return;
             }
         }
@@ -109,6 +108,32 @@ public class CrystalCanvas : ScreensaverBase
             screen.ClearChars();
             StartAgain(screen);
         }
+        else
+        {
+            // Update characters.
+            for (var y = 1; y < screen.Height - 1; y++)
+            {
+                for (var x = 1; x < screen.Width - 1; x++)
+                {
+                    if (screen.Chars[y][x].Ch == ' ' || screen.Chars[y][x].Ch == 'O')
+                        continue;
+                    
+                    // Count surrounding non-empty characters.
+                    var sum = 0.0;
+                    for (var dy = -1; dy <= 1; dy++)
+                    {
+                        for (var dx = -1; dx <= 1; dx++)
+                        {
+                            if (screen.Chars[y + dy][x + dx].Ch != ' ')
+                                sum++;
+                        }
+                    }
+
+                    sum /= 9.0;
+                    screen.PrintAt(x, y, ".•oO"[(int)sum.Lerp(0, 3.9)]);
+                }
+            }
+        }
     }
 
     private void StartAgain(ScreenData screen)
@@ -116,22 +141,20 @@ public class CrystalCanvas : ScreensaverBase
         m_crystalCount = 0;
 
         // Start with a single seed.
-        m_grid = new bool[m_screenWidth, m_screenHeight];
+        screen.ClearChars();
         InitializeSeeds(screen);
     }
 
     private void InitializeSeeds(ScreenData screen)
     {
-        int numSeeds = 3; // Adjust as needed
-        for (int i = 0; i < numSeeds; i++)
+        var numSeeds = 3; // Adjust as needed
+        for (var i = 0; i < numSeeds; i++)
         {
-            int x = m_rand.Next(screen.Width);
-            int y = m_rand.Next(screen.Height);
-            m_grid[x, y] = true;
-            screen.PrintAt(x, y, 'O');
+            var x = m_rand.Next(screen.Width);
+            var y = m_rand.Next(screen.Height);
+            screen.PrintAt(x, y, '.');
         }
         
-        m_grid[screen.Width / 2, screen.Height / 2] = true;
-        screen.PrintAt(screen.Width / 2, screen.Height / 2, 'O');
+        screen.PrintAt(screen.Width / 2, screen.Height / 2, '.');
     }
 }
