@@ -36,9 +36,6 @@ public abstract class ScreensaverBase : AnimatedCanvas, IScreensaver
             BuildScreen(screen);
     }
 
-    public virtual void BuildScreen(ScreenData screen)
-    {
-        screen.ClearChars();
-        screen.ClearColor(Foreground, Background);
-    }
+    public virtual void BuildScreen(ScreenData screen) =>
+        screen.Clear(Foreground, Background);
 }

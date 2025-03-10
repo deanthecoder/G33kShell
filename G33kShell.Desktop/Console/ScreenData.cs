@@ -95,6 +95,22 @@ public class ScreenData
         }
     }
 
+    public void Clear(Rgb foreground, Rgb background)
+    {
+        var height = Height;
+        var width = Width;
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                Chars[y][x] = new Attr
+                {
+                    Foreground = foreground, Background = background
+                };
+            }
+        }
+    }
+
     public void CopyTo(ScreenData target, int xOffset, int yOffset)
     {
         if (target == this)

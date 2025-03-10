@@ -67,8 +67,7 @@ public class WillyCanvas : ScreensaverBase
 
     public override void UpdateFrame(ScreenData screen)
     {
-        screen.ClearChars();
-        screen.ClearColor(Foreground, Background);
+        screen.Clear(Foreground, Background);
         var highResScreen = new HighResScreen(screen);
 
         // Remove any dead Willys.

@@ -84,8 +84,7 @@ public class ScrollerCanvas : ScreensaverBase
 
     public override void UpdateFrame(ScreenData screen)
     {
-        screen.ClearChars();
-        screen.ClearColor(Foreground, Background);
+        screen.Clear(Foreground, Background);
         var highResScreen = new HighResScreen(screen);
 
         for (var y = 0; y < screen.Height; y++)

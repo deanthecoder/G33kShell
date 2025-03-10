@@ -9,8 +9,9 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
-using System.Numerics;
+using System.Linq;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
 using JetBrains.Annotations;
@@ -25,7 +26,9 @@ namespace G33kShell.Desktop.Console.Screensavers;
 public class CrystalCanvas : ScreensaverBase
 {
     private const int MaxCrystals = 1500;
-    private readonly Random m_rand = new Random();
+    private static readonly Random Rand = new Random();
+    private readonly List<Particle> m_particles = [];
+    private char[,] m_crystal;
     private int m_crystalCount;
 
     public CrystalCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight)
@@ -33,89 +36,70 @@ public class CrystalCanvas : ScreensaverBase
         Name = "crystal";
     }
     
-    private (int, int) SpawnParticle(int width, int height)
-    {
-        // Spawn particles near the outer edge for efficiency
-        var edge = m_rand.Next(4);
-        return edge switch
-        {
-            0 => (m_rand.Next(width), 0),          // Top
-            1 => (m_rand.Next(width), height - 1), // Bottom
-            2 => (0, m_rand.Next(height)),         // Left
-            _ => (width - 1, m_rand.Next(height))  // Right
-        };
-    }
-    
-    private (int, int) GetPreferredDirection(int x, int y, int width, int height)
-    {
-        var startingDist = (new Vector2(x, y) - new Vector2(width / 2.0f, height / 2.0f)).LengthSquared();
-
-        while (true)
-        {
-            var dx = m_rand.Next(3) - 1;
-            var dy = m_rand.Next(3) - 1;
-            
-            if (dx == 0 && dy == 0)
-                continue;
-            
-            var distToCenter = (new Vector2(x + dx, y + dy) - new Vector2(width / 2.0f, height / 2.0f)).LengthSquared();
-            if (distToCenter < startingDist)
-                return (dx, dy);
-        }
-    }
-    
-    private void GrowCrystal(ScreenData screen)
-    {
-        var (x, y) = SpawnParticle(screen.Width, screen.Height);
-
-        while (true)
-        {
-            var (dx, dy) = GetPreferredDirection(x, y, screen.Width, screen.Height);
-            x += dx;
-            y += dy;
-
-            if (x < 0 || y < 0 || x >= screen.Width || y >= screen.Height)
-                return; // Particle left the screen, abandon it
-
-            if (screen.Chars[y][x].Ch != ' ')
-            {
-                // Attach it to the last valid position
-                if (screen.Chars[y - dy][x - dx].Ch == ' ')
-                {
-                    screen.PrintAt(x - dx, y - dy, '.');
-                    m_crystalCount++;
-                }
-                return;
-            }
-        }
-    }
-    
     public override void BuildScreen(ScreenData screen)
     {
         base.BuildScreen(screen);
-        
+
         StartAgain(screen);
     }
     
     public override void UpdateFrame(ScreenData screen)
     {
+        while (m_particles.Count < 8)
+            m_particles.Add(new Particle(screen));
+        
         // Grow a few particles per frame.
-        for (var i = 0; i < 5; i++)
-            GrowCrystal(screen);
+        for (var i = 0; i < 10; i++)
+        {
+            // Move the particle.
+            foreach (var particle in m_particles)
+                particle.Move(m_crystal);
+
+            // Remove particles that have hit the edge.
+            var stuckParticles = m_particles.Where(o => o.IsStuck).ToArray();
+            m_crystalCount += stuckParticles.Length;
+            foreach (var particle in stuckParticles)
+            {
+                m_crystal[particle.X, particle.Y] = '.';
+                m_particles.Remove(particle);
+            }
+        }
 
         if (m_crystalCount >= MaxCrystals)
         {
-            screen.ClearChars();
             StartAgain(screen);
         }
         else
         {
-            // Update characters.
-            for (var y = 1; y < screen.Height - 1; y++)
+            var height = screen.Height;
+            var width = screen.Width;
+
+            // Draw the crystal.
+            screen.Clear(Foreground, Background);
+            for (var y = 0; y < height; y++)
             {
-                for (var x = 1; x < screen.Width - 1; x++)
+                for (var x = 0; x < width; x++)
                 {
-                    if (screen.Chars[y][x].Ch == ' ' || screen.Chars[y][x].Ch == 'O')
+                    if (m_crystal[x, y] != 0)
+                    {
+                        screen.PrintAt(x, y, m_crystal[x, y]);
+                        
+                        var f = (".•oO".IndexOf(m_crystal[x, y]) / 3.0).Lerp(0.25, 1.0);
+                        screen.SetForeground(x, y, f.Lerp(Background, Foreground));
+                    }
+                }
+            }
+            
+            // Draw the particles.
+            foreach (var particle in m_particles)
+                screen.PrintAt(particle.X, particle.Y, '•');
+
+            // Update characters.
+            for (var y = 1; y < height - 1; y++)
+            {
+                for (var x = 1; x < width - 1; x++)
+                {
+                    if (m_crystal[x, y] == 0 || m_crystal[x, y] == 'O')
                         continue;
                     
                     // Count surrounding non-empty characters.
@@ -124,13 +108,13 @@ public class CrystalCanvas : ScreensaverBase
                     {
                         for (var dx = -1; dx <= 1; dx++)
                         {
-                            if (screen.Chars[y + dy][x + dx].Ch != ' ')
+                            if (m_crystal[x + dx, y + dy] != 0)
                                 sum++;
                         }
                     }
-
+            
                     sum /= 9.0;
-                    screen.PrintAt(x, y, new Attr(".•oO"[(int)sum.Lerp(0, 3.9)], sum.Lerp(Background, Foreground)));
+                    m_crystal[x, y] = ".•oO"[(int)sum.Lerp(0.0, 3.9)];
                 }
             }
         }
@@ -138,23 +122,76 @@ public class CrystalCanvas : ScreensaverBase
 
     private void StartAgain(ScreenData screen)
     {
-        m_crystalCount = 0;
-
         // Start with a single seed.
-        screen.ClearChars();
-        InitializeSeeds(screen);
+        m_crystal = new char[screen.Width, screen.Height];
+        m_crystal[screen.Width / 2, screen.Height / 2] = 'O';
+        m_crystalCount = 1;
+        
+        screen.Clear(Foreground, Background);
     }
 
-    private void InitializeSeeds(ScreenData screen)
+    private class Particle
     {
-        var numSeeds = 3; // Adjust as needed
-        for (var i = 0; i < numSeeds; i++)
-        {
-            var x = m_rand.Next(screen.Width);
-            var y = m_rand.Next(screen.Height);
-            screen.PrintAt(x, y, '.');
-        }
+        private readonly ScreenData m_screen;
         
-        screen.PrintAt(screen.Width / 2, screen.Height / 2, '.');
+        public int X { get; private set; }
+        public int Y { get; private set; }
+        public bool IsStuck { get; private set; }
+
+        public Particle(ScreenData screen)
+        {
+            m_screen = screen;
+            
+            var (x, y) = Spawn();
+            X = x;
+            Y = y;
+        }
+
+        private (int, int) Spawn()
+        {
+            // Spawn particles near the outer edge for efficiency
+            var edge = Rand.Next(4);
+            return edge switch
+            {
+                0 => (Rand.Next(m_screen.Width), 0),                   // Top
+                1 => (Rand.Next(m_screen.Width), m_screen.Height - 1), // Bottom
+                2 => (0, Rand.Next(m_screen.Height)),                  // Left
+                _ => (m_screen.Width - 1, Rand.Next(m_screen.Height))  // Right
+            };
+        }
+
+        private (int dx, int dy) GetPreferredDirection()
+        {
+            // Random direction.
+            var dx = Rand.NextDouble() * 2.0 - 1.0;
+            var dy = Rand.NextDouble() * 2.0 - 1.0;
+
+            // ...with a very slight bias towards the center.
+            dx += (m_screen.Width / 2.0 - X) / (m_screen.Width / 2.0) * 0.15;
+            dy += (m_screen.Height / 2.0 - Y) / (m_screen.Height / 2.0) * 0.1;
+            
+            var idx = (int)Math.Round(dx);
+            var idy = (int)Math.Round(dy);
+
+            // Trap to the edges.
+            if (X + idx < 0 || X + idx >= m_screen.Width)
+                idx = -idx;
+            if (Y + idy < 0 || Y + idy >= m_screen.Height)
+                idy = -idy;
+
+            return (idx, idy);
+        }
+
+        public void Move(char[,] crystal)
+        {
+            // See if we're about to hit something.
+            var dir = GetPreferredDirection();
+            IsStuck = crystal[X + dir.dx, Y + dir.dy] != 0;
+            if (IsStuck)
+                return;
+            
+            X += dir.dx;
+            Y += dir.dy;
+        }
     }
 }

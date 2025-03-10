@@ -28,9 +28,6 @@ public class SceneBackground
         Foreground = foreground ?? throw new ArgumentNullException(nameof(foreground));
     }
     
-    public virtual void Clear(ScreenData screen, double time)
-    {
-        screen.ClearChars();
-        screen.ClearColor(Foreground, Background);
-    }
+    public virtual void Clear(ScreenData screen, double time) =>
+        screen.Clear(Foreground, Background);
 }
