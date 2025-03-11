@@ -114,7 +114,7 @@ public class CrystalCanvas : ScreensaverBase
                     }
             
                     sum /= 9.0;
-                    m_crystal[x, y] = ".•oO"[(int)sum.Lerp(0.0, 3.9)];
+                    m_crystal[x, y] = "..•oO"[(int)sum.Lerp(0.0, 4.9)];
                 }
             }
         }
