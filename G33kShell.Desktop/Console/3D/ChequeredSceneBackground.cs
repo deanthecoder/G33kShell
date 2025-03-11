@@ -31,20 +31,21 @@ public class ChequeredSceneBackground : SceneBackground
     {
         base.Clear(screen, time);
 
+        var highResScreen = new HighResScreen(screen);
+
+        var sizeX = (int)(screen.Width / 8.0);
         var darkColor = m_colorDensity.Lerp(Background, Foreground);
-        for (var y = 0; y < screen.Height; y++)
+        for (var y = 0; y < screen.Height * 2; y++)
         {
             for (var x = 0; x < screen.Width; x++)
             {
                 var xx = (int)(100.0 + x + Math.Sin(3.0 * time) * 5.0);
                 var yy = (int)(100.0 + y + (time + 0.5) * 8.0);
 
-                var sizeX = (int)(screen.Width / 8.0);
-                var sizeY = (int)(sizeX / 2.0);
                 var isOnX = ((xx / sizeX) & 1) == 0;
-                var isOnY = ((yy / sizeY) & 1) == 1;
+                var isOnY = ((yy / sizeX) & 1) == 1;
                 if (isOnX ^ isOnY)
-                    screen.SetBackground(x, y, darkColor);
+                    highResScreen.Plot(x, y, darkColor);
             }
         }
     }
