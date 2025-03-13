@@ -11,6 +11,9 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
+using System.Numerics;
+using CSharp.Core;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
 using JetBrains.Annotations;
@@ -24,7 +27,7 @@ namespace G33kShell.Desktop.Console.Screensavers;
 [UsedImplicitly]
 public class BoidsCanvas : ScreensaverBase
 {
-    private const int MaxBoids = 25;
+    private const int MaxBoids = 80;
     private readonly Random m_rand = new Random();
     private readonly List<Boid> m_boids = [];
 
@@ -39,12 +42,7 @@ public class BoidsCanvas : ScreensaverBase
 
         m_boids.Clear();
         while (m_boids.Count < MaxBoids)
-        {
-            var newBoid = new Boid(m_rand.Next(0, screen.Width), m_rand.Next(0, screen.Height), m_rand.NextDouble() * 2.0 - 1.0, m_rand.NextDouble() * 2.0 - 1.0, m_rand.NextDouble().Lerp(0.7, 1.0));
-            m_boids.Add(newBoid);
-        }
-        
-        m_boids[0].IgnoreCohesion = true;
+            m_boids.Add(new Boid(m_rand.Next(0, screen.Width), m_rand.Next(0, screen.Height), m_rand));
     }
     
     public override void UpdateFrame(ScreenData screen)
@@ -52,182 +50,128 @@ public class BoidsCanvas : ScreensaverBase
         screen.Clear(Foreground, Background);
 
         foreach (var boid in m_boids)
-        {
-            boid.MaintainSeparation(m_boids);
-            boid.MaintainAlignment(m_boids);
-            boid.MaintainCohesion(m_boids);
-            boid.Move();
-        }
+            boid.Move(m_boids);
         
         foreach (var boid in m_boids)
-            boid.Draw(screen);
+            boid.Draw(screen, Foreground, Background);
     }
     
+    [DebuggerDisplay("{m_position}")]
     private class Boid
     {
-        private double m_maxSpeed = 0.10;
-        private const double MinSpeed = 0.07;
-        private const double DivertSpeed = 0.05;
-        private const double TargetSeparation = 3.0; // Ideal gap between boids.
-        private const double AttractionDist = 20.0;  // Boids within this distance align velocity.
+        private const float MaxSpeed = 0.7f;
+        private const float TargetSeparation = 5.0f; // Ideal gap between boids.
+        private const float AttentionRadius = 20.0f; // Boids within this distance affect each other.
+        private const float SeparationFactor = 2.0f;
+        private const float AlignmentFactor = 0.05f;
+        private const float CohesionFactor = 0.04f;
+        private readonly char[] m_symbols = [ '►', '◄', '▲', '►', '◄', '►', '▼', '◄' ];
+        private Vector2 m_position;
+        private Vector2 m_velocity;
+        private double m_bright;
+
+        public Boid(double x, double y, Random random)
+        {
+            m_position = new Vector2((float)x, (float)y);
+
+            // Set velocity to a random direction.
+            var angle = (float)(random.NextDouble() * Math.PI * 2.0);
+            m_velocity = new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * MaxSpeed;
+        }
         
-        public double X { get; private set; }
-        public double Y { get; private set; }
-        public double Vx { get; private set; }
-        public double Vy { get; private set; }
-        public bool IgnoreCohesion { get; set; }
-
-        public Boid(double x, double y, double vx, double vy, double speedTweak)
+        private static Vector2 MaintainAlignment(Boid[] boids)
         {
-            var v = Math.Sqrt(vx * vx + vy * vy);
-            vx *= m_maxSpeed * speedTweak / v;
-            vy *= m_maxSpeed * speedTweak / v;
+            if (boids.Length == 0)
+                return Vector2.Zero;
+            
+            // Find the average velocity.
+            var acceleration = Vector2.Zero;
+            foreach (var boid in boids)
+                acceleration += boid.m_velocity;
+            acceleration /= boids.Length;
 
-            X = x;
-            Y = y;
-            Vx = vx;
-            Vy = vy;
+            return acceleration * 0.2f;
         }
 
-        public void MaintainSeparation(List<Boid> boids)
+        private Vector2 MaintainCohesion(Boid[] boids)
         {
-            var dx = 0.0;
-            var dy = 0.0;
-            var count = 0;
+            if (boids.Length == 0)
+                return Vector2.Zero;
+            
+            // Find the center of mass.
+            var acceleration = Vector2.Zero;
+            foreach (var boid in boids)
+                acceleration += boid.m_position - m_position;
+            acceleration /= boids.Length;
+            
+            return acceleration * 0.2f;
+        }
 
-            // Don't let boid get too close to any other.
-            foreach (var other in boids)
+        private Vector2 MaintainSeparation(Boid[] boids)
+        {
+            if (boids.Length == 0)
+                return Vector2.Zero;
+            
+            var acceleration = Vector2.Zero;
+            foreach (var boid in boids)
             {
-                if (other == this)
+                var dir = m_position - boid.m_position;
+                var dist = dir.LengthSquared();
+                if (dist < 0.01 || dist > TargetSeparation * TargetSeparation)
                     continue;
 
-                var dx2 = X - other.X;
-                var dy2 = Y - other.Y;
-                var dist = Math.Sqrt(dx2 * dx2 + dy2 * dy2);
-
-                if (dist < TargetSeparation)
-                {
-                    dx += dx2;
-                    dy += dy2;
-                    count++;
-                }
+                acceleration += Vector2.Normalize(dir) * (TargetSeparation / (dist + 0.1f));
             }
+            acceleration /= boids.Length;
             
-            // Nudge it away.
-            if (count > 0)
-            {
-                Vx += dx / count * DivertSpeed;
-                Vy += dy / count * DivertSpeed;
-            }
+            return acceleration;
         }
 
-        public void MaintainAlignment(List<Boid> boids)
+        public void Move(List<Boid> allBoids)
         {
-            var avgVx = 0.0;
-            var avgVy = 0.0;
-            var count = 0;
+            const float attentionRadius2 = AttentionRadius * AttentionRadius;
+            var boids =
+                allBoids
+                    .Where(o => Vector2.DistanceSquared(o.m_position, m_position) < attentionRadius2 && o != this)
+                    .ToArray();
+            m_bright = ((double)boids.Length / MaxBoids).Clamp(0.0, 1.0).Lerp(0.2, 1.0); 
+            var acceleration =
+                MaintainSeparation(boids) * SeparationFactor +
+                MaintainAlignment(boids) * AlignmentFactor +
+                MaintainCohesion(boids) * CohesionFactor;
             
-            // Don't let boid get too close to any other.
-            foreach (var other in boids)
-            {
-                if (other == this)
-                    continue;
-                
-                if (DistanceToBoid(other) < AttractionDist)
-                {
-                    avgVx += other.Vx;
-                    avgVy += other.Vy;
-                    count++;
-                }
-            }
+            m_velocity += acceleration;
+            if (m_velocity.Length() > MaxSpeed)
+                m_velocity = Vector2.Normalize(m_velocity) * MaxSpeed;
             
-            // Align velocities.
-            if (count > 0)
-            {
-                avgVx /= count;
-                avgVy /= count;
-                
-                var l = Math.Sqrt(avgVx * avgVx + avgVy * avgVy);
-                if (l > 0)
-                {
-                    avgVx /= l;
-                    avgVy /= l;
-                    Vx += (avgVx - Vx) * 0.02;
-                    Vy += (avgVy - Vy) * 0.02;
-                }
-            }
+            m_position += m_velocity;
         }
 
-        public void MaintainCohesion(List<Boid> boids)
+        private int GetDirection()
         {
-            var centerX = 0.0;
-            var centerY = 0.0;
-            var count = 0;
+            var angle = MathF.Atan2(-m_velocity.Y, m_velocity.X);
+
+            // Normalize angle to [0, 2π]
+            var normalizedAngle = (angle + MathF.PI * 2) % (MathF.PI * 2);
+
+            // Convert to an index (0 to 7)
+            return (int)(normalizedAngle / (MathF.PI / 4));
+        }
+
+        public void Draw(ScreenData screen, Rgb foreground, Rgb background)
+        {
+            // Wrap boid position on screen.
+            while (m_position.X < 0)
+                m_position.X += screen.Width;
+            m_position.X %= screen.Width;
             
-            // Move towards center of mass.
-            foreach (var other in boids)
-            {
-                if (other == this)
-                    continue;
+            while (m_position.Y < 0)
+                m_position.Y += screen.Height;
+            m_position.Y %= screen.Height;
 
-                if (DistanceToBoid(other) < AttractionDist)
-                {
-                    centerX += other.X;
-                    centerY += other.Y;
-                    count++;
-                }
-            }
-
-            if (count > 0)
-            {
-                centerX /= count;
-                centerY /= count;
-
-                var dx = centerX - X;
-                var dy = centerY - Y;
-                var l = Math.Sqrt(dx * dx + dy * dy);
-                if (l > 0)
-                {
-                    dx /= l;
-                    dy /= l;
-                    
-                    var cohesion = IgnoreCohesion ? 0.005 : 0.02;
-                    Vx += dx * cohesion;
-                    Vy += dy * cohesion;
-                }
-            }
+            var dirIndex = GetDirection();
+            screen.PrintAt((int)m_position.X, (int)m_position.Y, m_symbols[dirIndex]);
+            screen.SetForeground((int)m_position.X, (int)m_position.Y, m_bright.Lerp(background, foreground));
         }
-
-        public void Move()
-        {
-            X += Vx;
-            Y += Vy;
-
-            var speed = Math.Sqrt(Vx * Vx + Vy * Vy);
-            if (speed > MinSpeed)
-            {
-                Vx *= 0.95;
-                Vy *= 0.95;
-            }
-        }
-
-        public void Draw(ScreenData screen)
-        {
-            X = (X + screen.Width) % screen.Width;
-            Y = (Y + screen.Height) % screen.Height;
-
-            // Detect prominent north/south/east/west direction.
-            var dx = Math.Sign(Vx);
-            var ch = "◄ ►"[dx + 1];
-
-            var dy = Math.Sign(Vy);
-            if (Math.Abs(Vy) > Math.Abs(Vx))
-                ch = "▲ ▼"[dy + 1];
-
-            screen.PrintAt((int)X, (int)Y, ch);
-        }
-
-        private double DistanceToBoid(Boid other) =>
-            Math.Sqrt(Math.Pow(other.X - X, 2.0) + Math.Pow(other.Y - Y, 2.0));
     }
 }
