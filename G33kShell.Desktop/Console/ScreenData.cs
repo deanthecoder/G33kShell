@@ -111,6 +111,22 @@ public class ScreenData
         }
     }
 
+    public void Clear(int x, int y, int w, int h, Rgb foreground, Rgb background)
+    {
+        for (var i = y; i < y + h; i++)
+        {
+            for (var j = x; j < x + w; j++)
+            {
+                if (!IsWithinBounds(j, i))
+                    continue;
+                Chars[i][j] = new Attr
+                {
+                    Foreground = foreground, Background = background
+                };
+            }
+        }
+    }
+
     public void CopyTo(ScreenData target, int xOffset, int yOffset)
     {
         if (target == this)
@@ -140,6 +156,12 @@ public class ScreenData
             Chars[y][x].Set(ch);
     }
 
+    public void PrintAt(int x, int y, string s, Rgb foreground)
+    {
+        PrintAt(x, y, s);
+        for (var i = x; i < x + s.Length; i++)
+            SetForeground(i, y, foreground);
+    }
     
     public void PrintAt(int x, int y, string s)
     {

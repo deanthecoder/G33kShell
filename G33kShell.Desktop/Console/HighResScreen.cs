@@ -116,4 +116,13 @@ public class HighResScreen
             return ((double)brightness).Lerp(background, foreground);
         }
     }
+
+    public void DrawFilledBox(int x, int y, int w, int h, Rgb color)
+    {
+        for (var i = 0; i < h; i++)
+        {
+            for (var j = 0; j < w; j++)
+                Plot(x + j, y + i, color);
+        }
+    }
 }
