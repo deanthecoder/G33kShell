@@ -43,21 +43,16 @@ public class SnakeCanvas : ScreensaverBase
     private int m_iteration = 1;
     private int m_highScore;
     private int m_score;
-    private int m_movesSinceLastFood;
 
     private readonly Dictionary<GameState, Dictionary<Direction, double>> m_qTable = new();
-    private double m_learningRate = 0.025;
+    private double m_learningRate = 0.01;
     private double m_discountFactor = 0.95;
     private double m_explorationRate = 1.0;              // Start with 100% exploration.
     private readonly double m_minExplorationRate = 0.01; // Lower bound for exploration.
-    private double m_explorationDecayRate = 0.999;       // Decay factor per move.
-    private double m_hitPenalty = -50.0;
-    private double m_proximityPenalty = -2.0;
+    private double m_explorationDecayRate = 0.995;       // Decay factor per move.
+    private double m_hitPenalty = -20.0;
     private double m_eatFoodBonus = 10.0;
     private double m_approachFoodBonus = 5.0;
-    private double m_survivalBonus = 0.1;
-    private int m_longMovePenaltySnakeMultiplier = 50;
-    private double m_longMovePenalty = 1;
 
     public SnakeCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight, 45)
     {
@@ -68,56 +63,60 @@ public class SnakeCanvas : ScreensaverBase
     {
         base.BuildScreen(screen);
         ResetGame(screen.Width, screen.Height); 
-        // PreLearn(30, 50);
+        // PreLearn(16, 16);
     }
 
     // ReSharper disable once UnusedMember.Local
     private void PreLearn(int screenWidth, int screenHeight)
     {
         // Iterate through all combinations.
-        var results = new List<(double learningRate, double discountFactor, double explorationDecayRate, int score, double survivalBonus, int longMovePenaltySnakeMultiplier, double longMovePenalty, double hitPenalty, double proximityPenalty, double eatFoodBonus, double approachFoodBonus)>();
-        foreach (var longMovePenaltySnakeMultiplier in new[] { m_longMovePenaltySnakeMultiplier })
-        foreach (var longMovePenalty in new[] { m_longMovePenalty })
+        var results = new List<(double learningRate, double discountFactor, double explorationDecayRate, int score, int moves, double hitPenalty, double eatFoodBonus, double approachFoodBonus)>();
         foreach (var approachFoodBonus in new[] { m_approachFoodBonus })
         foreach (var eatFoodBonus in new[] { m_eatFoodBonus })
-        foreach (var survivalBonus in new[] { m_survivalBonus })
         foreach (var learningRate in new[] { m_learningRate })
         foreach (var discountFactor in new[] { m_discountFactor })
         foreach (var explorationDecayRate in new[] { m_explorationDecayRate })
         foreach (var hitPenalty in new[] { m_hitPenalty })
-        foreach (var proximityPenalty in new[] { m_proximityPenalty })
         {
-            m_learningRate = learningRate;
-            m_discountFactor = discountFactor;
-            m_explorationDecayRate = explorationDecayRate;
-            ResetGame(screenWidth, screenHeight);
-            m_highScore = 0;
-            m_iteration = 1;
-            m_qTable.Clear();
-            m_hitPenalty = hitPenalty;
-            m_proximityPenalty = proximityPenalty;
-            m_eatFoodBonus = eatFoodBonus;
-            m_approachFoodBonus = approachFoodBonus;
-            m_survivalBonus = survivalBonus;
-            m_longMovePenaltySnakeMultiplier = longMovePenaltySnakeMultiplier;
-            m_longMovePenalty = longMovePenalty;
-                    
             // Learn.
-            var high = int.MinValue;
-            var completed = 0;
-            var iterations = 1000;
-            while (m_highScore > high)
+            var highSum = 0;
+            var movesSum = 0;
+            var attempts = 6;
+            for (var attempt = 0; attempt < attempts; attempt++)
             {
-                high = m_highScore;
-                while (m_iteration - completed < iterations)
-                    Learn(screenWidth, screenHeight);
-                completed += iterations;
-                iterations *= 2;
+                m_learningRate = learningRate;
+                m_discountFactor = discountFactor;
+                m_explorationDecayRate = explorationDecayRate;
+                m_hitPenalty = hitPenalty;
+                m_eatFoodBonus = eatFoodBonus;
+                m_approachFoodBonus = approachFoodBonus;
+                
+                ResetGame(screenWidth, screenHeight);
+                m_highScore = 0;
+                m_iteration = 1;
+                m_qTable.Clear();
+
+                var high = int.MinValue;
+                var completed = 0.0;
+                var iterations = 1000.0;
+                while (m_highScore > high)
+                {
+                    high = m_highScore;
+                    while (m_iteration - completed < iterations)
+                        Learn(screenWidth, screenHeight);
+                    completed += iterations;
+                    iterations *= 1.5;
+                }
+                highSum += m_highScore;
+                movesSum += (int)iterations;
+
+                // Write the high score for these params.
+                System.Console.WriteLine(
+                    $"Score:{m_highScore},LearningRate:{learningRate},DiscountFactor:{discountFactor},ExplorationDecayRate:{explorationDecayRate},HitPenalty:{hitPenalty},EatFoodBonus:{eatFoodBonus},ApproachFoodBonus:{approachFoodBonus}");
+
             }
-                    
-            // Write the high score for these params.
-            System.Console.Write('.');
-            results.Add((learningRate, m_discountFactor, m_explorationDecayRate, m_highScore, m_survivalBonus, m_longMovePenaltySnakeMultiplier, m_longMovePenalty, m_hitPenalty, m_proximityPenalty, m_eatFoodBonus, m_approachFoodBonus));
+            
+            results.Add((learningRate, m_discountFactor, m_explorationDecayRate, highSum / attempts, movesSum / attempts, m_hitPenalty, m_eatFoodBonus, m_approachFoodBonus));
         }
         
         System.Console.WriteLine("\nFinal results:");
@@ -125,7 +124,7 @@ public class SnakeCanvas : ScreensaverBase
         foreach (var result in results)
         {
             // Write out results (one per line) starting with score (E.g. Score:12,LearningRate:0.5,...).
-            System.Console.WriteLine($"Score:{result.score},LearningRate:{result.learningRate},DiscountFactor:{result.discountFactor},ExplorationDecayRate:{result.explorationDecayRate},SurvivalBonus:{result.survivalBonus},LongMovePenaltySnakeMultiplier:{result.longMovePenaltySnakeMultiplier},LongMovePenalty:{result.longMovePenalty},HitPenalty:{result.hitPenalty},ProximityPenalty:{result.proximityPenalty},EatFoodBonus:{result.eatFoodBonus},ApproachFoodBonus:{result.approachFoodBonus}");
+            System.Console.WriteLine($"Score:{result.score},MovesPerScore:{result.moves / (double)result.score:F1},LearningRate:{result.learningRate},DiscountFactor:{result.discountFactor},ExplorationDecayRate:{result.explorationDecayRate},HitPenalty:{result.hitPenalty},EatFoodBonus:{result.eatFoodBonus},ApproachFoodBonus:{result.approachFoodBonus}");
         }
     }
 
@@ -136,7 +135,6 @@ public class SnakeCanvas : ScreensaverBase
         m_snakeDirection = Direction.Left;
         m_snakeLength = 5;
         m_score = 0;
-        m_movesSinceLastFood = 0;
         SpawnFood(screenWidth, screenHeight);
 
         m_snakeSegments.Clear();
@@ -161,7 +159,6 @@ public class SnakeCanvas : ScreensaverBase
         m_snakeDirection = ChooseMove(oldState);
 
         // Move the snake's head.
-        m_movesSinceLastFood++;
         switch (m_snakeDirection)
         {
             case Direction.Left:
@@ -209,7 +206,6 @@ public class SnakeCanvas : ScreensaverBase
             m_score++;
             m_highScore = Math.Max(m_highScore, m_score);
             m_snakeLength += 5;
-            m_movesSinceLastFood = 0;
             SpawnFood(screenWidth, screenHeight);
         }
     }
@@ -353,32 +349,23 @@ public class SnakeCanvas : ScreensaverBase
 
     private double CalculateReward(GameState state, int oldDistance)
     {
-        var newDistance = ManhattanDistance(m_snakeX, m_snakeY, m_foodX, m_foodY);
-        
-        // Small survival bonus to encourage safe moves.
-        var reward = m_survivalBonus;
+        var reward = 0.0;
 
         // Heavy penalty if moving into immediate danger.
         if (state.DangerStraight)
+        {
             reward += m_hitPenalty;
+            return reward; // No point adding more points. You be dead.
+        }
         
-        // Moderate penalty for danger on the sides.
-        if (state.DangerLeft || state.DangerRight)
-            reward += m_proximityPenalty;
-
         // Boosted reward for eating food.
         if (m_snakeX == m_foodX && m_snakeY == m_foodY)
             reward += m_eatFoodBonus;
 
         // Bonus for moving toward the food.
-        var movedTowardFood = oldDistance > newDistance;
-        if (movedTowardFood)
+        var newDistance = ManhattanDistance(m_snakeX, m_snakeY, m_foodX, m_foodY);
+        if (newDistance < oldDistance)
             reward += m_approachFoodBonus;
-
-        // Add a penalty if too many moves have passed without food.
-        var threshold = m_longMovePenaltySnakeMultiplier * m_snakeLength;
-        if (m_movesSinceLastFood > threshold)
-            reward -= m_longMovePenalty * (m_movesSinceLastFood - threshold);
 
         return reward;
     }
