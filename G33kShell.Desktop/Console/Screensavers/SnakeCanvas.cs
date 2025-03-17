@@ -47,12 +47,15 @@ public class SnakeCanvas : ScreensaverBase
     private readonly Dictionary<GameState, Dictionary<Direction, double>> m_qTable = new();
     private double m_learningRate = 0.01;
     private double m_discountFactor = 0.95;
-    private double m_explorationRate = 1.0;              // Start with 100% exploration.
-    private readonly double m_minExplorationRate = 0.01; // Lower bound for exploration.
-    private double m_explorationDecayRate = 0.995;       // Decay factor per move.
+    private double m_explorationRate = 1.0;        // Start with 100% exploration.
+    private double m_minExplorationRate = 0.01;    // Lower bound for exploration.
+    private double m_explorationDecayRate = 0.995; // Decay factor per move.
     private double m_hitPenalty = -20.0;
     private double m_eatFoodBonus = 10.0;
     private double m_approachFoodBonus = 5.0;
+
+    [UsedImplicitly]
+    public bool DebugMode { get; set; }
 
     public SnakeCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight, 45)
     {
@@ -62,31 +65,35 @@ public class SnakeCanvas : ScreensaverBase
     public override void BuildScreen(ScreenData screen)
     {
         base.BuildScreen(screen);
-        ResetGame(screen.Width, screen.Height); 
-        // PreLearn(16, 16);
+        ResetGame(screen.Width, screen.Height);
+
+        //DebugMode = true;
+        if (DebugMode)
+            PreLearn(16, 16);
     }
 
     // ReSharper disable once UnusedMember.Local
     private void PreLearn(int screenWidth, int screenHeight)
     {
         // Iterate through all combinations.
-        var results = new List<(double learningRate, double discountFactor, double explorationDecayRate, int score, int moves, double hitPenalty, double eatFoodBonus, double approachFoodBonus)>();
+        var results = new List<(double learningRate, double discountFactor, double explorationDecayRate, double minExplorationRate, int score, double hitPenalty, double eatFoodBonus, double approachFoodBonus)>();
         foreach (var approachFoodBonus in new[] { m_approachFoodBonus })
         foreach (var eatFoodBonus in new[] { m_eatFoodBonus })
         foreach (var learningRate in new[] { m_learningRate })
         foreach (var discountFactor in new[] { m_discountFactor })
         foreach (var explorationDecayRate in new[] { m_explorationDecayRate })
+        foreach (var minExplorationRate in new[] { m_minExplorationRate })
         foreach (var hitPenalty in new[] { m_hitPenalty })
         {
             // Learn.
             var highSum = 0;
-            var movesSum = 0;
-            var attempts = 6;
+            const int attempts = 1;
             for (var attempt = 0; attempt < attempts; attempt++)
             {
                 m_learningRate = learningRate;
                 m_discountFactor = discountFactor;
                 m_explorationDecayRate = explorationDecayRate;
+                m_minExplorationRate = minExplorationRate;
                 m_hitPenalty = hitPenalty;
                 m_eatFoodBonus = eatFoodBonus;
                 m_approachFoodBonus = approachFoodBonus;
@@ -108,15 +115,14 @@ public class SnakeCanvas : ScreensaverBase
                     iterations *= 1.5;
                 }
                 highSum += m_highScore;
-                movesSum += (int)iterations;
 
                 // Write the high score for these params.
                 System.Console.WriteLine(
-                    $"Score:{m_highScore},LearningRate:{learningRate},DiscountFactor:{discountFactor},ExplorationDecayRate:{explorationDecayRate},HitPenalty:{hitPenalty},EatFoodBonus:{eatFoodBonus},ApproachFoodBonus:{approachFoodBonus}");
+                    $"Score:{m_highScore},LearningRate:{learningRate},DiscountFactor:{discountFactor},ExplorationDecayRate:{explorationDecayRate},MinExplorationRate:{minExplorationRate},HitPenalty:{hitPenalty},EatFoodBonus:{eatFoodBonus},ApproachFoodBonus:{approachFoodBonus}");
 
             }
             
-            results.Add((learningRate, m_discountFactor, m_explorationDecayRate, highSum / attempts, movesSum / attempts, m_hitPenalty, m_eatFoodBonus, m_approachFoodBonus));
+            results.Add((learningRate, m_discountFactor, m_explorationDecayRate, m_minExplorationRate, highSum / attempts, m_hitPenalty, m_eatFoodBonus, m_approachFoodBonus));
         }
         
         System.Console.WriteLine("\nFinal results:");
@@ -124,7 +130,7 @@ public class SnakeCanvas : ScreensaverBase
         foreach (var result in results)
         {
             // Write out results (one per line) starting with score (E.g. Score:12,LearningRate:0.5,...).
-            System.Console.WriteLine($"Score:{result.score},MovesPerScore:{result.moves / (double)result.score:F1},LearningRate:{result.learningRate},DiscountFactor:{result.discountFactor},ExplorationDecayRate:{result.explorationDecayRate},HitPenalty:{result.hitPenalty},EatFoodBonus:{result.eatFoodBonus},ApproachFoodBonus:{result.approachFoodBonus}");
+            System.Console.WriteLine($"Score:{result.score},LearningRate:{result.learningRate},DiscountFactor:{result.discountFactor},ExplorationDecayRate:{result.explorationDecayRate},minExplorationRate:{result.minExplorationRate},HitPenalty:{result.hitPenalty},EatFoodBonus:{result.eatFoodBonus},ApproachFoodBonus:{result.approachFoodBonus}");
         }
     }
 
@@ -153,10 +159,32 @@ public class SnakeCanvas : ScreensaverBase
 
     private void Learn(int screenWidth, int screenHeight)
     {
+        char[,] debugScreen = null;
+        
         var oldState = GetCurrentState(screenWidth, screenHeight);
         var oldDistance = ManhattanDistance(m_snakeX, m_snakeY, m_foodX, m_foodY);
 
         m_snakeDirection = ChooseMove(oldState);
+
+        if (DebugMode)
+        {
+            // Dump screen to console.
+            debugScreen = new char[screenWidth, screenHeight];
+            for (var y = 0; y < screenHeight; y++)
+            {
+                for (var x = 0; x < screenWidth; x++)
+                    debugScreen[x, y] = '.';
+            }
+            foreach (var segment in m_snakeSegments)
+                debugScreen[segment.X, segment.Y] = '*';
+            debugScreen[m_snakeX, m_snakeY] = m_snakeDirection switch
+            {
+                Direction.Left => 'L',
+                Direction.Right => 'R',
+                Direction.Up => 'U',
+                _ => 'D'
+            };
+        }
 
         // Move the snake's head.
         switch (m_snakeDirection)
@@ -179,8 +207,8 @@ public class SnakeCanvas : ScreensaverBase
         var isFood = m_snakeX == m_foodX && m_snakeY == m_foodY;
         var isDead = IsCollision(m_snakeX, m_snakeY, screenWidth, screenHeight);
 
-        var newState = GetCurrentState(screenWidth, screenHeight);
-        var reward = CalculateReward(newState, oldDistance);
+        var newState = isDead ? null : GetCurrentState(screenWidth, screenHeight);
+        var reward = CalculateReward(newState, oldDistance, isDead);
         UpdateQValue(oldState, newState, m_snakeDirection, reward);
 
         // Decay exploration rate if using dynamic exploration.
@@ -188,8 +216,20 @@ public class SnakeCanvas : ScreensaverBase
 
         if (isDead)
         {
+            if (debugScreen != null)
+            {
+                for (var y = 0; y < debugScreen.GetLength(1); y++)
+                {
+                    for (var x = 0; x < debugScreen.GetLength(0); x++)
+                        System.Console.Write(debugScreen[x, y]);
+                    System.Console.WriteLine();
+                }
+                System.Console.WriteLine();
+            }
+            
             m_iteration++;
             ResetGame(screenWidth, screenHeight);
+            
             return;
         }
 
@@ -304,7 +344,7 @@ public class SnakeCanvas : ScreensaverBase
 
         // Find the maximum future Q-value from the new state
         var maxFutureQ = 0.0;
-        if (m_qTable.ContainsKey(newState))
+        if (newState != null && m_qTable.ContainsKey(newState))
             maxFutureQ = m_qTable[newState].Values.Max();
 
         // Q-learning formula: Q(s, a) = Q(s, a) + α * (reward + γ * max(Q(s', a')) - Q(s, a))
@@ -347,18 +387,18 @@ public class SnakeCanvas : ScreensaverBase
     private bool IsCollision(int x, int y, int screenWidth, int screenHeight) =>
         x < 0 || x >= screenWidth || y < 0 || y >= screenHeight || m_snakeSegments.Contains((x, y));
 
-    private double CalculateReward(GameState state, int oldDistance)
+    private double CalculateReward(GameState state, int oldDistance, bool isDead)
     {
-        var reward = 0.0;
+        // Death is a pretty poor choice.
+        if (isDead)
+            return m_hitPenalty;
 
         // Heavy penalty if moving into immediate danger.
         if (state.DangerStraight)
-        {
-            reward += m_hitPenalty;
-            return reward; // No point adding more points. You be dead.
-        }
+            return m_hitPenalty; // No point adding more points. You be dead.
         
         // Boosted reward for eating food.
+        var reward = 0.0;
         if (m_snakeX == m_foodX && m_snakeY == m_foodY)
             reward += m_eatFoodBonus;
 
