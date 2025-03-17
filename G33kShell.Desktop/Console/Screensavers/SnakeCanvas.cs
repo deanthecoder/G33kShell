@@ -32,6 +32,8 @@ public class SnakeCanvas : ScreensaverBase
         Down
     }
 
+    private event EventHandler FoodEaten;
+    
     private readonly Random m_rand = new Random();
     private readonly LinkedList<(int X, int Y)> m_snakeSegments = [];
     private int m_snakeX;
@@ -46,7 +48,7 @@ public class SnakeCanvas : ScreensaverBase
 
     private readonly Dictionary<GameState, Dictionary<Direction, double>> m_qTable = new();
     private double m_learningRate = 0.01;
-    private double m_discountFactor = 0.95;
+    private double m_discountFactor = 0.9;
     private double m_explorationRate = 1.0;        // Start with 100% exploration.
     private double m_minExplorationRate = 0.01;    // Lower bound for exploration.
     private double m_explorationDecayRate = 0.995; // Decay factor per move.
@@ -75,63 +77,89 @@ public class SnakeCanvas : ScreensaverBase
     // ReSharper disable once UnusedMember.Local
     private void PreLearn(int screenWidth, int screenHeight)
     {
+        var learningRates = new[] { m_learningRate };
+        var discountFactors = new[] { m_discountFactor };
+        var hitPenalties = new[] { m_hitPenalty };
+
         // Iterate through all combinations.
-        var results = new List<(double learningRate, double discountFactor, double explorationDecayRate, double minExplorationRate, int score, double hitPenalty, double eatFoodBonus, double approachFoodBonus)>();
+        var results = new List<(double learningRate, double avgMovesToFood, double discountFactor, double explorationDecayRate, double minExplorationRate, double score, double hitPenalty, double eatFoodBonus, double approachFoodBonus)>();
         foreach (var approachFoodBonus in new[] { m_approachFoodBonus })
         foreach (var eatFoodBonus in new[] { m_eatFoodBonus })
-        foreach (var learningRate in new[] { m_learningRate })
-        foreach (var discountFactor in new[] { m_discountFactor })
+        foreach (var learningRate in learningRates)
+        foreach (var discountFactor in discountFactors)
         foreach (var explorationDecayRate in new[] { m_explorationDecayRate })
         foreach (var minExplorationRate in new[] { m_minExplorationRate })
-        foreach (var hitPenalty in new[] { m_hitPenalty })
+        foreach (var hitPenalty in hitPenalties)
         {
             // Learn.
             var highSum = 0;
-            const int attempts = 1;
+            var movesToFoodSum = 0.0;
+            var movesToFood = new List<int>();
+            const int attempts = 5;
             for (var attempt = 0; attempt < attempts; attempt++)
             {
-                m_learningRate = learningRate;
-                m_discountFactor = discountFactor;
-                m_explorationDecayRate = explorationDecayRate;
-                m_minExplorationRate = minExplorationRate;
-                m_hitPenalty = hitPenalty;
-                m_eatFoodBonus = eatFoodBonus;
-                m_approachFoodBonus = approachFoodBonus;
-                
-                ResetGame(screenWidth, screenHeight);
-                m_highScore = 0;
-                m_iteration = 1;
-                m_qTable.Clear();
-
-                var high = int.MinValue;
-                var completed = 0.0;
-                var iterations = 1000.0;
-                while (m_highScore > high)
+                var movesWithoutFood = 0;
+                movesToFood.Clear();
+                try
                 {
-                    high = m_highScore;
-                    while (m_iteration - completed < iterations)
-                        Learn(screenWidth, screenHeight);
-                    completed += iterations;
-                    iterations *= 1.5;
+                    FoodEaten += OnFoodEaten;
+
+                    m_learningRate = learningRate;
+                    m_discountFactor = discountFactor;
+                    m_explorationDecayRate = explorationDecayRate;
+                    m_minExplorationRate = minExplorationRate;
+                    m_hitPenalty = hitPenalty;
+                    m_eatFoodBonus = eatFoodBonus;
+                    m_approachFoodBonus = approachFoodBonus;
+                
+                    ResetGame(screenWidth, screenHeight);
+                    m_highScore = 0;
+                    m_iteration = 1;
+                    m_qTable.Clear();
+
+                    var high = int.MinValue;
+                    var completed = 0.0;
+                    var iterations = 1000.0;
+                    while (m_highScore > high ||
+                           Math.Abs(m_explorationRate - m_minExplorationRate) > 0.001) // Reached stable exploration rate?
+                    {
+                        high = m_highScore;
+                        while (m_iteration - completed < iterations)
+                        {
+                            Learn(screenWidth, screenHeight);
+                            movesWithoutFood++;
+                        }
+                        completed += iterations;
+                        iterations *= 1.5;
+                    }
+                    highSum += m_highScore;
+                    movesToFoodSum += movesToFood.Average();
+
+                    // Write the high score for these params.
+                    System.Console.WriteLine(
+                        $"{attempt + 1},Score:{m_highScore},MovesToFood:{movesToFood.Average():F1},LearningRate:{learningRate},DiscountFactor:{discountFactor},ExplorationDecayRate:{explorationDecayRate},MinExplorationRate:{minExplorationRate},HitPenalty:{hitPenalty},EatFoodBonus:{eatFoodBonus},ApproachFoodBonus:{approachFoodBonus}");
                 }
-                highSum += m_highScore;
+                finally
+                {
+                    FoodEaten -= OnFoodEaten;
+                }
+                
+                continue;
 
-                // Write the high score for these params.
-                System.Console.WriteLine(
-                    $"Score:{m_highScore},LearningRate:{learningRate},DiscountFactor:{discountFactor},ExplorationDecayRate:{explorationDecayRate},MinExplorationRate:{minExplorationRate},HitPenalty:{hitPenalty},EatFoodBonus:{eatFoodBonus},ApproachFoodBonus:{approachFoodBonus}");
-
+                void OnFoodEaten(object sender, EventArgs e)
+                {
+                    movesToFood.Add(movesWithoutFood);
+                    movesWithoutFood = 0;
+                }
             }
             
-            results.Add((learningRate, m_discountFactor, m_explorationDecayRate, m_minExplorationRate, highSum / attempts, m_hitPenalty, m_eatFoodBonus, m_approachFoodBonus));
+            results.Add((learningRate, movesToFoodSum / attempts, m_discountFactor, m_explorationDecayRate, m_minExplorationRate, (double)highSum / attempts, m_hitPenalty, m_eatFoodBonus, m_approachFoodBonus));
         }
-        
+
         System.Console.WriteLine("\nFinal results:");
         results = results.OrderBy(x => x.score).TakeLast(10).ToList();
         foreach (var result in results)
-        {
-            // Write out results (one per line) starting with score (E.g. Score:12,LearningRate:0.5,...).
-            System.Console.WriteLine($"Score:{result.score},LearningRate:{result.learningRate},DiscountFactor:{result.discountFactor},ExplorationDecayRate:{result.explorationDecayRate},minExplorationRate:{result.minExplorationRate},HitPenalty:{result.hitPenalty},EatFoodBonus:{result.eatFoodBonus},ApproachFoodBonus:{result.approachFoodBonus}");
-        }
+            System.Console.WriteLine($"Score:{result.score:F1},MovesToSum:{result.avgMovesToFood:F1},LearningRate:{result.learningRate},DiscountFactor:{result.discountFactor},ExplorationDecayRate:{result.explorationDecayRate},minExplorationRate:{result.minExplorationRate},HitPenalty:{result.hitPenalty},EatFoodBonus:{result.eatFoodBonus},ApproachFoodBonus:{result.approachFoodBonus}");
     }
 
     private void ResetGame(int screenWidth, int screenHeight)
@@ -205,6 +233,9 @@ public class SnakeCanvas : ScreensaverBase
 
         // Check if the snake is about to eat food.
         var isFood = m_snakeX == m_foodX && m_snakeY == m_foodY;
+        if (isFood)
+            FoodEaten?.Invoke(this, EventArgs.Empty);
+        
         var isDead = IsCollision(m_snakeX, m_snakeY, screenWidth, screenHeight);
 
         var newState = isDead ? null : GetCurrentState(screenWidth, screenHeight);
