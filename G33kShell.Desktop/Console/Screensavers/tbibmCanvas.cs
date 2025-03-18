@@ -133,7 +133,7 @@ public class TbibmCanvas : ScreensaverBase
         
         // Willy
         WillyCanvas.LoadWillyFrames(out var willyWidth, out var willyHeight, out var willyFrames);
-        m_willy = new WillyCanvas.Willy(screen.Height * 2 - willyHeight - 2, -1, 8, willyWidth, willyHeight, willyFrames);
+        m_willy = new WillyCanvas.Willy(screen.Height * 2 - willyHeight - 4, -1, 8, willyWidth, willyHeight, willyFrames);
     }
     
     public override void UpdateFrame(ScreenData screen)
@@ -192,6 +192,16 @@ public class TbibmCanvas : ScreensaverBase
         
         // Floor
         for (var x = 0; x < 70; x++)
-            screen.PrintAt(x, 37, "♪ ♫ "[x % 4]);
+            screen.PrintAt(x, 36, "♪ ♫ "[x % 4]);
+        
+        // Air
+        screen.PrintAt(0, 37, "AIR");
+        for (var x = 0; x < 66; x++)
+        {
+            var b = x < 16 ? 0.2 : 0.4;
+            var progress = (Time - 10.0) / 180.0;
+            var f = x < (1.0 - progress) * 66 ? 1.0 : b;
+            screen.PrintAt(x + 4, 37, new Attr('▬', f.Lerp(Background, Foreground), b.Lerp(Background, Foreground)));
+        }
     }
 }
