@@ -17,12 +17,12 @@ namespace G33kShell.Desktop.Console.Screensavers.Snake;
 
 public class LearningConfig
 {
-    private double m_explorationDecayRate = 0.995;
+    private double m_explorationDecayRate = 0.999;
 
     public double LearningRate = 0.01;
     public double DiscountFactor = 0.9;
     public double ExplorationRate = 1.0;
-    public double MinExplorationRate = 0.01;
+    public double MinExplorationRate = 0.001;
     public double Death = -100.0;
     public double DeadEnd = -1.0;
     public double EatFood = 10.0;
