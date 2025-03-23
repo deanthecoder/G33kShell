@@ -11,7 +11,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using CSharp.Core;
+using System.Linq;
 using G33kShell.Desktop.Console.Controls;
 using JetBrains.Annotations;
 
@@ -26,6 +26,8 @@ public class SnakeCanvas : ScreensaverBase
 {
     private readonly Random m_rand = new Random();
     private readonly QTable m_qTable;
+    private Dictionary<DeathReason, int> m_deathReasons;
+    [UsedImplicitly] private int m_exploratoryDeaths;
     private Snake m_snake;
     private int m_foodX;
     private int m_foodY;
@@ -39,6 +41,14 @@ public class SnakeCanvas : ScreensaverBase
     private int ArenaWidth { get; }
     private int ArenaHeight { get; }
 
+    private enum DeathReason
+    {
+        CollisionWall,
+        CollisionSelf,
+        NoValidMoves,
+        Unknown
+    }
+
     [UsedImplicitly]
     public bool DebugMode { get; set; }
 
@@ -46,10 +56,21 @@ public class SnakeCanvas : ScreensaverBase
     {
         Name = "snake";
 
-        //DebugMode = true;
+        ResetDeathReasons();
+
+        DebugMode = false;
         ArenaWidth = DebugMode ? TrainingWidth : screenWidth;
         ArenaHeight = DebugMode ? TrainingHeight : screenHeight;
         m_qTable = new QTable(m_rand);
+    }
+
+    private void ResetDeathReasons()
+    {
+        m_exploratoryDeaths = 0;
+        m_deathReasons =
+            Enum.GetValues(typeof(DeathReason))
+                .Cast<DeathReason>()
+                .ToDictionary(k => k, _ => 0);
     }
 
     public override void BuildScreen(ScreenData screen)
@@ -58,7 +79,7 @@ public class SnakeCanvas : ScreensaverBase
 
         m_learningConfig = new LearningConfig();
         ResetGame(ArenaWidth, ArenaHeight, resetBrain: true);
-        if (DebugMode)
+        //if (DebugMode)
             PreLearn(TrainingWidth, TrainingHeight);
     }
 
@@ -76,10 +97,12 @@ public class SnakeCanvas : ScreensaverBase
             while (m_learningConfig.ExplorationRate > m_learningConfig.MinExplorationRate)
                 Learn(arenaWidth, arenaHeight);
 
-            // Now start tracking score...
             m_highScore = 0;
             m_gamesPlayed = 1;
-            const int gamesToPlay = 1000;
+#if false
+            // Now start tracking score...
+            ResetDeathReasons();
+            const int gamesToPlay = 100;
             var totalScore = 0.0;
             while (m_gamesPlayed < gamesToPlay)
             {
@@ -95,6 +118,13 @@ public class SnakeCanvas : ScreensaverBase
 
             // Write the high score for these params.
             System.Console.WriteLine($"AvgScore:{totalScore / gamesToPlay:F1},HiScore:{m_highScore},{learningConfig}");
+            
+            // Write reason for deaths (on single line).
+            var reasons = string.Join(",", m_deathReasons.Select(p => $"{p.Key}:{p.Value}"));
+            reasons += $",ExploratoryDeaths:{m_exploratoryDeaths}";
+            System.Console.WriteLine(reasons);
+            System.Console.WriteLine();
+#endif
         }
     }
 
@@ -121,16 +151,11 @@ public class SnakeCanvas : ScreensaverBase
 
     private void Learn(int arenaWidth, int arenaHeight)
     {
-        GameSnapshot gameSnapshot = null;
-        
         var oldState = GetCurrentState(arenaWidth, arenaHeight);
         var oldDistance = ManhattanDistance(m_snake.X, m_snake.Y, m_foodX, m_foodY);
 
-        // if (DebugMode)
-        //     gameSnapshot = CaptureScreenForDebug(arenaWidth, arenaHeight);
-
         // Move the snake's head.
-        var newDirection = m_qTable.ChooseMove(oldState, m_learningConfig, m_snake.Direction);
+        var newDirection = m_qTable.ChooseMove(oldState, m_learningConfig, m_snake.Direction, out var noValidMove, out var wasExploratory);
         m_snake.Move(newDirection);
 
         // Check if the snake is about to eat food.
@@ -138,10 +163,7 @@ public class SnakeCanvas : ScreensaverBase
         var isDead = IsCollision(m_snake.X, m_snake.Y, arenaWidth, arenaHeight);
         var newState = isDead ? null : GetCurrentState(arenaWidth, arenaHeight);
         
-        // if (isDead && gameSnapshot != null)
-        //     gameSnapshot.WriteToConsole();
-        
-        var reward = CalculateReward(newState, oldDistance, isDead);
+        var reward = CalculateReward(oldDistance, isDead);
         m_qTable.UpdateQValue(oldState, newState, m_learningConfig, newDirection, reward);
 
         // Decay exploration rate if using dynamic exploration.
@@ -149,6 +171,19 @@ public class SnakeCanvas : ScreensaverBase
 
         if (isDead)
         {
+            // Find out why we died.
+            if (wasExploratory)
+                m_exploratoryDeaths++;
+            if (noValidMove)
+                m_deathReasons[DeathReason.NoValidMoves]++;
+            else if (m_snake.X < 0 || m_snake.X >= arenaWidth || m_snake.Y < 0 || m_snake.Y >= arenaHeight)
+                m_deathReasons[DeathReason.CollisionWall]++;
+            else if (m_snake.IsTailHit(m_snake.X, m_snake.Y))
+                m_deathReasons[DeathReason.CollisionSelf]++;
+            else
+                m_deathReasons[DeathReason.Unknown]++;
+            
+            // Restart the game.
             m_gamesPlayed++;
             ResetGame(arenaWidth, arenaHeight, resetBrain: false);
             return;
@@ -163,11 +198,6 @@ public class SnakeCanvas : ScreensaverBase
         SpawnFood(arenaWidth, arenaHeight);
     }
 
-    private GameSnapshot CaptureScreenForDebug(int arenaWidth, int arenaHeight)
-    {
-        return new GameSnapshot(arenaWidth, arenaHeight, m_snake, m_foodX, m_foodY);
-    }
-    
     private void DrawGame(ScreenData screen)
     {
         // Draw the snake.
@@ -177,7 +207,7 @@ public class SnakeCanvas : ScreensaverBase
         screen.PrintAt(m_foodX, m_foodY, '\u2665');
         
         // Draw iteration.
-        screen.PrintAt(0, 0, $"Iteration: {m_gamesPlayed}, Score: {m_score}, High Score: {m_highScore}");
+        screen.PrintAt(0, 0, $"Game: {m_gamesPlayed}, Score: {m_score}, High Score: {m_highScore}");
     }
 
     private void SpawnFood(int screenWidth, int screenHeight)
@@ -203,10 +233,10 @@ public class SnakeCanvas : ScreensaverBase
         };
     }
 
-    private bool IsCollision(int x, int y, int screenWidth, int screenHeight) =>
-        x < 0 || x >= screenWidth || y < 0 || y >= screenHeight || m_snake.IsTailHit(x, y);
+    private bool IsCollision(int x, int y, int arenaWidth, int arenaHeight) =>
+        x < 0 || x >= arenaWidth || y < 0 || y >= arenaHeight || m_snake.IsTailHit(x, y);
 
-    private double CalculateReward(GameState state, int oldDistance, bool isDead)
+    private double CalculateReward(int oldDistance, bool isDead)
     {
         // Slight penalty for taking a long time.
         var reward = m_learningConfig.TimePenaltyPerStep;
@@ -215,10 +245,6 @@ public class SnakeCanvas : ScreensaverBase
         if (isDead)
             reward += m_learningConfig.Death;
 
-        // If we've got nowhere to go, that's pretty bad.
-        if (state?.IsEnclosed == true)
-            reward += m_learningConfig.DeadEnd;
-        
         // Boosted reward for eating food.
         if (m_snake.X == m_foodX && m_snake.Y == m_foodY)
             reward += m_learningConfig.EatFood;
@@ -265,7 +291,6 @@ public class SnakeCanvas : ScreensaverBase
         var dangerStraight = IsCollision(straightX, straightY, screenWidth, screenHeight);
         var dangerLeft = IsCollision(leftX, leftY, screenWidth, screenHeight);
         var dangerRight = IsCollision(rightX, rightY, screenWidth, screenHeight);
-        var isEnclosed = dangerLeft && dangerRight && IsEnclosed(straightX, straightY, screenWidth, screenHeight);
 
         var flags = GameState.Flags.None;
         if (dangerStraight) flags |= GameState.Flags.DangerStraight;
@@ -281,49 +306,6 @@ public class SnakeCanvas : ScreensaverBase
         if (foodLeftRelative) flags |= GameState.Flags.FoodLeftRelative;
         if (foodRightRelative) flags |= GameState.Flags.FoodRightRelative;
 
-        if (isEnclosed) flags |= GameState.Flags.IsEnclosed;
-
         return new GameState(flags);
-    }
-
-    private bool IsEnclosed(int startX, int startY, int screenWidth, int screenHeight)
-    {
-        var requiredEmptyCount = screenWidth * screenHeight / 3;
-
-        var visited = new HashSet<IntPoint>();
-        var toVisit = new Queue<IntPoint>();
-        toVisit.Enqueue(new IntPoint(startX, startY));
-        
-        // Use flood fill algorithm to count empty spaces.
-        while (toVisit.Count > 0)
-        {
-            if (visited.Count >= requiredEmptyCount)
-            {
-                // We've done enough - Not obviously a dead end.
-                return false;
-            }
-            
-            var xy = toVisit.Dequeue();
-            visited.Add(xy);
-            
-            if (IsCollision(xy.X, xy.Y, screenWidth, screenHeight))
-                continue;
-            
-            // Check adjacent spaces.
-            foreach (var pt in new[] {
-                         new IntPoint(xy.X - 1, xy.Y),
-                         new IntPoint(xy.X + 1, xy.Y),
-                         new IntPoint(xy.X, xy.Y - 1),
-                         new IntPoint(xy.X, xy.Y + 1)
-                     })
-            {
-                if (toVisit.Contains(pt))
-                    continue; // Already due to visit this point.
-                if (!IsCollision(pt.X, pt.Y, screenWidth, screenHeight) && !visited.Contains(pt))
-                    toVisit.Enqueue(pt);
-            }
-        }
-
-        return true;
     }
 }

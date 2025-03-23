@@ -29,16 +29,13 @@ public class GameState
         MovingDown = 1 << 6,
         FoodStraight = 1 << 7,
         FoodLeftRelative = 1 << 8,
-        FoodRightRelative = 1 << 9,
-        IsEnclosed = 1 << 10
+        FoodRightRelative = 1 << 9
     }
 
     public GameState(Flags flags)
     {
         m_flags = flags;
     }
-
-    public bool IsEnclosed => m_flags.HasFlag(Flags.IsEnclosed);
 
     public override bool Equals(object obj) =>
         obj is GameState other && m_flags == other.m_flags;

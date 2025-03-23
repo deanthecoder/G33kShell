@@ -25,24 +25,29 @@ public class QTable
         m_rand = rand ?? throw new ArgumentNullException(nameof(rand));
     }
 
-    public Direction ChooseMove(GameState state, LearningConfig learningConfig, Direction snakeDirection)
+    public Direction ChooseMove(GameState state, LearningConfig learningConfig, Direction snakeDirection, out bool noValidMove, out bool wasExploratory)
     {
         EnsureQTableEntryExists(state);
 
         // Filter out reverse direction.
         var possibleActions = m_qTable[state].Keys
-            .Where(a => !DirectionExtensions.IsReverse(a, snakeDirection))
+            .Where(a => !a.IsReverse(snakeDirection))
             .ToList();
 
         // If no valid move remains (corner case), fallback to all actions.
-        if (!possibleActions.Any())
+        noValidMove = possibleActions.Count == 0;
+        if (noValidMove)
             possibleActions = m_qTable[state].Keys.ToList();
 
         // Exploration vs exploitation.
         if (m_rand.NextDouble() < learningConfig.ExplorationRate)
+        {
+            wasExploratory = true;
             return possibleActions[m_rand.Next(possibleActions.Count)];
+        }
 
         // Exploitation: choose best move among allowed actions.
+        wasExploratory = false;
         return FindBestDirection(state, snakeDirection, possibleActions);
     }
 

@@ -24,7 +24,6 @@ public class LearningConfig
     public double ExplorationRate = 1.0;
     public double MinExplorationRate = 0.001;
     public double Death = -100.0;
-    public double DeadEnd = -1.0;
     public double EatFood = 10.0;
     public double AwayFood = -0.1;
     public double TimePenaltyPerStep = -0.05;
@@ -34,14 +33,14 @@ public class LearningConfig
 
     public static IEnumerable<LearningConfig> AllCombinations(LearningConfig baseConfig)
     {
-        //foreach (var d in new[]{0.0, -1.0, -50.0, -100.0})
+        foreach (var _ in new[]{ 0.0 })
         {
             var config = baseConfig.Clone();
-            //config.DeadEnd = d;
+            //config.FoodBonusFactor = d;
             yield return config;
         }
     }
-
+    
     public override string ToString()
     {
         var allFields =
@@ -70,7 +69,6 @@ public class LearningConfig
             Death = Death,
             EatFood = EatFood,
             AwayFood = AwayFood,
-            DeadEnd = DeadEnd,
             TimePenaltyPerStep = TimePenaltyPerStep
         };
 }
