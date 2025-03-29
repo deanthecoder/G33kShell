@@ -1,117 +1,79 @@
-// Code authored by Dean Edis (DeanTheCoder).
-// Anyone is free to copy, modify, use, compile, or distribute this software,
-// either in source code form or as a compiled binary, for any non-commercial
-//  purpose.
-// 
-// If you modify the code, please retain this copyright header,
-// and consider contributing back to the repository or letting us know
-// about your modifications. Your contributions are valued!
-// 
-// THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
-using System;
-using System.Collections.Generic;
 using System.Linq;
-using JetBrains.Annotations;
+using CSharp.Core;
+using CSharp.Core.Extensions;
+using Newtonsoft.Json;
 
 namespace G33kShell.Desktop.Console.Screensavers.Snake;
 
 public class QTable
 {
-    private readonly Random m_rand;
-    private readonly Dictionary<GameState, Dictionary<Direction, double>> m_qTable = new();
+    private readonly object m_brainLock = new object();
+    
+    [JsonProperty]
+    private NeuralQApproximator m_qNet;
 
-    public QTable([NotNull] Random rand)
+    [JsonProperty]
+    private ReplayBuffer m_replayBuffer;
+
+    [JsonProperty]
+    public int[] Layers { get; } = [32, 16];
+
+    public QTable()
     {
-        m_rand = rand ?? throw new ArgumentNullException(nameof(rand));
+        var inputSize = new GameState(GameState.Flags.MovingDown, 1, IntPoint.Zero, IntPoint.Zero, 0).ToInputVector().Length;
+        m_qNet = new NeuralQApproximator(inputSize, hiddenLayers: Layers, outputSize: 4, learningRate: 0.05);
+        m_replayBuffer = new ReplayBuffer(2000);
     }
 
-    public Direction ChooseMove(GameState state, LearningConfig learningConfig, Direction snakeDirection, out bool noValidMove, out bool wasExploratory)
+    public Direction ChooseMove(GameState state, int gamesPlayed, bool allowExploring)
     {
-        EnsureQTableEntryExists(state);
+        lock (m_brainLock)
+            return (Direction)m_qNet.ChooseAction(state.ToInputVector(), LearningConfig.ExplorationRate(gamesPlayed, allowExploring));
+    }
 
-        // Filter out reverse direction.
-        var possibleActions = m_qTable[state].Keys
-            .Where(a => !a.IsReverse(snakeDirection))
-            .ToList();
-
-        // If no valid move remains (corner case), fallback to all actions.
-        noValidMove = possibleActions.Count == 0;
-        if (noValidMove)
-            possibleActions = m_qTable[state].Keys.ToList();
-
-        // Exploration vs exploitation.
-        if (m_rand.NextDouble() < learningConfig.ExplorationRate)
+    public void UpdateQValue(GameState state, GameState nextState, Direction direction, double reward)
+    {
+        lock (m_brainLock)
         {
-            wasExploratory = true;
-            return possibleActions[m_rand.Next(possibleActions.Count)];
-        }
+            var input = state.ToInputVector();
+            var nextInput = nextState?.ToInputVector();
 
-        // Exploitation: choose best move among allowed actions.
-        wasExploratory = false;
-        return FindBestDirection(state, snakeDirection, possibleActions);
-    }
+            m_replayBuffer.Add(input, (int)direction, reward, nextInput);
 
-    public void UpdateQValue(GameState oldState, GameState newState, LearningConfig learningConfig, Direction direction, double reward)
-    {
-        EnsureQTableEntryExists(oldState);
-        var value = m_qTable[oldState];
+            const int batchSize = 32;
+            const int warmupThreshold = 500;
+            if (m_replayBuffer.Count < warmupThreshold)
+                return;
 
-        // Get the current Q-value
-        var oldQ = value[direction];
-
-        // Find the maximum future Q-value from the new state
-        var maxFutureQ = 0.0;
-        if (newState != null && m_qTable.ContainsKey(newState))
-            maxFutureQ = m_qTable[newState].Values.Max();
-
-        // Q-learning formula: Q(s, a) = Q(s, a) + α * (reward + γ * max(Q(s', a')) - Q(s, a))
-        var newQ = oldQ + learningConfig.LearningRate * (reward + learningConfig.DiscountFactor * maxFutureQ - oldQ);
-        value[direction] = newQ;
-    }
-
-    public void Clear() => m_qTable.Clear();
-
-    private void EnsureQTableEntryExists(GameState state)
-    {
-        // Ensure state exists in Q-table.
-        if (!m_qTable.ContainsKey(state))
-        {
-            m_qTable[state] = new Dictionary<Direction, double>
+            var batch = m_replayBuffer.Sample(batchSize);
+            foreach (var (s, a, r, sNext) in batch)
             {
-                {
-                    Direction.Left, 0.0
-                },
-                {
-                    Direction.Right, 0.0
-                },
-                {
-                    Direction.Up, 0.0
-                },
-                {
-                    Direction.Down, 0.0
-                }
-            };
+                var qValues = m_qNet.Predict(s);
+                var target = qValues.ToArray();
+
+                var maxNextQ = sNext != null ? m_qNet.Predict(sNext).Max() : 0.0;
+                target[a] = r + LearningConfig.DiscountFactor * maxNextQ;
+
+                m_qNet.Train(s, target);
+            }
         }
     }
 
-    private Direction FindBestDirection(GameState state, Direction direction, List<Direction> possibleActions)
+    public void Clear()
     {
-        var stats = m_qTable[state];
-        var bestMoveIndex = 0;
-        var bestMoveScore = double.MinValue;
-        for (var i = 0; i < possibleActions.Count; i++)
-        {
-            var score = stats[possibleActions[i]];
+        lock (m_brainLock)
+            m_qNet.Clear();
+    }
 
-            if (possibleActions[i] == direction)
-                score += 0.1; // Prefer current direction.
+    public byte[] Save()
+    {
+        lock (m_brainLock)
+            return JsonConvert.SerializeObject(this).Compress();
+    }
 
-            if (score <= bestMoveScore)
-                continue;
-            bestMoveScore = score;
-            bestMoveIndex = i;
-        }
-
-        return possibleActions[bestMoveIndex];
+    public void Load(byte[] brainData)
+    {
+        lock (m_brainLock)
+            JsonConvert.PopulateObject(brainData.DecompressToString(), this);
     }
 }

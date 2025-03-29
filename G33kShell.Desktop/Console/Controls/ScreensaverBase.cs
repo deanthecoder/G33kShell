@@ -38,4 +38,8 @@ public abstract class ScreensaverBase : AnimatedCanvas, IScreensaver
 
     public virtual void BuildScreen(ScreenData screen) =>
         screen.Clear(Foreground, Background);
+
+    public virtual void StopScreensaver()
+    {
+    }
 }

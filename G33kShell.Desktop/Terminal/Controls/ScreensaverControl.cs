@@ -111,6 +111,8 @@ public class ScreensaverControl : Visual
     /// </summary>
     private void ResetTimer()
     {
+        if (IsVisible)
+            ((IScreensaver)Children.Single()).StopScreensaver();
         IsVisible = false;
         m_windowManager.Cursor.IsVisible = true;
         m_secondsUntilDisplay = m_timeToSleepSecs;

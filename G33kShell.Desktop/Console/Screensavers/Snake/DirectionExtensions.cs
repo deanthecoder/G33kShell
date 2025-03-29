@@ -8,35 +8,27 @@
 // about your modifications. Your contributions are valued!
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+using System;
+using CSharp.Core;
+
 namespace G33kShell.Desktop.Console.Screensavers.Snake;
 
 public static class DirectionExtensions
 {
-    public static Direction TurnLeft(this Direction dir) =>
-        dir switch
-        {
-            Direction.Left => Direction.Down,
-            Direction.Right => Direction.Up,
-            Direction.Up => Direction.Left,
-            Direction.Down => Direction.Right,
-            _ => dir
-        };
-
-    public static Direction TurnRight(this Direction dir) =>
-        dir switch
-        {
-            Direction.Left => Direction.Up,
-            Direction.Right => Direction.Down,
-            Direction.Up => Direction.Right,
-            Direction.Down => Direction.Left,
-            _ => dir
-        };
-
-    public static bool IsReverse(this Direction action, Direction current)
+    public static IntPoint ToVector(this Direction direction)
     {
-        return (current == Direction.Left && action == Direction.Right) ||
-               (current == Direction.Right && action == Direction.Left) ||
-               (current == Direction.Up && action == Direction.Down) ||
-               (current == Direction.Down && action == Direction.Up);
+        switch (direction)
+        {
+            case Direction.Left:
+                return new IntPoint(-1, 0);
+            case Direction.Right:
+                return new IntPoint(1, 0);
+            case Direction.Up:
+                return new IntPoint(0, -1);
+            case Direction.Down:
+                return new IntPoint(0, 1);
+            default:
+                throw new ArgumentOutOfRangeException(nameof(direction), direction, null);
+        }
     }
 }

@@ -13,4 +13,6 @@ namespace G33kShell.Desktop.Console.Screensavers;
 public interface IScreensaver
 {
     string Name { get; }
+    
+    void StopScreensaver();
 }

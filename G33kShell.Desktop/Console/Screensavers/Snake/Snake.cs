@@ -22,6 +22,7 @@ public class Snake
     public int Y { get; private set; }
     public Direction Direction { get; private set; }
     public IEnumerable<(int X, int Y)> Segments => m_segments;
+    public int Length => m_segments.Count;
 
     public Snake(int arenaWidth, int arenaHeight)
     {
@@ -56,7 +57,7 @@ public class Snake
     }
 
     public void Grow() =>
-        m_length += 5;
+        m_length += 3;
 
     public void DrawOn(ScreenData screen)
     {

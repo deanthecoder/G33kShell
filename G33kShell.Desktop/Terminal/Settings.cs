@@ -58,6 +58,12 @@ public class Settings : UserSettingsBase
         set => Set(value);
     }
 
+    public byte[] SnakeBrain
+    {
+        get => Get<byte[]>();
+        set => Set(value);
+    }
+
     protected override void ApplyDefaults()
     {
         UsedCommands = new List<string>();
