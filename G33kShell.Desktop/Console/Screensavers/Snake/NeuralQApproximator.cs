@@ -11,12 +11,13 @@
 
 using System;
 using System.Linq;
+using CSharp.Core.Extensions;
 using Newtonsoft.Json;
 
 namespace G33kShell.Desktop.Console.Screensavers.Snake;
 
 /// <summary>
-/// A simple feedforward neural network with backpropagation used to approximate Q-values for reinforcement learning.
+/// A simple feedforward neural network with backpropagation.
 /// </summary>
 public class NeuralQApproximator
 {
@@ -24,7 +25,7 @@ public class NeuralQApproximator
     [JsonProperty] private double[][] m_neurons;
     [JsonProperty] private double[][][] m_weights;
     [JsonProperty] private double m_learningRate;
-    private static readonly Random Rand = new Random();
+    private readonly Random m_rand = new Random();
 
     /// <summary>
     /// Initializes a new neural network with the given layer sizes and learning rate.
@@ -42,12 +43,10 @@ public class NeuralQApproximator
             var outSize = m_layerSizes[l + 1];
             m_weights[l] = new double[outSize][];
             for (var o = 0; o < outSize; o++)
-            {
                 m_weights[l][o] = new double[inSize];
-                for (var i = 0; i < inSize; i++)
-                    m_weights[l][o][i] = (Rand.NextDouble() * 2 - 1) * 0.1f; // small random init
-            }
         }
+        
+        Clear();
     }
 
     /// <summary>
@@ -120,16 +119,10 @@ public class NeuralQApproximator
         }
     }
 
-    /// <summary>
-    /// Chooses an action using epsilon-greedy strategy based on predicted Q-values.
-    /// </summary>
-    public int ChooseAction(double[] input, double explorationRate)
+    public int ChooseAction(double[] input)
     {
-        if (Rand.NextDouble() < explorationRate)
-            return Rand.Next(m_layerSizes[^1]); // random action
-
         var qValues = Predict(input);
-        return ArgMax(qValues); // greedy action
+        return ArgMax(qValues);
     }
 
     /// <summary>
@@ -166,6 +159,47 @@ public class NeuralQApproximator
         for (var l = 0; l < m_weights.Length; l++)
         for (var j = 0; j < m_weights[l].Length; j++)
         for (var i = 0; i < m_weights[l][j].Length; i++)
-            m_weights[l][j][i] = (Rand.NextDouble() * 2 - 1) * 0.1; // Reinit
+            m_weights[l][j][i] = m_rand.NextDouble() - 0.5; // Reinit
+    }
+
+    public NeuralQApproximator AverageWith(NeuralQApproximator other)
+    {
+        var result = Clone();
+        for (var l = 0; l < m_weights.Length; l++)
+        for (var j = 0; j < m_weights[l].Length; j++)
+        for (var i = 0; i < m_weights[l][j].Length; i++)
+            result.m_weights[l][j][i] = (m_weights[l][j][i] + other.m_weights[l][j][i]) / 2.0;
+        return result;
+    }
+
+    public NeuralQApproximator MixWith(NeuralQApproximator other)
+    {
+        var result = Clone();
+        for (var l = 0; l < m_weights.Length; l++)
+        for (var j = 0; j < m_weights[l].Length; j++)
+        for (var i = 0; i < m_weights[l][j].Length; i++)
+            result.m_weights[l][j][i] = m_rand.NextBool() ? m_weights[l][j][i] : other.m_weights[l][j][i];
+        return result;
+    }
+    
+    public NeuralQApproximator NudgeWeights()
+    {
+        var result = Clone();
+        for (var l = 0; l < m_weights.Length; l++)
+        for (var j = 0; j < m_weights[l].Length; j++)
+        for (var i = 0; i < m_weights[l][j].Length; i++)
+            result.m_weights[l][j][i] = ((m_rand.NextDouble() * 0.2 - 0.1) + m_weights[l][j][i]).Clamp(-1.0, 1.0);
+        return result;
+    }
+
+    public NeuralQApproximator Clone()
+    {
+        return new NeuralQApproximator(m_layerSizes[0], m_layerSizes.Skip(1).ToArray(), m_layerSizes[^1], m_learningRate)
+        {
+            m_learningRate = m_learningRate,
+            m_layerSizes = m_layerSizes.ToArray(),
+            m_neurons = m_neurons.Select(n => n.ToArray()).ToArray(),
+            m_weights = m_weights.Select(w => w.Select(nw => nw.ToArray()).ToArray()).ToArray()
+        };
     }
 }
