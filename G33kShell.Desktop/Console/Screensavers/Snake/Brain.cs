@@ -1,4 +1,5 @@
 using CSharp.Core;
+using CSharp.Core.AI;
 using CSharp.Core.Extensions;
 using Newtonsoft.Json;
 
@@ -9,7 +10,7 @@ public class Brain
     private readonly object m_brainLock = new object();
     
     [JsonProperty]
-    private NeuralQApproximator m_qNet;
+    private NeuralNetwork m_qNet;
 
     [JsonProperty]
     public static int[] Layers { get; } = [32, 16, 16];
@@ -17,7 +18,7 @@ public class Brain
     public Brain()
     {
         var inputSize = new GameState(new Snake(16, 16), IntPoint.Zero).ToInputVector().Length;
-        m_qNet = new NeuralQApproximator(inputSize, hiddenLayers: Layers, outputSize: 4, learningRate: 0.05);
+        m_qNet = new NeuralNetwork(inputSize, hiddenLayers: Layers, outputSize: 4, learningRate: 0.05);
     }
 
     public Direction ChooseMove(GameState state)
