@@ -63,6 +63,12 @@ public class Settings : UserSettingsBase
         get => Get<byte[]>();
         set => Set(value);
     }
+    
+    public byte[] PongBrain
+    {
+        get => Get<byte[]>();
+        set => Set(value);
+    }
 
     protected override void ApplyDefaults()
     {

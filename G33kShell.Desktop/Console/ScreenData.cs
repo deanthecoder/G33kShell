@@ -156,6 +156,14 @@ public class ScreenData
             Chars[y][x].Set(ch);
     }
 
+    public void PrintAt(int x, int y, char ch, Rgb foreground)
+    {
+        if (ch == '\0' || !IsWithinBounds(x, y))
+            return;
+        Chars[y][x].Set(ch);
+        SetForeground(x, y, foreground);
+    }
+
     public void PrintAt(int x, int y, string s, Rgb foreground)
     {
         PrintAt(x, y, s);
