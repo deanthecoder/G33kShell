@@ -12,10 +12,12 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
 using G33kShell.Desktop.Terminal;
 using JetBrains.Annotations;
+using WenceyWang.FIGlet;
 
 namespace G33kShell.Desktop.Console.Screensavers.Pong;
 
@@ -33,6 +35,7 @@ public class PongCanvas : ScreensaverBase
     private int ArenaHeight { get; }
     private List<Game> m_games;
     private double m_savedRating;
+    private readonly FIGletFont m_font;
 
     public PongCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight, 60)
     {
@@ -40,6 +43,8 @@ public class PongCanvas : ScreensaverBase
 
         ArenaWidth = screenWidth;
         ArenaHeight = screenHeight;
+
+        m_font = LoadFont();
     }
 
     public override void UpdateFrame(ScreenData screen)
@@ -68,17 +73,38 @@ public class PongCanvas : ScreensaverBase
 
     private void DrawGame(ScreenData screen, Game game)
     {
+        var dimRgb = 0.2.Lerp(Background, Foreground);
+
+        // Half-way separator.
         for (var y = 0; y < screen.Height; y++)
-            screen.PrintAt(screen.Width / 2, y, "▄", 0.2.Lerp(Background, Foreground));
+            screen.PrintAt(screen.Width / 2, y, "▄", dimRgb);
+        
+        // Scores.
+        for (var scoreIndex = 0; scoreIndex < 2; scoreIndex++)
+        {
+            var ox = screen.Width / 2 + (scoreIndex == 0 ? -18 : 8);
+            var oy = 2;
+            for (var y = 0; y < m_font.Height; y++)
+            {
+                var score = game.Scores[scoreIndex].ToString();
+                foreach (var ch in score)
+                {
+                    var text = m_font.GetCharacter(ch, y);
+                    for (var x = 0; x < text.Length; x++)
+                        screen.PrintAt(ox + x, oy + y, text[x], dimRgb);
+                }
+            }
+        }
+
+        // Bats.
         for (var i = 0; i < Game.BatHeight; i++)
         {
             foreach (var batPosition in game.BatPositions)
                 screen.PrintAt((int)batPosition.X, (int)(batPosition.Y - Game.BatHeight / 2.0f + i), '█');
         }
 
+        // Ball.
         screen.PrintAt((int)game.BallPosition.X, (int)game.BallPosition.Y, game.BallPosition.Y - (int)game.BallPosition.Y < 0.5f ? '▀' : '▄', Foreground);
-
-        screen.PrintAt(0, 0, $"Score: {game.Scores[0]} vs {game.Scores[1]}");
     }
 
     [UsedImplicitly]
@@ -139,5 +165,16 @@ public class PongCanvas : ScreensaverBase
         
         // ...and go again...
         m_games = m_games.Select(o => o.Resurrect()).ToList();
+    }
+
+    private static FIGletFont LoadFont()
+    {
+        // Enumerate all Avalonia embedded resources.
+        var fontFolder = Assembly.GetExecutingAssembly().GetDirectory();
+        var fontFile = fontFolder.GetFiles("Assets/Fonts/Figlet/*.flf").Single();
+
+        // Load the font.
+        using var fontStream = fontFile.OpenRead();
+        return new FIGletFont(fontStream);
     }
 }

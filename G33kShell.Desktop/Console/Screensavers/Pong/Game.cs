@@ -23,11 +23,11 @@ public class Game
     private readonly int m_arenaHeight;
     private readonly Random m_rand = new Random();
     private const int ScoreToWin = 10;
-    private const float BatSpeed = 0.25f;
+    private const float BatSpeed = 0.22f;
     private Vector2 m_ballVelocity;
     private int m_ballMoves;
 
-    public const int BatHeight = 6;
+    public const int BatHeight = 4;
     public Brain Brain { get; private init; } = new Brain();
     internal int Rallies { get; private set; }
     public Vector2[] BatPositions { get; } = new Vector2[2];

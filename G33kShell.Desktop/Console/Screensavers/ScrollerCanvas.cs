@@ -16,10 +16,11 @@ using System.Numerics;
 using System.Reflection;
 using CSharp.Core;
 using CSharp.Core.Extensions;
+using G33kShell.Desktop.Console.Controls;
 using JetBrains.Annotations;
 using WenceyWang.FIGlet;
 
-namespace G33kShell.Desktop.Console.Controls;
+namespace G33kShell.Desktop.Console.Screensavers;
 
 [DebuggerDisplay("ScrollerCanvas:{X},{Y} {Width}x{Height}")]
 [UsedImplicitly]
