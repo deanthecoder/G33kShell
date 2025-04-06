@@ -24,20 +24,20 @@ public static class ScreenDataExtensions
         var vRight = boxChars[7];
 
         // Top border
-        screen.PrintAt(0, 0, topLeft);
-        screen.PrintAt(1, 0, new string(hTop, right - left - 1));
-        screen.PrintAt(right - left, 0, topRight);
+        screen.PrintAt(left, top, topLeft);
+        screen.PrintAt(left + 1, top, new string(hTop, right - left - 1));
+        screen.PrintAt(right, top, topRight);
 
         // Bottom border
-        screen.PrintAt(0, bottom - top, bottomLeft);
-        screen.PrintAt(1, bottom - top, new string(hBottom, right - left - 1));
-        screen.PrintAt(right - left, bottom - top, bottomRight);
+        screen.PrintAt(left, bottom, bottomLeft);
+        screen.PrintAt(left + 1, bottom, new string(hBottom, right - left - 1));
+        screen.PrintAt(right, bottom, bottomRight);
 
         // Vertical borders
         for (var i = 1; i < bottom - top; i++)
         {
-            screen.PrintAt(0, i, vLeft);
-            screen.PrintAt(right - left, i, vRight);
+            screen.PrintAt(left, top + i, vLeft);
+            screen.PrintAt(right, top + i, vRight);
         }
     }
 }

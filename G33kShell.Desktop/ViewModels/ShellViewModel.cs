@@ -66,7 +66,7 @@ public class ShellViewModel : ViewModelBase, IDisposable
 #pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
     private async Task StartAsync()
     {
-#if false
+#if !DEBUG
         // Start the 'sign in' face-finding background task.
         var signInTask = CaptureFaceAsync();
 

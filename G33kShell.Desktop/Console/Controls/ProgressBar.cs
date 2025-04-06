@@ -38,9 +38,14 @@ public class ProgressBar : Visual
 
     public override void Render(ScreenData screen)
     {
-        var progressWidth = (int)(Width * Progress / 100.0);
-        var bar = new string('█', progressWidth) + new string('░', Width - progressWidth);
+        var bar = AsString();
         for (var y = 0; y < Height; y++)
             screen.PrintAt(0, y, bar);
+    }
+
+    public string AsString()
+    {
+        var progressWidth = (int)(Width * Progress / 100.0);
+        return new string('█', progressWidth) + new string('░', Width - progressWidth);
     }
 }

@@ -222,6 +222,9 @@ public class ScreenData
         Chars[y][x].Foreground = foreground;
     }
 
+    public Rgb GetBackground(int x, int y) => IsWithinBounds(x, y) ? Chars[y][x].Background : Rgb.Black;
+    public Rgb GetForeground(int x, int y) => IsWithinBounds(x, y) ? Chars[y][x].Foreground : Rgb.White;
+
     private bool IsWithinBounds(int x, int y) =>
         x >= 0 && x < Width && y >= 0 && y < Height;
 }
