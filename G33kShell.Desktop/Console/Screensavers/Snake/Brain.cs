@@ -1,58 +1,17 @@
 using CSharp.Core;
-using CSharp.Core.AI;
-using CSharp.Core.Extensions;
-using Newtonsoft.Json;
+using G33kShell.Desktop.Console.Screensavers.AI;
 
 namespace G33kShell.Desktop.Console.Screensavers.Snake;
 
-public class Brain
+public class Brain : AiBrainBase
 {
-    private readonly object m_brainLock = new object();
-    
-    [JsonProperty]
-    private NeuralNetwork m_qNet;
-
-    [JsonProperty]
-    public static int[] Layers { get; } = [32, 16, 16];
-
-    public Brain()
+    public Brain() : base(GetInputSize(), [32, 16, 16], 4)
     {
-        var inputSize = new GameState(new Snake(16, 16), IntPoint.Zero).ToInputVector().Length;
-        m_qNet = new NeuralNetwork(inputSize, hiddenLayers: Layers, outputSize: 4, learningRate: 0.05);
     }
 
-    public Direction ChooseMove(GameState state)
-    {
-        lock (m_brainLock)
-            return (Direction)m_qNet.ChooseAction(state.ToInputVector());
-    }
-    
-    public void Clear()
-    {
-        lock (m_brainLock)
-            m_qNet.Clear();
-    }
+    private static int GetInputSize() =>
+        new GameState(new Snake(16, 16), IntPoint.Zero).ToInputVector().Length;
 
-    public byte[] Save()
-    {
-        lock (m_brainLock)
-            return JsonConvert.SerializeObject(this).Compress();
-    }
-
-    public void Load(byte[] brainBytes)
-    {
-        lock (m_brainLock)
-            JsonConvert.PopulateObject(brainBytes.DecompressToString(), this);
-    }
-
-    public void AverageWith(Brain other) => m_qNet = m_qNet.AverageWith(other.m_qNet).NudgeWeights();
-    public void MixWith(Brain other) => m_qNet = m_qNet.MixWith(other.m_qNet).NudgeWeights();
-
-    public Brain Clone()
-    {
-        var clone = new Brain();
-        lock (m_brainLock)
-            clone.m_qNet = m_qNet.Clone();
-        return clone;
-    }
+    public Direction ChooseMove(IAiGameState state) =>
+        (Direction)ChooseHighestOutput(state);
 }

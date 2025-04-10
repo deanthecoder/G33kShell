@@ -153,8 +153,8 @@ public class FluidCanvas : ScreensaverBase
             Vertical = 2
         }
 
-        public readonly int Size;
-        public readonly double[] Density;
+        public int Size { get; }
+        public double[] Density { get; }
 
         public FluidCube(int size, double diffusion, double viscosity, double dt)
         {

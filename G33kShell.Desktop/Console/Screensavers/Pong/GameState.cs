@@ -11,13 +11,14 @@
 using System.Collections.Generic;
 using System.Numerics;
 using CSharp.Core.Extensions;
+using G33kShell.Desktop.Console.Screensavers.AI;
 
 namespace G33kShell.Desktop.Console.Screensavers.Pong;
 
 /// <summary>
 /// Captures the state of the game into a 'double' array that can be fed into the neural network.
 /// </summary>
-public class GameState
+public class GameState : IAiGameState
 {
     private readonly Vector2[] m_bats;
     private readonly Vector2 m_ballPosition;

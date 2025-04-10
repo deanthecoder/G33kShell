@@ -13,46 +13,42 @@ using System.Diagnostics;
 using System.Numerics;
 using CSharp.Core;
 using CSharp.Core.Extensions;
+using G33kShell.Desktop.Console.Screensavers.AI;
 
 namespace G33kShell.Desktop.Console.Screensavers.Pong;
 
 [DebuggerDisplay("Rating = {Rating}, Scores = {Scores[0]} vs {Scores[1]}")]
-public class Game
+public class Game : AiGameBase
 {
-    private readonly int m_arenaWidth;
-    private readonly int m_arenaHeight;
-    private readonly Random m_rand = new Random();
     private const int ScoreToWin = 10;
     private const float BatSpeed = 0.22f;
     private Vector2 m_ballVelocity;
     private int m_ballMoves;
+    private int m_rallies;
 
     public const int BatHeight = 4;
-    public Brain Brain { get; private init; } = new Brain();
-    internal int Rallies { get; private set; }
     public Vector2[] BatPositions { get; } = new Vector2[2];
     public Vector2 BallPosition { get; private set; }
     public int[] Scores { get; } = new int[2];
-    public double Rating
+    
+    public override double Rating
     {
         get
         {
             if (Scores[0] + Scores[1] == 0)
                 return 0.0; // No score - rubbish game.
-            return Rallies * 0.2                                    // Reward rallies.
+            return m_rallies * 0.2                                    // Reward rallies.
                    + m_ballMoves * 0.01                             // ...and long games.
                    + (ScoreToWin - Math.Abs(Scores[0] - Scores[1])) // Reward balanced scores.
                    + (Scores[0] + Scores[1]) / (2.0 * ScoreToWin);  // Reward high score. (Note: Might be small if game times-out.)
         }
     }
 
-    public bool IsGameOver => Scores[0] == ScoreToWin || Scores[1] == ScoreToWin || Rallies > 10000;
+    public override bool IsGameOver =>
+        Scores[0] == ScoreToWin || Scores[1] == ScoreToWin || m_rallies > 10000;
 
-    public Game(int arenaWidth, int arenaHeight)
+    public Game(int arenaWidth, int arenaHeight) : base(arenaWidth, arenaHeight, new Brain())
     {
-        m_arenaWidth = arenaWidth;
-        m_arenaHeight = arenaHeight;
-        
         ResetGame();
     }
 
@@ -62,7 +58,7 @@ public class Game
         BatPositions[1] = new Vector2(m_arenaWidth - 3, m_arenaHeight / 2.0f);
         ResetBall();
         Scores[0] = Scores[1] = 0;
-        Rallies = 0;
+        m_rallies = 0;
         m_ballMoves = 0;
     }
 
@@ -73,7 +69,7 @@ public class Game
         NormalizeBallVelocity();
     }
 
-    public void Tick()
+    public override void Tick()
     {
         if (IsGameOver)
             return;
@@ -112,14 +108,14 @@ public class Game
         var hitFactor = CheckVCollision(BatPositions[0], BallPosition.Y);
         if (m_ballVelocity.X < 0.0f && ballX <= (int)BatPositions[0].X + 1 && hitFactor >= 0.0f && hitFactor <= 1.0f)
         {
-            Rallies++;
+            m_rallies++;
             m_ballVelocity.X *= -1.0f;
             m_ballVelocity.Y = hitFactor.Lerp(-1.0f, 1.0f) * 0.5f;
         }
         hitFactor = CheckVCollision(BatPositions[1], BallPosition.Y);
         if (m_ballVelocity.X > 0.0f && ballX >= (int)BatPositions[1].X - 1 && hitFactor >= 0.0f && hitFactor <= 1.0f)
         {
-            Rallies++;
+            m_rallies++;
             m_ballVelocity.X *= -1.0f;
             m_ballVelocity.Y = hitFactor.Lerp(-1.0f, 1.0f) * 0.5f;
         }
@@ -128,7 +124,7 @@ public class Game
 
         // Move the bats.
         var gameState = new GameState(BatPositions, BallPosition, m_ballVelocity, m_arenaWidth, m_arenaHeight);
-        var newDirections = Brain.ChooseMoves(gameState);
+        var newDirections = ((Brain)Brain).ChooseMoves(gameState);
         var nextY = BatPositions[0].Y + BatSpeed * newDirections.LeftBat switch
         {
             Direction.Up => -1,
@@ -157,29 +153,9 @@ public class Game
         return ballY.InverseLerp(batTop, batBottom);
     }
 
-    public Game MergeWith(Game other)
-    {
-        var newGame = new Game(m_arenaWidth, m_arenaHeight) { Brain = Brain.Clone() };
-        switch (m_rand.Next(2))
-        {
-            case 0: // Average weights.
-                newGame.Brain.AverageWith(other.Brain);
-                break;
-            case 1: // Perturb weights.
-                newGame.Brain.MixWith(Brain);
-                break;
-            default:
-                throw new InvalidOperationException("Unknown NN merge mode.");
-        }
-        
-        return newGame;
-    }
+    protected override AiGameBase CreateGame(int arenaWidth, int arenaHeight) =>
+        new Game(arenaWidth, arenaHeight);
 
-    public Game Resurrect() =>
-        new Game(m_arenaWidth, m_arenaHeight)
-        {
-            Brain = Brain // New game, but keep the old bat brain.
-        };
-
-    public void LoadBrainData(byte[] brainBytes) => Brain.Load(brainBytes);
+    protected override AiBrainBase CloneBrain() =>
+        Brain.Clone<Brain>();
 }

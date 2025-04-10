@@ -69,6 +69,12 @@ public class Settings : UserSettingsBase
         get => Get<byte[]>();
         set => Set(value);
     }
+    
+    public byte[] AsteroidsBrain
+    {
+        get => Get<byte[]>();
+        set => Set(value);
+    }
 
     protected override void ApplyDefaults()
     {

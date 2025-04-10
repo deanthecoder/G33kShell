@@ -8,13 +8,11 @@
 // about your modifications. Your contributions are valued!
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using CSharp.Core.Extensions;
-using G33kShell.Desktop.Console.Controls;
+using G33kShell.Desktop.Console.Screensavers.AI;
 using G33kShell.Desktop.Terminal;
 using JetBrains.Annotations;
 using WenceyWang.FIGlet;
@@ -22,27 +20,17 @@ using WenceyWang.FIGlet;
 namespace G33kShell.Desktop.Console.Screensavers.Pong;
 
 /// <summary>
-/// AI-powered snake game.
+/// AI-powered Pong game.
 /// </summary>
 [DebuggerDisplay("PongCanvas:{X},{Y} {Width}x{Height}")]
 [UsedImplicitly]
-public class PongCanvas : ScreensaverBase
+public class PongCanvas : AiGameCanvasBase
 {
-    private const int PopulationSize = 200;
-    private readonly Random m_rand = new Random();
-    private int m_trainingGenerationCompleted;
-    private int ArenaWidth { get; }
-    private int ArenaHeight { get; }
-    private List<Game> m_games;
-    private double m_savedRating;
     private readonly FIGletFont m_font;
 
     public PongCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight, 60)
     {
         Name = "pong";
-
-        ArenaWidth = screenWidth;
-        ArenaHeight = screenHeight;
 
         m_font = LoadFont();
     }
@@ -60,19 +48,20 @@ public class PongCanvas : ScreensaverBase
     {
         if (m_games == null)
         {
-            m_games = [ new Game(ArenaWidth, ArenaHeight) ];
+            m_games = [ CreateGame() ];
             m_games[0].LoadBrainData(Settings.Instance.PongBrain);
         }
 
         DrawGame(screen, m_games[0]);
 
         m_games[0].Tick();
-        if (m_games[0].IsGameOver)
+        if (((Game)m_games[0]).IsGameOver)
             m_games[0].Resurrect();
     }
 
-    private void DrawGame(ScreenData screen, Game game)
+    protected override void DrawGame(ScreenData screen, AiGameBase aiGame)
     {
+        var game = (Game)aiGame;
         var dimRgb = 0.2.Lerp(Background, Foreground);
 
         // Half-way separator.
@@ -106,67 +95,7 @@ public class PongCanvas : ScreensaverBase
         // Ball.
         screen.PrintAt((int)game.BallPosition.X, (int)game.BallPosition.Y, game.BallPosition.Y - (int)game.BallPosition.Y < 0.5f ? '▀' : '▄', Foreground);
     }
-
-    [UsedImplicitly]
-    private void TrainAi(ScreenData screen)
-    {
-        m_games ??= Enumerable.Range(0, PopulationSize).Select(_ => new Game(ArenaWidth, ArenaHeight)).ToList();
-
-        m_games.AsParallel().ForAll(o =>
-        {
-            while (!o.IsGameOver)
-                o.Tick();
-        });
-
-        DrawGame(screen, m_games[0]);
-        
-        var isAllGamesEnded = m_games.All(o => o.IsGameOver);
-        if (!isAllGamesEnded)
-            return;
-        
-        // Select the breeders.
-        var orderedGames = m_games.OrderByDescending(o => o.Rating).ToArray();
-        var gameCount = orderedGames.Length;
-        var bestGames = orderedGames.Take((int)(gameCount * 0.1)).ToArray();
-        var losers = orderedGames.Except(bestGames);
-        var luckyLosers = losers.OrderBy(_ => m_rand.Next()).Take((int)(gameCount * 0.05)).ToArray();
-        
-        // Report summary of results.
-        m_trainingGenerationCompleted++;
-        var veryBest = bestGames[0];
-        System.Console.WriteLine($"Gen {m_trainingGenerationCompleted}, Rating: {veryBest.Rating:F2}, Range: {bestGames.Min(o => o.Rating):F1} -> {bestGames.Max(o => o.Rating):F1}, Rallies: {veryBest.Rallies}, Scores: [{veryBest.Scores[0]}, {veryBest.Scores[1]}]");
-
-        if (veryBest.Rating > m_savedRating && veryBest.Rating > 100)
-        {
-            m_savedRating = veryBest.Rating * 1.05;
-            System.Console.WriteLine("Saved.");
-            Settings.Instance.PongBrain = veryBest.Brain.Save();
-        }
-
-        // Build the games for the next generation.
-        m_games.Clear();
-        
-        // Best brains get a free pass.
-        m_games.AddRange(bestGames);
-
-        // Lucky losers get to survive too.
-        m_games.AddRange(luckyLosers);
-            
-        // Spawn some randoms.
-        m_games.AddRange(Enumerable.Range(0, (int)(gameCount * 0.2)).Select(_ => new Game(ArenaWidth, ArenaHeight)));
-            
-        // Best games get to be parents.
-        while (m_games.Count < PopulationSize)
-        {
-            var mum = bestGames[m_rand.Next(bestGames.Length)];
-            var dad = bestGames[m_rand.Next(bestGames.Length)];
-            m_games.Add(mum.MergeWith(dad));
-        }
-        
-        // ...and go again...
-        m_games = m_games.Select(o => o.Resurrect()).ToList();
-    }
-
+    
     private static FIGletFont LoadFont()
     {
         // Enumerate all Avalonia embedded resources.
@@ -177,4 +106,7 @@ public class PongCanvas : ScreensaverBase
         using var fontStream = fontFile.OpenRead();
         return new FIGletFont(fontStream);
     }
+
+    protected override AiGameBase CreateGame() =>
+        new Game(ArenaWidth, ArenaHeight);
 }

@@ -9,58 +9,47 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using CSharp.Core;
+using G33kShell.Desktop.Console.Screensavers.AI;
 
 namespace G33kShell.Desktop.Console.Screensavers.Snake;
 
 [DebuggerDisplay("HighScore = {HighScore}, Rating = {Rating}")]
-public class Game
+public class Game : AiGameBase
 {
-    private readonly int m_arenaWidth;
-    private readonly int m_arenaHeight;
     private readonly bool m_limitLives;
-    private readonly Random m_rand = new Random();
     private const int StartingLives = 10;
     private int m_totalMoves;
     private int m_totalScore;
+    private int m_lives = StartingLives;
     
-    public int Lives = StartingLives;
-    public Brain Brain { get; private init; } = new Brain();
     public Snake Snake { get; private set; }
     public IntPoint FoodPosition { get; private set; }
     public int HighScore { get; private set; }
     public int Score { get; private set; }
-    public Dictionary<Snake.DeathType, int> DeathReasons { get; }
 
     /// <summary>
     /// Combination of high score, average score, etc.
     /// </summary>
-    public double Rating =>
+    public override double Rating =>
         m_totalScore > 0
             ? (double)m_totalScore / StartingLives * 2.0 + HighScore * 0.3 + m_totalMoves * 0.001
             : 0; // no reward for circling and dying
-    
-    public Game(int arenaWidth, int arenaHeight, bool limitLives = true)
+
+    public override bool IsGameOver =>
+        m_lives== 0 && Snake.IsDead;
+
+    public Game(int arenaWidth, int arenaHeight, bool limitLives = true) : base(arenaWidth, arenaHeight, new Brain())
     {
-        m_arenaWidth = arenaWidth;
-        m_arenaHeight = arenaHeight;
         m_limitLives = limitLives;
 
-        DeathReasons =
-            Enum.GetValues(typeof(Snake.DeathType))
-                .Cast<Snake.DeathType>()
-                .ToDictionary(k => k, _ => 0);
-        
         ResetGame();
     }
 
     private void ResetGame()
     {
         Snake = new Snake(m_arenaWidth, m_arenaHeight);
-        Snake.TerminalCollision += (_, collisionType) => DeathReasons[collisionType]++;
         Snake.FoodEaten += (_, _) =>
         {
             Score++;
@@ -68,7 +57,6 @@ public class Game
             HighScore = Math.Max(HighScore, Score);
             SpawnFood();
         };
-        Snake.Starved += (_, _) => DeathReasons[Snake.DeathType.Starved]++;
         Score = 0;
 
         SpawnFood();
@@ -79,55 +67,35 @@ public class Game
         while (true)
         {
             FoodPosition = new IntPoint(m_rand.Next(0, m_arenaWidth), m_rand.Next(0, m_arenaHeight));
-            if (!Snake.IsCollision(FoodPosition, out _))
+            if (!Snake.IsCollision(FoodPosition))
                 return;
         }
     }
 
-    public void Tick()
+    public override void Tick()
     {
         if (Snake.IsDead)
         {
             if  (m_limitLives)
             {
-                if (Lives == 0)
+                if (m_lives == 0)
                     return;
-                Lives--;
+                m_lives--;
             }
             
             ResetGame();
         }
         
         var gameState = new GameState(Snake, FoodPosition);
-        var newDirection = Brain.ChooseMove(gameState);
+        var newDirection = ((Brain)Brain).ChooseMove(gameState);
         Snake.Move(newDirection, FoodPosition);
         m_totalMoves++;
     }
 
-    public Game MergeWith(Game other)
-    {
-        var newGame = new Game(m_arenaWidth, m_arenaHeight) { Brain = Brain.Clone() };
-        switch (m_rand.Next(2))
-        {
-            case 0: // Average weights.
-                newGame.Brain.AverageWith(other.Brain);
-                break;
-            case 1: // Perturb weights.
-                newGame.Brain.MixWith(Brain);
-                break;
-            default:
-                throw new InvalidOperationException("Unknown NN merge mode.");
-        }
-        
-        return newGame;
-    }
 
-    public Game Resurrect() =>
-        new Game(m_arenaWidth, m_arenaHeight)
-        {
-            Brain = Brain, // New game, but keep the old snake brain.
-            HighScore = HighScore
-        };
+    protected override AiGameBase CreateGame(int arenaWidth, int arenaHeight) =>
+        new Game(arenaWidth, arenaHeight);
 
-    public void LoadBrainData(byte[] brainBytes) => Brain.Load(brainBytes);
+    protected override AiBrainBase CloneBrain() =>
+        Brain.Clone<Brain>();
 }

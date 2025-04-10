@@ -22,11 +22,7 @@ public class Snake
     private readonly LinkedList<IntPoint> m_segments = [];
     private readonly Dictionary<IntPoint, int> m_segmentCache = [];
 
-    public enum DeathType { None, Wall, Self, Starved }
-
     public event EventHandler FoodEaten;
-    public event EventHandler Starved;
-    public event EventHandler<DeathType> TerminalCollision;
 
     public Direction Direction { get; private set; } = Direction.Left;
     public IntPoint HeadPosition { get; private set; }
@@ -59,10 +55,9 @@ public class Snake
             _ => throw new ArgumentOutOfRangeException(nameof(direction), direction, null)
         };
 
-        if (IsCollision(HeadPosition, out var collisionType))
+        if (IsCollision(HeadPosition))
         {
             IsDead = true;
-            TerminalCollision?.Invoke(this, collisionType);
             return;
         }
 
@@ -70,7 +65,6 @@ public class Snake
         if (StepsSinceFood >= TotalStepsToStarvation)
         {
             IsDead = true;
-            Starved?.Invoke(this, EventArgs.Empty);
             return;
         }
 
@@ -91,23 +85,13 @@ public class Snake
         }
     }
 
-    public bool IsCollision(IntPoint worldPoint, out DeathType deathType)
+    public bool IsCollision(IntPoint worldPoint)
     {
         if (worldPoint.X < 0 || worldPoint.X >= m_arenaWidth || worldPoint.Y < 0 || worldPoint.Y >= m_arenaHeight)
-        {
-            deathType = DeathType.Wall;
             return true; // Out of playing arena.
-        }
-        
+
         // Hit the tail?
-        if (CheckForTailHit(worldPoint))
-        {
-            deathType = DeathType.Self;
-            return true; // Hit the tail.
-        }
-        
-        deathType = DeathType.None;
-        return false;
+        return CheckForTailHit(worldPoint);
     }
 
     private bool CheckForTailHit(IntPoint worldPoint)

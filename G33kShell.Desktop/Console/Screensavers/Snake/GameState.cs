@@ -11,13 +11,14 @@
 using System.Collections.Generic;
 using CSharp.Core;
 using CSharp.Core.Extensions;
+using G33kShell.Desktop.Console.Screensavers.AI;
 
 namespace G33kShell.Desktop.Console.Screensavers.Snake;
 
 /// <summary>
 /// Captures the state of the game into a 'double' array that can be fed into the neural network.
 /// </summary>
-public class GameState
+public class GameState : IAiGameState
 {
     private readonly Snake m_snake;
     private readonly IntPoint m_foodPosition;
@@ -64,7 +65,7 @@ public class GameState
             var world = m_snake.HeadPosition.WithDelta(dx, 0);
             
             // Get content at this world cell
-            if (m_snake.IsCollision(world, out _))
+            if (m_snake.IsCollision(world))
                 grid[i] = -1.0;
             if (world == m_foodPosition)
                 grid[i] = 0.5;
@@ -80,7 +81,7 @@ public class GameState
             var world = m_snake.HeadPosition.WithDelta(0, dy);
             
             // Get content at this world cell
-            if (m_snake.IsCollision(world, out _))
+            if (m_snake.IsCollision(world))
                 grid[i] = -1.0;
             if (world == m_foodPosition)
                 grid[i] = 0.5;
