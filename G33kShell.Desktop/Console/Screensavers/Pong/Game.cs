@@ -9,6 +9,7 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
 using CSharp.Core;
@@ -47,25 +48,31 @@ public class Game : AiGameBase
     public override bool IsGameOver =>
         Scores[0] == ScoreToWin || Scores[1] == ScoreToWin || m_rallies > 10000;
 
-    public Game(int arenaWidth, int arenaHeight) : base(arenaWidth, arenaHeight, new Brain())
+    public override IEnumerable<(string Name, string Value)> ExtraGameStats()
     {
-        ResetGame();
+        yield break;
     }
 
-    private void ResetGame()
+    public Game(int arenaWidth, int arenaHeight) : base(arenaWidth, arenaHeight, new Brain())
     {
-        BatPositions[0] = new Vector2(2, m_arenaHeight / 2.0f);
-        BatPositions[1] = new Vector2(m_arenaWidth - 3, m_arenaHeight / 2.0f);
+    }
+
+    public override AiGameBase ResetGame()
+    {
+        BatPositions[0] = new Vector2(2, ArenaHeight / 2.0f);
+        BatPositions[1] = new Vector2(ArenaWidth - 3, ArenaHeight / 2.0f);
         ResetBall();
         Scores[0] = Scores[1] = 0;
         m_rallies = 0;
         m_ballMoves = 0;
+        
+        return this;
     }
 
     private void ResetBall()
     {
-        BallPosition = new Vector2(m_arenaWidth / 2.0f, m_arenaHeight / 2.0f);
-        m_ballVelocity = new Vector2(m_rand.NextBool() ? -1.0f : 1.0f, (float)m_rand.NextDouble() - 0.5f);
+        BallPosition = new Vector2(ArenaWidth / 2.0f, ArenaHeight / 2.0f);
+        m_ballVelocity = new Vector2(GameRand.NextBool() ? -1.0f : 1.0f, GameRand.NextFloat() - 0.5f);
         NormalizeBallVelocity();
     }
 
@@ -81,9 +88,9 @@ public class Game : AiGameBase
         {
             BallPosition = BallPosition with { Y = 0.0f };
             m_ballVelocity.Y *= -1.0f;
-        } else if (BallPosition.Y >= m_arenaHeight)
+        } else if (BallPosition.Y >= ArenaHeight)
         {
-            BallPosition = BallPosition with { Y = m_arenaHeight - 1.0f };
+            BallPosition = BallPosition with { Y = ArenaHeight - 1.0f };
             m_ballVelocity.Y *= -1.0f;
         }
         if (BallPosition.X < 0)
@@ -91,7 +98,7 @@ public class Game : AiGameBase
             Scores[1]++;
             ResetBall();
             m_ballVelocity.X = -MathF.Abs(m_ballVelocity.X);
-        } else if (BallPosition.X >= m_arenaWidth)
+        } else if (BallPosition.X >= ArenaWidth)
         {
             Scores[0]++;
             ResetBall();
@@ -123,7 +130,7 @@ public class Game : AiGameBase
         NormalizeBallVelocity();
 
         // Move the bats.
-        var gameState = new GameState(BatPositions, BallPosition, m_ballVelocity, m_arenaWidth, m_arenaHeight);
+        var gameState = new GameState(BatPositions, BallPosition, m_ballVelocity, ArenaWidth, ArenaHeight);
         var newDirections = ((Brain)Brain).ChooseMoves(gameState);
         var nextY = BatPositions[0].Y + BatSpeed * newDirections.LeftBat switch
         {
@@ -131,7 +138,7 @@ public class Game : AiGameBase
             Direction.Down => 1,
             _ => 0
         };
-        if (nextY >= BatHeight / 2.0f && nextY < m_arenaHeight - BatHeight / 2.0f)
+        if (nextY >= BatHeight / 2.0f && nextY < ArenaHeight - BatHeight / 2.0f)
             BatPositions[0].Y = nextY;
         nextY = BatPositions[1].Y + BatSpeed * newDirections.RightBat switch
         {
@@ -139,7 +146,7 @@ public class Game : AiGameBase
             Direction.Down => 1,
             _ => 0
         };
-        if (nextY >= BatHeight / 2.0f && nextY < m_arenaHeight - BatHeight / 2.0f)
+        if (nextY >= BatHeight / 2.0f && nextY < ArenaHeight - BatHeight / 2.0f)
             BatPositions[1].Y = nextY;
     }
 
@@ -152,10 +159,4 @@ public class Game : AiGameBase
         var batBottom = (int)(batPosition.Y + BatHeight / 2.0f);
         return ballY.InverseLerp(batTop, batBottom);
     }
-
-    protected override AiGameBase CreateGame(int arenaWidth, int arenaHeight) =>
-        new Game(arenaWidth, arenaHeight);
-
-    protected override AiBrainBase CloneBrain() =>
-        Brain.Clone<Brain>();
 }

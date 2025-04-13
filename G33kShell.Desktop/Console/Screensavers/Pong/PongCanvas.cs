@@ -22,7 +22,7 @@ namespace G33kShell.Desktop.Console.Screensavers.Pong;
 /// <summary>
 /// AI-powered Pong game.
 /// </summary>
-[DebuggerDisplay("PongCanvas:{X},{Y} {Width}x{Height}")]
+[DebuggerDisplay("AsteroidsCanvas:{X},{Y} {Width}x{Height}")]
 [UsedImplicitly]
 public class PongCanvas : AiGameCanvasBase
 {
@@ -39,7 +39,7 @@ public class PongCanvas : AiGameCanvasBase
     {
         screen.ClearChars();
 
-        //TrainAi(screen);
+        //TrainAi(screen, brainBytes => Settings.Instance.PongBrain = brainBytes, () => new Brain());
         PlayGame(screen);
     }
 
@@ -48,7 +48,7 @@ public class PongCanvas : AiGameCanvasBase
     {
         if (m_games == null)
         {
-            m_games = [ CreateGame() ];
+            m_games = [CreateGame().ResetGame()];
             m_games[0].LoadBrainData(Settings.Instance.PongBrain);
         }
 
@@ -56,7 +56,7 @@ public class PongCanvas : AiGameCanvasBase
 
         m_games[0].Tick();
         if (((Game)m_games[0]).IsGameOver)
-            m_games[0].Resurrect();
+            m_games[0].ResetGame();
     }
 
     protected override void DrawGame(ScreenData screen, AiGameBase aiGame)

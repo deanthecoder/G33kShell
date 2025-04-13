@@ -1,0 +1,174 @@
+// Code authored by Dean Edis (DeanTheCoder).
+// Anyone is free to copy, modify, use, compile, or distribute this software,
+// either in source code form or as a compiled binary, for any non-commercial
+//  purpose.
+// 
+// If you modify the code, please retain this copyright header,
+// and consider contributing back to the repository or letting us know
+// about your modifications. Your contributions are valued!
+// 
+// THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Numerics;
+using CSharp.Core.Extensions;
+using G33kShell.Desktop.Console.Screensavers.AI;
+
+namespace G33kShell.Desktop.Console.Screensavers.Asteroids;
+
+[DebuggerDisplay("Rating = {Rating}, Score = {Score}")]
+public class Game : AiGameBase
+{
+    private int m_bulletsFired;
+    private int m_perfectHits;
+    private int m_gameTicks;
+    private int m_leftTurns;
+    private int m_rightTurns;
+
+    /// <summary>
+    /// Score used for public display.
+    /// </summary>
+    public int Score { get; private set; }
+
+    public override double Rating =>
+        m_bulletsFired * HitAccuracy +                                                              // Reward hit accuracy.
+        (Ship.DistanceTravelled / 100.0).Clamp(0.0, 1.0) * 5.0 +                                    // Reward moving a bit.
+        (1.0 - (double)Math.Abs(m_leftTurns - m_rightTurns) / (m_leftTurns + m_rightTurns)) * 5.0 + // Reward not spinning.
+        Score / 1000.0;                                                                             // Reward score.
+
+    public override bool IsGameOver => Ship.Shield <= 0.0;
+    public Ship Ship { get; private set; }
+    public List<Asteroid> Asteroids { get; } = [];
+    public List<Bullet> Bullets { get; } = [];
+
+    private double HitAccuracy => m_bulletsFired == 0 ? 0.0 : (double)m_perfectHits / m_bulletsFired;
+
+    public Game(int arenaWidth, int arenaHeight) : base(arenaWidth, arenaHeight, new Brain())
+    {
+    }
+
+    public override Game ResetGame()
+    {
+        Ship = new Ship(ArenaWidth, ArenaHeight);
+        Score = 0;
+
+        Asteroids.Clear();
+        Bullets.Clear();
+        m_bulletsFired = 0;
+        m_perfectHits = 0;
+        m_gameTicks = 0;
+        m_leftTurns = 0;
+        m_rightTurns = 0;
+
+        EnsureMinimumAsteroidCount();
+        
+        return this;
+    }
+
+    private void EnsureMinimumAsteroidCount()
+    {
+        while (Asteroids.Sum(o => o.SizeMetric) < 12)
+        {
+            var pos = new Vector2(GameRand.NextFloat() * ArenaWidth, GameRand.NextFloat() * ArenaHeight);
+            if (Vector2.Distance(pos, Ship.Position) < 25)
+                continue; // Too close to the ship.
+
+            Asteroids.Add(new Asteroid(pos, 0.1f, GameRand, ArenaWidth, ArenaHeight));
+        }
+    }
+
+    public override void Tick()
+    {
+        if (IsGameOver)
+            return;
+
+        m_gameTicks++;
+
+        // Spawn asteroids.
+        EnsureMinimumAsteroidCount();
+
+        // Move ship.
+        Ship.Move();
+        if (Ship.Turning == Ship.Turn.Left)
+            m_leftTurns++;
+        else if (Ship.Turning == Ship.Turn.Right)
+            m_rightTurns++;
+
+        // Spawn new bullets.
+        if (Ship.IsShooting && Bullets.Count < Ship.MaxBullets)
+        {
+            var target = Asteroids.OrderBy(o => Vector2.DistanceSquared(Ship.Position, o.Position)).FirstOrDefault();
+            Bullets.Add(new Bullet(Ship.Position, Ship.Theta, target, ArenaWidth, ArenaHeight));
+            m_bulletsFired++;
+        }
+
+        // Move the asteroids.
+        foreach (var asteroid in Asteroids)
+            asteroid.Move();
+
+        // Move the bullets.
+        foreach (var bullet in Bullets)
+            bullet.Move();
+
+        // Remove expired bullets.
+        Bullets.RemoveAll(o => o.IsExpired);
+
+        // Check for bullet/asteroid collisions.
+        var bulletsToRemove = new List<Bullet>();
+        foreach (var bullet in Bullets)
+        {
+            Asteroid hitAsteroid = null;
+            // ReSharper disable once ForCanBeConvertedToForeach
+            // ReSharper disable once LoopCanBeConvertedToQuery
+            for (var i = 0; i < Asteroids.Count; i++)
+            {
+                if (!Asteroids[i].Contains(bullet.Position))
+                    continue;
+                hitAsteroid = Asteroids[i];
+                break;
+            }
+            if (hitAsteroid == null)
+                continue; // Bullet not hitting anything.
+
+            // Bullet hit an asteroid.
+            bulletsToRemove.Add(bullet);
+            hitAsteroid.Explode(Asteroids);
+            Score += hitAsteroid.HitScore;
+            
+            // Bonus points if it was the asteroid we were aiming for.
+            if (bullet.Target == hitAsteroid)
+                m_perfectHits++;
+        }
+
+        bulletsToRemove.ForEach(o => Bullets.Remove(o));
+
+        // Check for ship/asteroid collisions.
+        foreach (var asteroid in Asteroids)
+        {
+            var distance = Vector2.Distance(asteroid.Position, Ship.Position);
+            const float shipRadius = 4.0f;
+            if (distance < asteroid.Radius + shipRadius)
+            {
+                Ship.Shield = Math.Max(0.0, Ship.Shield - 0.05);
+                break;
+            }
+        }
+
+        // Apply the AI.
+        var gameState = new GameState(Ship, Asteroids, ArenaWidth, ArenaHeight);
+        var moves = ((Brain)Brain).ChooseMoves(gameState);
+        Ship.IsShooting = moves.IsShooting;
+        Ship.Turning = moves.Turn;
+        Ship.IsThrusting = moves.IsThrusting;
+    }
+
+    public override IEnumerable<(string Name, string Value)> ExtraGameStats()
+    {
+        yield return ("Score", Score.ToString());
+        yield return ("HitAccuracy", HitAccuracy.ToString("P1"));
+        yield return ("GameTicks", m_gameTicks.ToString());
+        yield return ("DistanceTravelled", Ship.DistanceTravelled.ToString("F1"));
+    }
+}

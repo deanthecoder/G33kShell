@@ -11,6 +11,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
 using JetBrains.Annotations;
 
@@ -24,9 +25,9 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     private readonly Random m_rand = new Random();
     private int m_generation;
     private double m_savedRating;
-    private const int PopulationSize = 200;
+    private const int PopulationSize = 100;
 
-    protected List<AiGameBase> m_games;
+    protected AiGameBase[] m_games;
 
     protected int ArenaWidth { get; }
     protected int ArenaHeight { get; }
@@ -40,9 +41,9 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     }
 
     [UsedImplicitly]
-    protected void TrainAi(ScreenData screen, AiGameBase game, Action<byte[]> saveBrainBytes)
+    protected void TrainAi(ScreenData screen, Action<byte[]> saveBrainBytes, Func<AiBrainBase> createBrain)
     {
-        m_games ??= Enumerable.Range(0, PopulationSize).Select(_ => CreateGame()).ToList();
+        m_games ??= Enumerable.Range(0, PopulationSize).Select(_ => CreateGameWithSeed(m_generation)).ToArray();
 
         m_games.AsParallel().ForAll(o =>
         {
@@ -52,51 +53,74 @@ public abstract class AiGameCanvasBase : ScreensaverBase
 
         DrawGame(screen, m_games[0]);
         
-        var isAllGamesEnded = m_games.All(o => o.IsGameOver);
-        if (!isAllGamesEnded)
-            return;
-        
         // Select the breeders.
         var orderedGames = m_games.OrderByDescending(o => o.Rating).ToArray();
         var gameCount = orderedGames.Length;
-        var bestGames = orderedGames.Take((int)(gameCount * 0.1)).ToArray();
-        var losers = orderedGames.Except(bestGames);
+        var eliteGames = orderedGames.Take((int)(gameCount * 0.1)).ToArray();
+        var losers = orderedGames.Except(eliteGames);
         var luckyLosers = losers.OrderBy(_ => m_rand.Next()).Take((int)(gameCount * 0.05)).ToArray();
         
         // Report summary of results.
         m_generation++;
-        var veryBest = bestGames[0];
-        System.Console.WriteLine($"Gen {m_generation}, Rating: {veryBest.Rating:F2}, Range: {bestGames.Min(o => o.Rating):F1} -> {bestGames.Max(o => o.Rating):F1}");
+        var veryBest = eliteGames[0];
+        var stats = $"Gen {m_generation}, MaxRating: {veryBest.Rating:F1}";
+        var extraStats = veryBest.ExtraGameStats().Select(o => $" {o.Name}: {o.Value}").ToArray().ToCsv().Trim();
+        if (!string.IsNullOrEmpty(extraStats))
+            stats += $", {extraStats}";
+        System.Console.WriteLine(stats);
 
-        if (veryBest.Rating > m_savedRating && veryBest.Rating > 100)
+        // Persist brain improvements.
+        if (veryBest.Rating > m_savedRating)
         {
             m_savedRating = veryBest.Rating * 1.05;
             System.Console.WriteLine("Saved.");
             saveBrainBytes(veryBest.Brain.Save());
         }
 
-        // Build the games for the next generation.
-        m_games.Clear();
+        // Build the brains for the next generation.
+        var nextBrains = new List<AiBrainBase>(m_games.Length);
         
         // Best brains get a free pass.
-        m_games.AddRange(bestGames);
+        nextBrains.AddRange(eliteGames.Select(o => o.Brain));
+        nextBrains.AddRange(eliteGames.Select(o => createBrain().InitWithNudgedWeights(o.Brain)));
 
         // Lucky losers get to survive too.
-        m_games.AddRange(luckyLosers);
+        nextBrains.AddRange(luckyLosers.Select(o => createBrain().InitWithNudgedWeights(o.Brain)));
             
         // Spawn some randoms.
-        m_games.AddRange(Enumerable.Range(0, (int)(gameCount * 0.2)).Select(_ => CreateGame()));
+        nextBrains.AddRange(Enumerable.Range(0, (int)(gameCount * 0.1)).Select(_ => createBrain()));
             
-        // Best games get to be parents.
-        while (m_games.Count < PopulationSize)
+        // Best brains get to be parents.
+        var breeders = nextBrains.ToArray();
+        while (nextBrains.Count < PopulationSize)
         {
-            var mum = bestGames[m_rand.Next(bestGames.Length)];
-            var dad = bestGames[m_rand.Next(bestGames.Length)];
-            m_games.Add(mum.MergeWith(dad));
+            var mumBrain = breeders[m_rand.Next(breeders.Length)];
+            var dadBrain = breeders[m_rand.Next(breeders.Length)];
+            var childBrain = m_rand.Next(2) switch
+            {
+                0 => createBrain().InitWithAveraged(mumBrain, dadBrain),
+                1 => createBrain().InitWithMixed(mumBrain, dadBrain),
+                _ => throw new InvalidOperationException("Unknown brain merge mode.")
+            };
+
+            nextBrains.Add(childBrain.NudgeWeights());
         }
         
-        // ...and go again...
-        m_games = m_games.Select(o => o.Resurrect()).ToList();
+        // Make the next generation of games.
+        m_games = nextBrains.Select(o =>
+        {
+            var newGame = CreateGameWithSeed(m_generation);
+            newGame.Brain = o;
+            return newGame;
+        }).ToArray();
+    }
+
+    private AiGameBase CreateGameWithSeed(int seed)
+    {
+        var game = CreateGame();
+        game.GameRand = new Random(seed);
+        game.ResetGame();
+        return game;
     }
 
     protected abstract AiGameBase CreateGame();

@@ -9,6 +9,7 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System.Diagnostics;
+using CSharp.Core.Extensions;
 
 namespace G33kShell.Desktop.Console.Controls;
 
@@ -43,9 +44,5 @@ public class ProgressBar : Visual
             screen.PrintAt(0, y, bar);
     }
 
-    public string AsString()
-    {
-        var progressWidth = (int)(Width * Progress / 100.0);
-        return new string('█', progressWidth) + new string('░', Width - progressWidth);
-    }
+    public string AsString() => (Progress / 100.0).ToProgressBar(Width);
 }

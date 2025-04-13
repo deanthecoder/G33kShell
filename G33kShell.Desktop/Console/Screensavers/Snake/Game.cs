@@ -9,6 +9,7 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using CSharp.Core;
 using G33kShell.Desktop.Console.Screensavers.AI;
@@ -40,16 +41,19 @@ public class Game : AiGameBase
     public override bool IsGameOver =>
         m_lives== 0 && Snake.IsDead;
 
+    public override IEnumerable<(string Name, string Value)> ExtraGameStats()
+    {
+        yield return ("HighScore", HighScore.ToString());
+    }
+
     public Game(int arenaWidth, int arenaHeight, bool limitLives = true) : base(arenaWidth, arenaHeight, new Brain())
     {
         m_limitLives = limitLives;
-
-        ResetGame();
     }
 
-    private void ResetGame()
+    public override AiGameBase ResetGame()
     {
-        Snake = new Snake(m_arenaWidth, m_arenaHeight);
+        Snake = new Snake(ArenaWidth, ArenaHeight);
         Snake.FoodEaten += (_, _) =>
         {
             Score++;
@@ -60,13 +64,15 @@ public class Game : AiGameBase
         Score = 0;
 
         SpawnFood();
+        
+        return this;
     }
 
     private void SpawnFood()
     {
         while (true)
         {
-            FoodPosition = new IntPoint(m_rand.Next(0, m_arenaWidth), m_rand.Next(0, m_arenaHeight));
+            FoodPosition = new IntPoint(GameRand.Next(0, ArenaWidth), GameRand.Next(0, ArenaHeight));
             if (!Snake.IsCollision(FoodPosition))
                 return;
         }
@@ -91,11 +97,4 @@ public class Game : AiGameBase
         Snake.Move(newDirection, FoodPosition);
         m_totalMoves++;
     }
-
-
-    protected override AiGameBase CreateGame(int arenaWidth, int arenaHeight) =>
-        new Game(arenaWidth, arenaHeight);
-
-    protected override AiBrainBase CloneBrain() =>
-        Brain.Clone<Brain>();
 }

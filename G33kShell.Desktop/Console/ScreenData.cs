@@ -97,32 +97,25 @@ public class ScreenData
 
     public void Clear(Rgb foreground, Rgb background)
     {
+        var attr = new Attr { Foreground = foreground, Background = background };
         var height = Height;
         var width = Width;
         for (var y = 0; y < height; y++)
         {
             for (var x = 0; x < width; x++)
-            {
-                Chars[y][x] = new Attr
-                {
-                    Foreground = foreground, Background = background
-                };
-            }
+                Chars[y][x].Set(attr);
         }
     }
 
     public void Clear(int x, int y, int w, int h, Rgb foreground, Rgb background)
     {
+        var attr = new Attr { Foreground = foreground, Background = background };
         for (var i = y; i < y + h; i++)
         {
             for (var j = x; j < x + w; j++)
             {
-                if (!IsWithinBounds(j, i))
-                    continue;
-                Chars[i][j] = new Attr
-                {
-                    Foreground = foreground, Background = background
-                };
+                if (IsWithinBounds(j, i))
+                    Chars[i][j].Set(attr);
             }
         }
     }

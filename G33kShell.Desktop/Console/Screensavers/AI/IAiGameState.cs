@@ -10,6 +10,9 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 namespace G33kShell.Desktop.Console.Screensavers.AI;
 
+/// <summary>
+/// Captures the state of the game into a 'double' array that can be fed into the neural network.
+/// </summary>
 public interface IAiGameState
 {
     double[] ToInputVector();

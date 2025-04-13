@@ -21,10 +21,18 @@ namespace G33kShell.Desktop.Console;
 public class HighResScreen
 {
     private readonly ScreenData m_screen;
+    private readonly DrawMode m_drawMode;
 
-    public HighResScreen(ScreenData screen)
+    public enum DrawMode
+    {
+        Overwrite,  // Always draw the pixel.
+        LightenOnly // Only draw if new color is brighter than existing.
+    }
+    
+    public HighResScreen(ScreenData screen, DrawMode drawMode = DrawMode.Overwrite)
     {
         m_screen = screen;
+        m_drawMode = drawMode;
     }
     
     public void Plot(int x, int y, Rgb color)
@@ -37,14 +45,22 @@ public class HighResScreen
     
         var attr = m_screen.Chars[y][x];
         if (attr.Ch != '▀')
+        {
+            // Pixel currently blank.
             m_screen.PrintAt(x, y, new Attr('▀', attr.Background, attr.Background));
-        
-        if (isTopPixel)
-            m_screen.SetForeground(x, y, color);
-        else
-            m_screen.SetBackground(x, y, color);
-    }
+        }
 
+        if (isTopPixel)
+        {
+            if (m_drawMode == DrawMode.Overwrite || color.Luminosity() > m_screen.GetForeground(x, y).Luminosity())
+                m_screen.SetForeground(x, y, color);
+        }
+        else
+        {
+            if (m_drawMode == DrawMode.Overwrite || color.Luminosity() > m_screen.GetBackground(x, y).Luminosity())
+                m_screen.SetBackground(x, y, color);
+        }
+    }
     
     /// <summary>
     /// Draws a filled ellipse (circle) on the screen using the specified shading function to determine pixel colors.
@@ -68,12 +84,11 @@ public class HighResScreen
     
             for (var x = -xRadius; x <= xRadius; x++)
             {
-                var xNorm = (double)x / xRadius; // Normalize X to range [-1,1]
-                if (x * x * xRadius2 + yLookup <= 1.0)
-                {
-                    var color = colorFunc(xNorm, yNorm); // Get color from shading function
-                    Plot(cx + x, cy + y, color);
-                }
+                if (x * x * xRadius2 + yLookup > 1.0)
+                    continue;
+                var xNorm = (double)x / xRadius;     // Normalize X to range [-1,1]
+                var color = colorFunc(xNorm, yNorm); // Get color from shading function
+                Plot(cx + x, cy + y, color);
             }
         }
     }
@@ -98,7 +113,7 @@ public class HighResScreen
         {
             // Sphere equation: x^2 + y^2 + z^2 = 1
             var zSquared = 1.0 - (x * x + y * y);
-            if (zSquared < 0) return background; // Outside the sphere
+            if (zSquared <= 0) return background; // Outside the sphere
 
             var z = Math.Sqrt(zSquared); // Compute z coordinate
 

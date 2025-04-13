@@ -16,7 +16,6 @@ namespace G33kShell.Desktop.Console.Screensavers.AI;
 
 public abstract class AiBrainBase
 {
-    private readonly object m_brainLock = new object();
     [JsonProperty] private NeuralNetwork m_qNet;
 
     protected AiBrainBase(int inputSize, int[] hiddenLayers, int outputSize)
@@ -32,7 +31,7 @@ public abstract class AiBrainBase
 
     protected double[] GetOutputs(IAiGameState state)
     {
-        lock (m_brainLock)
+        lock (m_qNet)
             return m_qNet.Predict(state.ToInputVector());
     }
 
@@ -56,33 +55,54 @@ public abstract class AiBrainBase
 
     public byte[] Save()
     {
-        lock (m_brainLock)
+        lock (m_qNet)
             return JsonConvert.SerializeObject(this).Compress();
     }
 
     public void Load(byte[] brainBytes)
     {
-        lock (m_brainLock)
+        lock (m_qNet)
             JsonConvert.PopulateObject(brainBytes.DecompressToString(), this);
     }
 
-    public void AverageWith(AiBrainBase other)
+    public AiBrainBase InitWithAveraged(AiBrainBase first, AiBrainBase second)
     {
-        lock (m_brainLock)
-            m_qNet = m_qNet.AverageWith(other.m_qNet).NudgeWeights();
+        lock (m_qNet)
+        lock (first.m_qNet)
+        lock (second.m_qNet)
+            m_qNet = first.m_qNet.CreateAveraged(second.m_qNet);
+        return this;
     }
 
-    public void MixWith(AiBrainBase other)
+    public AiBrainBase InitWithMixed(AiBrainBase first, AiBrainBase second)
     {
-        lock (m_brainLock)
-            m_qNet = m_qNet.MixWith(other.m_qNet).NudgeWeights();
+        lock (m_qNet)
+        lock (first.m_qNet)
+        lock (second.m_qNet)
+            m_qNet = first.m_qNet.CreateMixed(second.m_qNet);
+        return this;
     }
-
-    public T Clone<T>() where T : AiBrainBase, new()
+    
+    public AiBrainBase InitWithNudgedWeights(AiBrainBase brain)
     {
-        var clone = new T();
-        lock (m_brainLock)
-            clone.m_qNet = m_qNet.Clone();
-        return clone;
+        lock (m_qNet)
+        lock (brain.m_qNet)
+            m_qNet = brain.m_qNet.CloneWithNudgeWeights();
+        return this;
+    }
+    
+    public AiBrainBase NudgeWeights()
+    {
+        lock (m_qNet)
+            m_qNet = m_qNet.CloneWithNudgeWeights();
+        return this;
+    }
+    
+    public AiBrainBase InitWithBrain(AiBrainBase brain)
+    {
+        lock (m_qNet)
+        lock (brain.m_qNet)
+            m_qNet = brain.m_qNet.Clone();
+        return this;
     }
 }

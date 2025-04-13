@@ -9,14 +9,14 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
+using System.Collections.Generic;
 
 namespace G33kShell.Desktop.Console.Screensavers.AI;
 
 public abstract class AiGameBase
 {
-    protected readonly int m_arenaWidth;
-    protected readonly int m_arenaHeight;
-    protected readonly Random m_rand = new Random();
+    protected int ArenaWidth { get; }
+    protected int ArenaHeight { get; }
     
     public AiBrainBase Brain { get; set; }
 
@@ -26,11 +26,22 @@ public abstract class AiGameBase
     public abstract double Rating { get; }
 
     public abstract bool IsGameOver { get; }
+    
+    /// <summary>
+    /// Random number generator for the game to use for random events.
+    /// </summary>
+    /// <remarks>
+    /// Multiple game instances might share the same seed (and hence have the same gameplay)
+    /// when part of the same training 'generation'.
+    /// </remarks>
+    public Random GameRand { get; set; } = new Random();
+
+    public abstract IEnumerable<(string Name, string Value)> ExtraGameStats();
 
     protected AiGameBase(int arenaWidth, int arenaHeight, AiBrainBase brain)
     {
-        m_arenaWidth = arenaWidth;
-        m_arenaHeight = arenaHeight;
+        ArenaWidth = arenaWidth;
+        ArenaHeight = arenaHeight;
         Brain = brain;
     }
 
@@ -40,39 +51,13 @@ public abstract class AiGameBase
     public abstract void Tick();
     
     /// <summary>
-    /// Merges this game with another to produce a new game.
+    /// Reset all game state back to the same initial conditions.
     /// </summary>
-    public AiGameBase MergeWith(AiGameBase other)
+    public abstract AiGameBase ResetGame();
+
+    public void LoadBrainData(byte[] brainBytes)
     {
-        var newGame = CreateGame(m_arenaWidth, m_arenaHeight);
-        newGame.Brain = CloneBrain();
-        switch (m_rand.Next(2))
-        {
-            case 0: // Average weights.
-                newGame.Brain.AverageWith(other.Brain);
-                break;
-            case 1: // Perturb weights.
-                newGame.Brain.MixWith(Brain);
-                break;
-            default:
-                throw new InvalidOperationException("Unknown NN merge mode.");
-        }
-        
-        return newGame;
+        if (brainBytes != null && brainBytes.Length > 0)
+            Brain.Load(brainBytes);
     }
-
-    /// <summary>
-    /// Creates a new game using the same AI brain.
-    /// </summary>
-    public AiGameBase Resurrect()
-    {
-        var game = CreateGame(m_arenaWidth, m_arenaHeight);
-        game.Brain = Brain; // New game, but keep the old bat brain.
-        return game;
-    }
-
-    protected abstract AiGameBase CreateGame(int arenaWidth, int arenaHeight);
-    protected abstract AiBrainBase CloneBrain();
-
-    public void LoadBrainData(byte[] brainBytes) => Brain.Load(brainBytes);
 }

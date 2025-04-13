@@ -31,7 +31,7 @@ public class SnakeCanvas : AiGameCanvasBase
     {
         screen.ClearChars();
 
-        //TrainAi(screen);
+        //TrainAi(screen, brainBytes => Settings.Instance.SnakeBrain = brainBytes, () => new Brain());
         PlayGame(screen);
     }
 
@@ -40,7 +40,7 @@ public class SnakeCanvas : AiGameCanvasBase
     {
         if (m_games == null)
         {
-            m_games = [ new Game(ArenaWidth, ArenaHeight) ];
+            m_games = [new Game(ArenaWidth, ArenaHeight)];
             m_games[0].LoadBrainData(Settings.Instance.SnakeBrain);
         }
 
