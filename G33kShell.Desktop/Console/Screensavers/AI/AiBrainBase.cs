@@ -83,18 +83,18 @@ public abstract class AiBrainBase
         return this;
     }
     
-    public AiBrainBase InitWithNudgedWeights(AiBrainBase brain)
+    public AiBrainBase InitWithNudgedWeights(AiBrainBase brain, NeuralNetwork.NudgeFactor nudge)
     {
         lock (m_qNet)
         lock (brain.m_qNet)
-            m_qNet = brain.m_qNet.CloneWithNudgeWeights();
+            m_qNet = brain.m_qNet.CloneWithNudgeWeights(nudge);
         return this;
     }
     
-    public AiBrainBase NudgeWeights()
+    public AiBrainBase NudgeWeights(NeuralNetwork.NudgeFactor nudge)
     {
         lock (m_qNet)
-            m_qNet = m_qNet.CloneWithNudgeWeights();
+            m_qNet = m_qNet.CloneWithNudgeWeights(nudge);
         return this;
     }
     

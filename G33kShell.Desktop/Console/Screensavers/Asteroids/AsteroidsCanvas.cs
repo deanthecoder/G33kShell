@@ -33,9 +33,11 @@ public class AsteroidsCanvas : AiGameCanvasBase
     public override void UpdateFrame(ScreenData screen)
     {
         screen.ClearChars();
+        
+        // todo - use name to detect training mode.
 
-        //TrainAi(screen, brainBytes => Settings.Instance.AsteroidsBrain = brainBytes, () => new Brain());
-        PlayGame(screen);
+        TrainAi(screen, brainBytes => Settings.Instance.AsteroidsBrain = brainBytes, () => new Brain());
+        //PlayGame(screen);
     }
 
     [UsedImplicitly]

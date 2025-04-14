@@ -11,6 +11,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using CSharp.Core.AI;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
 using JetBrains.Annotations;
@@ -25,7 +26,10 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     private readonly Random m_rand = new Random();
     private int m_generation;
     private double m_savedRating;
-    private const int PopulationSize = 100;
+    private const int InitialPopSize = 300;
+    private const int MinPopSize = 80;
+    private int m_generationsSinceImprovement;
+    private int m_currentPopSize = InitialPopSize;
 
     protected AiGameBase[] m_games;
 
@@ -43,7 +47,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     [UsedImplicitly]
     protected void TrainAi(ScreenData screen, Action<byte[]> saveBrainBytes, Func<AiBrainBase> createBrain)
     {
-        m_games ??= Enumerable.Range(0, PopulationSize).Select(_ => CreateGameWithSeed(m_generation)).ToArray();
+        m_games ??= Enumerable.Range(0, m_currentPopSize).Select(_ => CreateGameWithSeed(m_generation)).ToArray();
 
         m_games.AsParallel().ForAll(o =>
         {
@@ -55,62 +59,77 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         
         // Select the breeders.
         var orderedGames = m_games.OrderByDescending(o => o.Rating).ToArray();
-        var gameCount = orderedGames.Length;
-        var eliteGames = orderedGames.Take((int)(gameCount * 0.1)).ToArray();
-        var losers = orderedGames.Except(eliteGames);
-        var luckyLosers = losers.OrderBy(_ => m_rand.Next()).Take((int)(gameCount * 0.05)).ToArray();
+        var eliteGames = orderedGames.Take((int)(m_currentPopSize * 0.1)).ToArray();
         
         // Report summary of results.
         m_generation++;
         var veryBest = eliteGames[0];
-        var stats = $"Gen {m_generation}, MaxRating: {veryBest.Rating:F1}";
+        var stats = $"Gen {m_generation} | Pop {m_currentPopSize} | GOAT {m_savedRating:F1} | Best {veryBest.Rating:F1}";
         var extraStats = veryBest.ExtraGameStats().Select(o => $" {o.Name}: {o.Value}").ToArray().ToCsv().Trim();
         if (!string.IsNullOrEmpty(extraStats))
-            stats += $", {extraStats}";
+            stats += $" | {extraStats}";
         System.Console.WriteLine(stats);
 
         // Persist brain improvements.
-        if (veryBest.Rating > m_savedRating)
+        var scrambleBrains = false;
+        if (veryBest.Rating > m_savedRating * 1.05)
         {
-            m_savedRating = veryBest.Rating * 1.05;
+            m_savedRating = veryBest.Rating;
             System.Console.WriteLine("Saved.");
             saveBrainBytes(veryBest.Brain.Save());
+
+            m_generationsSinceImprovement = 0;
+        }
+        else
+        {
+            m_generationsSinceImprovement++;
+            
+            m_currentPopSize = Math.Max(m_currentPopSize - 2, MinPopSize);
+            if (m_generationsSinceImprovement >= 100)
+            {
+                m_generationsSinceImprovement = 0;
+                m_currentPopSize = InitialPopSize;
+                scrambleBrains = true;
+                System.Console.WriteLine("Stagnation detected — Perturbing entire population.");
+            }
         }
 
         // Build the brains for the next generation.
         var nextBrains = new List<AiBrainBase>(m_games.Length);
         
-        // Best brains get a free pass.
+        // Elite 10% brains get a free pass.
         nextBrains.AddRange(eliteGames.Select(o => o.Brain));
-        nextBrains.AddRange(eliteGames.Select(o => createBrain().InitWithNudgedWeights(o.Brain)));
+        
+        // ...and again with a small variation.
+        nextBrains.AddRange(eliteGames.Select(o => createBrain().InitWithNudgedWeights(o.Brain, NeuralNetwork.NudgeFactor.Low)));
 
-        // Lucky losers get to survive too.
-        nextBrains.AddRange(luckyLosers.Select(o => createBrain().InitWithNudgedWeights(o.Brain)));
+        // Add 15% with random Elite with higher variation.
+        var eliteRandomSubset = eliteGames.OrderBy(_ => m_rand.NextDouble()).Take((int)(m_currentPopSize * 0.15));
+        nextBrains.AddRange(eliteRandomSubset.Select(o => createBrain().InitWithNudgedWeights(o.Brain, NeuralNetwork.NudgeFactor.High)));
+
+        // Spawn 5% pure randoms.
+        nextBrains.AddRange(Enumerable.Range(0, (int)(m_currentPopSize * 0.05)).Select(_ => createBrain()));
             
-        // Spawn some randoms.
-        nextBrains.AddRange(Enumerable.Range(0, (int)(gameCount * 0.1)).Select(_ => createBrain()));
-            
-        // Best brains get to be parents.
-        var breeders = nextBrains.ToArray();
-        while (nextBrains.Count < PopulationSize)
+        // Top 50% of all brains get to be parents.
+        var breeders = orderedGames.Take(orderedGames.Length / 2).Select(o => o.Brain).ToArray();
+        while (nextBrains.Count < m_currentPopSize)
         {
             var mumBrain = breeders[m_rand.Next(breeders.Length)];
             var dadBrain = breeders[m_rand.Next(breeders.Length)];
-            var childBrain = m_rand.Next(2) switch
+            var childBrain = m_rand.NextBool() switch
             {
-                0 => createBrain().InitWithAveraged(mumBrain, dadBrain),
-                1 => createBrain().InitWithMixed(mumBrain, dadBrain),
-                _ => throw new InvalidOperationException("Unknown brain merge mode.")
+                false => createBrain().InitWithAveraged(mumBrain, dadBrain),
+                true => createBrain().InitWithMixed(mumBrain, dadBrain).NudgeWeights(NeuralNetwork.NudgeFactor.Low)
             };
 
-            nextBrains.Add(childBrain.NudgeWeights());
+            nextBrains.Add(childBrain);
         }
         
         // Make the next generation of games.
         m_games = nextBrains.Select(o =>
         {
             var newGame = CreateGameWithSeed(m_generation);
-            newGame.Brain = o;
+            newGame.Brain = scrambleBrains ? o.NudgeWeights(NeuralNetwork.NudgeFactor.High) : o;
             return newGame;
         }).ToArray();
     }
