@@ -147,7 +147,7 @@ public class Game : AiGameBase
         // Check for ship/asteroid collisions.
         foreach (var asteroid in Asteroids)
         {
-            var distance = Vector2.Distance(asteroid.Position, Ship.Position);
+            var distance = asteroid.DistanceTo(Ship.Position);
             const float shipRadius = 4.0f;
             if (distance < asteroid.Radius + shipRadius)
             {
