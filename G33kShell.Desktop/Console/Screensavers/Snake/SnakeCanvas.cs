@@ -40,7 +40,7 @@ public class SnakeCanvas : AiGameCanvasBase
     {
         if (m_games == null)
         {
-            m_games = [new Game(ArenaWidth, ArenaHeight)];
+            m_games = [new Game(ArenaWidth, ArenaHeight).ResetGame()];
             m_games[0].LoadBrainData(Settings.Instance.SnakeBrain);
         }
 
