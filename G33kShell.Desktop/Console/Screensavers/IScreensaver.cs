@@ -14,5 +14,10 @@ public interface IScreensaver
 {
     string Name { get; }
     
+    /// <summary>
+    /// Allows the user to specify something like 'mysaver_mode'.
+    /// </summary>
+    string ActivationName { get; set; }
+
     void StopScreensaver();
 }

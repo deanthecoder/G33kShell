@@ -31,8 +31,10 @@ public class SnakeCanvas : AiGameCanvasBase
     {
         screen.ClearChars();
 
-        //TrainAi(screen, brainBytes => Settings.Instance.SnakeBrain = brainBytes, () => new Brain());
-        PlayGame(screen);
+        if (ActivationName.Contains("_train"))
+            TrainAi(screen, brainBytes => Settings.Instance.SnakeBrain = brainBytes, () => new Brain());
+        else
+            PlayGame(screen);
     }
 
     [UsedImplicitly]

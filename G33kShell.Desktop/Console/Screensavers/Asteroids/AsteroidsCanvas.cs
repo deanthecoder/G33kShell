@@ -34,10 +34,10 @@ public class AsteroidsCanvas : AiGameCanvasBase
     {
         screen.ClearChars();
         
-        // todo - use name to detect training mode.
-
-        TrainAi(screen, brainBytes => Settings.Instance.AsteroidsBrain = brainBytes, () => new Brain());
-        //PlayGame(screen);
+        if (ActivationName.Contains("_train"))
+            TrainAi(screen, brainBytes => Settings.Instance.AsteroidsBrain = brainBytes, () => new Brain());
+        else
+            PlayGame(screen);
     }
 
     [UsedImplicitly]

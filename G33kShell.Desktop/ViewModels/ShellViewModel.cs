@@ -99,7 +99,7 @@ public class ShellViewModel : ViewModelBase, IDisposable
 
         m_terminalState = new TerminalState(Settings.Instance.Cwd, cliPrompt);
         m_terminalState.SkinLoadRequest += (_, skin) => WindowManager.Skin = skin;
-        m_terminalState.ScreensaverLoadRequest += (_, screensaverName) => SetScreensaver(screensaverName, true);
+        m_terminalState.ScreensaverLoadRequest += (_, args) => SetScreensaver(args.Name, args.ExtendedName, true);
 
         RevealCwdRequested += (_, _) => m_terminalState.RevealCwd();
 
@@ -117,10 +117,10 @@ public class ShellViewModel : ViewModelBase, IDisposable
     public void RaiseRevealCwdRequested() =>
         RevealCwdRequested?.Invoke(this, EventArgs.Empty);
 
-    private void SetScreensaver(string screensaver, bool startNow)
+    private void SetScreensaver(string name, string extendedName, bool startNow)
     {
-        Settings.Instance.ScreensaverName = screensaver;
-        m_screensaverControl.SetScreensaver(screensaver);
+        Settings.Instance.ScreensaverName = name;
+        m_screensaverControl.SetScreensaver(name, extendedName);
 
         if (startNow)
             m_screensaverControl.StartNow();

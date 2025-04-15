@@ -18,6 +18,8 @@ namespace G33kShell.Desktop.Console.Controls;
 /// </summary>
 public abstract class ScreensaverBase : AnimatedCanvas, IScreensaver
 {
+    public string ActivationName { get; set; }
+
     protected ScreensaverBase(int width, int height, int targetFps = 30) : base(width, height, targetFps)
     {
     }

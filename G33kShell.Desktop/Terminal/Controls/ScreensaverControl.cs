@@ -123,19 +123,18 @@ public class ScreensaverControl : Visual
         // Nothing to do - The child renders itself.
     }
 
-    public void SetScreensaver(string name)
+    public void SetScreensaver(string name, string extendedName = null)
     {
         var screensaverControls = typeof(IScreensaver).Assembly.GetTypes().Where(t => !t.IsAbstract && typeof(IScreensaver).IsAssignableFrom(t));
-        var screensavers = screensaverControls.Select(o => (Visual)Activator.CreateInstance(o, new object[]
-        {
-            Width, Height
-        }));
+        var screensavers = screensaverControls.Select(o => (Visual)Activator.CreateInstance(o, Width, Height));
         var screensaver = screensavers.FirstOrDefault(o => o?.Name.Equals(name, StringComparison.OrdinalIgnoreCase) == true);
         if (screensaver == null)
             return;
         
         ClearChildren();
         AddChild(screensaver);
+
+        ((IScreensaver)screensaver).ActivationName = extendedName ?? name;
     }
 
     public void StartNow() => m_secondsUntilDisplay = 1;

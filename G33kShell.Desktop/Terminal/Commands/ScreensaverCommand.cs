@@ -18,7 +18,14 @@ using NClap.Metadata;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
-[CommandDescription("Select and activate the screensaver.")]
+[CommandDescription(
+    "Select and activate the screensaver.",
+    "The screensaver can be activated by name, or by using the -l option to list available options.",
+    "The name can have an optional suffix, which will be passed into the screensaver.",
+    "",
+    "Examples:",
+    "  screensaver snake",
+    "  screensaver snake_train")]
 public class ScreensaverCommand : CommandBase
 {
     [NamedArgument(Description = "List the available options.", ShortName = "l")]
@@ -40,14 +47,15 @@ public class ScreensaverCommand : CommandBase
 
         if (!string.IsNullOrEmpty(Name))
         {
-            var selectedScreensaver = availableNames.FirstOrDefault(o => o.Equals(Name, StringComparison.OrdinalIgnoreCase));
+            var nameParts = Name.Split('_');
+            var selectedScreensaver = availableNames.FirstOrDefault(o => o.Equals(nameParts[0], StringComparison.OrdinalIgnoreCase));
             if (selectedScreensaver == null)
             {
                 WriteLine($"Option '{Name}' not found.");
                 return Task.FromResult(false);
             }
             
-            state.LoadScreensaver(selectedScreensaver);
+            state.LoadScreensaver(selectedScreensaver, Name);
         }
 
         return Task.FromResult(true);

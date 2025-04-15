@@ -31,7 +31,7 @@ namespace G33kShell.Desktop.Terminal;
 public class TerminalState : ITerminalState, IDisposable
 {
     public event EventHandler<SkinBase> SkinLoadRequest;
-    public event EventHandler<string> ScreensaverLoadRequest;
+    public event EventHandler<(string Name, string ExtendedName)> ScreensaverLoadRequest;
     
     public DirectoryInfo CurrentDirectory
     {
@@ -142,11 +142,8 @@ public class TerminalState : ITerminalState, IDisposable
     public void LoadSkin(SkinBase skin) =>
         SkinLoadRequest?.Invoke(this, skin);
     
-    public void LoadScreensaver(string screensaverName)
-    {
-        Settings.Instance.ScreensaverName = screensaverName;
-        ScreensaverLoadRequest?.Invoke(this, screensaverName);
-    }
+    public void LoadScreensaver(string screensaverName, string extendedName) =>
+        ScreensaverLoadRequest?.Invoke(this, (screensaverName, extendedName));
 
     /// <summary>
     /// Processes the completion request by providing completion suggestions based on the input.
