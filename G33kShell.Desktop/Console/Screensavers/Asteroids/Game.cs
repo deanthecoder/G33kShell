@@ -33,12 +33,12 @@ public class Game : AiGameBase
     public int Score { get; private set; }
 
     public override double Rating =>
-        m_bulletsFired * HitAccuracy +                                                              // Reward hit accuracy.
-        (Ship.DistanceTravelled / 100.0).Clamp(0.0, 1.0) * 5.0 +                                    // Reward moving a bit.
-        (1.0 - (double)Math.Abs(m_leftTurns - m_rightTurns) / (m_leftTurns + m_rightTurns)) * 5.0 + // Reward not spinning.
-        Score / 1000.0;                                                                             // Reward score.
+        m_bulletsFired * HitAccuracy +                                                                  // Reward hit accuracy.
+        (Ship.DistanceTravelled / 100.0).Clamp(0.0, 1.0) * 5.0 +                                        // Reward moving a bit.
+        (1.0 - (double)Math.Abs(m_leftTurns - m_rightTurns) / (m_leftTurns + m_rightTurns + 1)) * 5.0 + // Reward not spinning.
+        Score / 1000.0;                                                                                 // Reward score.
 
-    public override bool IsGameOver => Ship.Shield <= 0.0;
+    public override bool IsGameOver => Ship.Shield <= 0.0 || m_gameTicks > 200_000;
     public Ship Ship { get; private set; }
     public List<Asteroid> Asteroids { get; } = [];
     public List<Bullet> Bullets { get; } = [];

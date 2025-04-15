@@ -65,21 +65,21 @@ public abstract class AiBrainBase
             JsonConvert.PopulateObject(brainBytes.DecompressToString(), this);
     }
 
-    public AiBrainBase InitWithAveraged(AiBrainBase first, AiBrainBase second)
+    public AiBrainBase InitWithLerp(AiBrainBase first, AiBrainBase second, double mix)
     {
         lock (m_qNet)
         lock (first.m_qNet)
         lock (second.m_qNet)
-            m_qNet = first.m_qNet.CreateAveraged(second.m_qNet);
+            m_qNet = first.m_qNet.CreateLerped(second.m_qNet, mix);
         return this;
     }
 
-    public AiBrainBase InitWithMixed(AiBrainBase first, AiBrainBase second)
+    public AiBrainBase InitWithSpliced(AiBrainBase first, AiBrainBase second)
     {
         lock (m_qNet)
         lock (first.m_qNet)
         lock (second.m_qNet)
-            m_qNet = first.m_qNet.CreateMixed(second.m_qNet);
+            m_qNet = first.m_qNet.CreateSpliced(second.m_qNet);
         return this;
     }
     

@@ -71,8 +71,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         System.Console.WriteLine(stats);
 
         // Persist brain improvements.
-        var scrambleBrains = false;
-        if (veryBest.Rating > m_savedRating * 1.05)
+        if (veryBest.Rating > m_savedRating)
         {
             m_savedRating = veryBest.Rating;
             System.Console.WriteLine("Saved.");
@@ -89,7 +88,6 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             {
                 m_generationsSinceImprovement = 0;
                 m_currentPopSize = InitialPopSize;
-                scrambleBrains = true;
                 System.Console.WriteLine("Stagnation detected — Perturbing entire population.");
             }
         }
@@ -100,36 +98,40 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         // Elite 10% brains get a free pass.
         nextBrains.AddRange(eliteGames.Select(o => o.Brain));
         
-        // ...and again with a small variation.
+        // ...and again with a small variation, (10%)
         nextBrains.AddRange(eliteGames.Select(o => createBrain().InitWithNudgedWeights(o.Brain, NeuralNetwork.NudgeFactor.Low)));
-
-        // Add 15% with random Elite with higher variation.
-        var eliteRandomSubset = eliteGames.OrderBy(_ => m_rand.NextDouble()).Take((int)(m_currentPopSize * 0.15));
-        nextBrains.AddRange(eliteRandomSubset.Select(o => createBrain().InitWithNudgedWeights(o.Brain, NeuralNetwork.NudgeFactor.High)));
 
         // Spawn 5% pure randoms.
         nextBrains.AddRange(Enumerable.Range(0, (int)(m_currentPopSize * 0.05)).Select(_ => createBrain()));
             
-        // Top 50% of all brains get to be parents.
-        var breeders = orderedGames.Take(orderedGames.Length / 2).Select(o => o.Brain).ToArray();
+        // Elite get to be parents.
+        var breeders = eliteGames.Select(o => o.Brain).ToList();
+        var minBreederCount = Math.Max(5, breeders.Count * 0.25);
         while (nextBrains.Count < m_currentPopSize)
         {
-            var mumBrain = breeders[m_rand.Next(breeders.Length)];
-            var dadBrain = breeders[m_rand.Next(breeders.Length)];
-            var childBrain = m_rand.NextBool() switch
+            var mumBrain = breeders[m_rand.Next(breeders.Count)];
+            var dadBrain = breeders[m_rand.Next(breeders.Count)];
+            var childBrain = m_rand.Next(0, 4) switch
             {
-                false => createBrain().InitWithAveraged(mumBrain, dadBrain),
-                true => createBrain().InitWithMixed(mumBrain, dadBrain).NudgeWeights(NeuralNetwork.NudgeFactor.Low)
+                0 => createBrain().InitWithLerp(mumBrain, dadBrain, 0.5),
+                1 => createBrain().InitWithLerp(mumBrain, dadBrain, m_rand.NextDouble()),
+                2 => createBrain().InitWithSpliced(mumBrain, dadBrain),
+                3 => createBrain().InitWithSpliced(mumBrain, dadBrain).NudgeWeights(NeuralNetwork.NudgeFactor.Low),
+                _ => throw new ArgumentOutOfRangeException()
             };
 
             nextBrains.Add(childBrain);
+            
+            // Reduce the set size to eliminate the worst breeder.
+            if (breeders.Count > minBreederCount)
+                breeders.RemoveAt(breeders.Count - 1);
         }
         
         // Make the next generation of games.
         m_games = nextBrains.Select(o =>
         {
             var newGame = CreateGameWithSeed(m_generation);
-            newGame.Brain = scrambleBrains ? o.NudgeWeights(NeuralNetwork.NudgeFactor.High) : o;
+            newGame.Brain = o;
             return newGame;
         }).ToArray();
     }
