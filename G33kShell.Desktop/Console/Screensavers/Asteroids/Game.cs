@@ -124,7 +124,7 @@ public class Game : AiGameBase
             // ReSharper disable once LoopCanBeConvertedToQuery
             for (var i = 0; i < Asteroids.Count; i++)
             {
-                if (!Asteroids[i].Contains(bullet.Position))
+                if (Asteroids[i].IsInvulnerable || !Asteroids[i].Contains(bullet.Position))
                     continue;
                 hitAsteroid = Asteroids[i];
                 break;

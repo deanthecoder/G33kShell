@@ -18,18 +18,20 @@ public class Asteroid
     private static readonly int[] HitScores = [20, 10, 5];
     private static readonly int[] SizeMetrics = [1, 2, 4];
     private int m_size = 2;
-
-    public const int MaxRadius = 7;
+    private int m_invulnerable = 30;
+    private const int MaxRadius = 7;
+    
     public int SizeMetric => SizeMetrics[m_size];
     public int Radius => Radii[m_size];
     public int HitScore => HitScores[m_size];
+    public bool IsInvulnerable => m_invulnerable > 0;
     
     /// <summary>
     /// Position in arena coordinates.
     /// </summary>
     public Vector2 Position { get; private set; }
 
-    public Vector2 Velocity
+    private Vector2 Velocity
     {
         get
         {
@@ -40,7 +42,7 @@ public class Asteroid
 
     public double Shade { get; }
 
-    public Asteroid(Vector2 position, float speed, Random rand, int arenaWidth, int arenaHeight)
+    public Asteroid(Vector2 position, float speed, Random rand, int arenaWidth, int arenaHeight, float direction = float.MaxValue)
     {
         m_speed = speed;
         m_rand = rand;
@@ -48,7 +50,7 @@ public class Asteroid
         m_arenaHeight = arenaHeight;
         
         Position = position;
-        m_direction = rand.NextFloat() * MathF.PI * 2.0f;
+        m_direction = float.IsNaN(direction) ? rand.NextFloat() * MathF.Tau : direction;
         Shade = 0.3 + 0.6 * rand.NextDouble();
     }
 
@@ -70,6 +72,8 @@ public class Asteroid
         if (nextY < minY) nextY = maxY;
 
         Position = new Vector2(nextX, nextY);
+        
+        m_invulnerable = Math.Max(m_invulnerable - 1, 0);
     }
 
     /// <summary>
@@ -86,11 +90,22 @@ public class Asteroid
         asteroids.Remove(this);
         if (m_size == 0)
             return; // This is the smallest an asteroid can be.
-        
-        // Spawn smaller asteroids.
+
+        // Spawn smaller asteroids evenly spaced around this one, moving away from the center.
         var countToSpawn = new[] { 2, 3, 4 }[m_size];
+        var angleStep = MathF.Tau / countToSpawn;
+
         for (var i = 0; i < countToSpawn; i++)
-            asteroids.Add(new Asteroid(Position, m_speed, m_rand, m_arenaWidth, m_arenaHeight) { m_size = m_size - 1 });
+        {
+            var angle = i * angleStep * m_rand.NextFloat().Lerp(0.8f, 1.2f);
+            var newPosition = Position + angle.ToDirection() * Radius * 0.5f;
+            var newAsteroid = new Asteroid(newPosition, m_speed, m_rand, m_arenaWidth, m_arenaHeight, angle)
+            {
+                m_size = m_size - 1
+            };
+
+            asteroids.Add(newAsteroid);
+        }
     }
 
     public float DistanceTo(Vector2 shipPosition)
