@@ -39,7 +39,7 @@ public class Bullet
         Position = position;
         Target = target;
         m_velocity = theta.ToDirection();
-        m_distanceUntilDeath = new Vector2(arenaWidth, arenaHeight).Length() * 0.6;
+        m_distanceUntilDeath = new Vector2(arenaWidth, arenaHeight).Length() * 0.4;
     }
 
     public void Move()

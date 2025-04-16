@@ -14,11 +14,13 @@ public class Asteroid
     private readonly int m_arenaWidth;
     private readonly int m_arenaHeight;
     private readonly float m_direction;
+    private readonly Vector2[] m_offsets;
     private static readonly int[] Radii = [2, 4, MaxRadius];
     private static readonly int[] HitScores = [20, 10, 5];
     private static readonly int[] SizeMetrics = [1, 2, 4];
+    private static readonly float[] Speeds = [1.5f, 1.0f, 0.6f];
     private int m_size = 2;
-    private int m_invulnerable = 30;
+    private int m_invulnerable = 10;
     private const int MaxRadius = 7;
     
     public int SizeMetric => SizeMetrics[m_size];
@@ -52,11 +54,23 @@ public class Asteroid
         Position = position;
         m_direction = float.IsNaN(direction) ? rand.NextFloat() * MathF.Tau : direction;
         Shade = 0.3 + 0.6 * rand.NextDouble();
+
+        m_offsets =
+        [
+            new Vector2(m_arenaWidth, 0),
+            new Vector2(-m_arenaWidth, 0),
+            new Vector2(0, m_arenaHeight),
+            new Vector2(0, -m_arenaHeight),
+            new Vector2(m_arenaWidth, m_arenaHeight),
+            new Vector2(-m_arenaWidth, -m_arenaHeight),
+            new Vector2(m_arenaWidth, -m_arenaHeight),
+            new Vector2(-m_arenaWidth, m_arenaHeight)
+        ];
     }
 
     public void Move()
     {
-        var v = Velocity;
+        var v = Velocity * Speeds[m_size];
 
         var maxX = m_arenaWidth + Radius;
         var maxY = m_arenaHeight + Radius;
@@ -110,20 +124,8 @@ public class Asteroid
 
     public float DistanceTo(Vector2 shipPosition)
     {
-        var offsets = new[]
-        {
-            new Vector2(m_arenaWidth, 0),
-            new Vector2(-m_arenaWidth, 0),
-            new Vector2(0, m_arenaHeight),
-            new Vector2(0, -m_arenaHeight),
-            new Vector2(m_arenaWidth, m_arenaHeight),
-            new Vector2(-m_arenaWidth, -m_arenaHeight),
-            new Vector2(m_arenaWidth, -m_arenaHeight),
-            new Vector2(-m_arenaWidth, m_arenaHeight),
-        };
-
         var minDist = Vector2.Distance(shipPosition, Position);
-        foreach (var offset in offsets)
+        foreach (var offset in m_offsets)
             minDist = MathF.Min(minDist, Vector2.Distance(shipPosition, Position + offset));
 
         return minDist;
