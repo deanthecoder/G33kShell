@@ -11,6 +11,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using CSharp.Core.AI;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
@@ -30,6 +31,8 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     private const int MinPopSize = 80;
     private int m_generationsSinceImprovement;
     private int m_currentPopSize = InitialPopSize;
+    private Task m_trainingTask;
+    private bool m_stopTraining;
 
     protected AiGameBase[] m_games;
 
@@ -47,16 +50,42 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     [UsedImplicitly]
     protected void TrainAi(ScreenData screen, Action<byte[]> saveBrainBytes, Func<AiBrainBase> createBrain)
     {
-        m_games ??= Enumerable.Range(0, m_currentPopSize).Select(_ => CreateGameWithSeed(m_generation)).ToArray();
-
-        m_games.AsParallel().ForAll(o =>
+        const string animChars = "/-\\|";
+        var animFrame = Environment.TickCount64 / 100 % animChars.Length;
+        screen.PrintAt(0, 0, $"Training... {animChars[(int)animFrame]}");
+        
+        if (m_trainingTask != null)
         {
-            while (!o.IsGameOver)
-                o.Tick();
+            // We're already training - Do nothing.
+            return;
+        }
+        
+        m_stopTraining = false;
+        m_trainingTask = Task.Run(() =>
+        {
+            while (!m_stopTraining)
+                TrainAiImpl(saveBrainBytes, createBrain);
+        });
+    }
+
+    public override void StopScreensaver()
+    {
+        base.StopScreensaver();
+        
+        m_stopTraining = true;
+    }
+
+    private void TrainAiImpl(Action<byte[]> saveBrainBytes, Func<AiBrainBase> createBrain)
+    {
+        m_games ??= Enumerable.Range(0, m_currentPopSize).Select(_ => CreateGameWithSeed(m_generation)).ToArray();
+        
+        Parallel.For(0, m_games.Length, i =>
+        {
+            var game = m_games[i];
+            while (!game.IsGameOver)
+                game.Tick();
         });
 
-        DrawGame(screen, m_games[0]);
-        
         // Select the breeders.
         var orderedGames = m_games.OrderByDescending(o => o.Rating).ToArray();
         var eliteGames = orderedGames.Take((int)(m_currentPopSize * 0.1)).ToArray();

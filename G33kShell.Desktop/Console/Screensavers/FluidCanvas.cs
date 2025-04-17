@@ -10,7 +10,6 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
 using System.Diagnostics;
-using System.Linq;
 using CSharp.Core;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
@@ -98,7 +97,7 @@ public class FluidCanvas : ScreensaverBase
         }
 
         // Turn the flame on/off to prevent too much 'smoke'.
-        var averageDensity = m_fluid.Density.Average();
+        var averageDensity = m_fluid.Density.FastAvg();
         if (m_isLit)
         {
             if (averageDensity > 0.45)

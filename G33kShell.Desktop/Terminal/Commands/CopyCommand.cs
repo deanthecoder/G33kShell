@@ -128,7 +128,7 @@ public class CopyCommand : CommandBase
         // Copy the content that does exist.
         var filesCopied = sourceDir
             .GetFileSystemInfos()
-            .Sum(o => o.CopyTo(destDir, true));
+            .FastSum(o => o.CopyTo(destDir, true));
 
         WriteLine($"Operation complete. {excessItems.Length} item(s) removed, {filesCopied} copied.");
     }

@@ -23,17 +23,9 @@ public abstract class AiBrainBase
         m_qNet = new NeuralNetwork(inputSize, hiddenLayers, outputSize, learningRate: 0.05);
     }
 
-    protected int ChooseHighestOutput(IAiGameState state)
-    {
-        var outputs = GetOutputs(state);
-        return ArgMax(outputs);
-    }
+    protected int ChooseHighestOutput(IAiGameState state) => ArgMax(GetOutputs(state));
 
-    protected double[] GetOutputs(IAiGameState state)
-    {
-        lock (m_qNet)
-            return m_qNet.Predict(state.ToInputVector());
-    }
+    protected double[] GetOutputs(IAiGameState state) => m_qNet.Predict(state.ToInputVector());
 
     /// <summary>
     /// Finds the index of the maximum value in the array.
@@ -53,51 +45,34 @@ public abstract class AiBrainBase
         return bestIndex;
     }
 
-    public byte[] Save()
-    {
-        lock (m_qNet)
-            return JsonConvert.SerializeObject(this).Compress();
-    }
+    public byte[] Save() => JsonConvert.SerializeObject(this).Compress();
 
-    public void Load(byte[] brainBytes)
-    {
-        lock (m_qNet)
-            JsonConvert.PopulateObject(brainBytes.DecompressToString(), this);
-    }
+    public void Load(byte[] brainBytes) => JsonConvert.PopulateObject(brainBytes.DecompressToString(), this);
 
     public AiBrainBase InitWithLerp(AiBrainBase first, AiBrainBase second, double mix)
     {
-        lock (m_qNet)
-        lock (first.m_qNet)
-        lock (second.m_qNet)
-            m_qNet = first.m_qNet.CreateLerped(second.m_qNet, mix);
+        m_qNet = first.m_qNet.CreateLerped(second.m_qNet, mix);
         return this;
     }
 
     public AiBrainBase InitWithSpliced(AiBrainBase first, AiBrainBase second)
     {
-        lock (m_qNet)
-        lock (first.m_qNet)
-        lock (second.m_qNet)
-            m_qNet = first.m_qNet.CreateSpliced(second.m_qNet);
+        m_qNet = first.m_qNet.CreateSpliced(second.m_qNet);
         return this;
     }
-    
+
     public AiBrainBase InitWithNudgedWeights(AiBrainBase brain, NeuralNetwork.NudgeFactor nudge)
     {
-        lock (m_qNet)
-        lock (brain.m_qNet)
-            m_qNet = brain.m_qNet.CloneWithNudgeWeights(nudge);
+        m_qNet = brain.m_qNet.CloneWithNudgeWeights(nudge);
         return this;
     }
-    
+
     public AiBrainBase NudgeWeights(NeuralNetwork.NudgeFactor nudge)
     {
-        lock (m_qNet)
-            m_qNet = m_qNet.CloneWithNudgeWeights(nudge);
+        m_qNet = m_qNet.CloneWithNudgeWeights(nudge);
         return this;
     }
-    
+
     public AiBrainBase InitWithBrain(AiBrainBase brain)
     {
         lock (m_qNet)

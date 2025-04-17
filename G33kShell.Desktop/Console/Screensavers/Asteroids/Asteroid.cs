@@ -124,10 +124,10 @@ public class Asteroid
 
     public float DistanceTo(Vector2 shipPosition)
     {
-        var minDist = Vector2.Distance(shipPosition, Position);
+        var minDist = Vector2.DistanceSquared(shipPosition, Position);
         foreach (var offset in m_offsets)
-            minDist = MathF.Min(minDist, Vector2.Distance(shipPosition, Position + offset));
+            minDist = MathF.Min(minDist, Vector2.DistanceSquared(shipPosition, Position + offset));
 
-        return minDist;
+        return MathF.Sqrt(minDist);
     }
 }

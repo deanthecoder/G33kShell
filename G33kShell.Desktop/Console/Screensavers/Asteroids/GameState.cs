@@ -9,7 +9,6 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System.Collections.Generic;
-using System.Linq;
 using System.Numerics;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Screensavers.AI;
@@ -21,6 +20,7 @@ namespace G33kShell.Desktop.Console.Screensavers.Asteroids;
 /// </summary>
 public class GameState : IAiGameState
 {
+    private readonly double[] m_inputVector = new double[3];
     private readonly Ship m_ship;
     private readonly List<Asteroid> m_asteroids;
     private readonly float m_arenaDiagonal;
@@ -35,25 +35,34 @@ public class GameState : IAiGameState
 
     public double[] ToInputVector()
     {
-        var inputVector = new double[3];
-
         // Bias.
-        inputVector[0] = 1.0;
+        m_inputVector[0] = 1.0;
 
         // Find nearest asteroid.
-        var asteroid =
-            m_asteroids
-                .OrderBy(o => Vector2.DistanceSquared(o.Position, m_ship.Position))
-                .FirstOrDefault();
+        Asteroid asteroid = null;
+        var bestDistance = float.MaxValue;
+        for (var i = 0; i < m_asteroids.Count; i++)
+        {
+            var d = Vector2.DistanceSquared(m_asteroids[i].Position, m_ship.Position);
+            if (d > bestDistance)
+                continue;
+            asteroid = m_asteroids[i];
+            bestDistance = d;
+        }
         
         if (asteroid != null)
         {
             var relativePos = asteroid.Position - m_ship.Position;
             var angleToAsteroid = Vector2.Dot(Vector2.Normalize(relativePos), m_ship.Theta.ToDirection()).Clamp(-1.0f, 1.0f);
-            inputVector[1] = angleToAsteroid;
-            inputVector[2] = 1.0 - relativePos.Length() / m_arenaDiagonal;
+            m_inputVector[1] = angleToAsteroid;
+            m_inputVector[2] = 1.0 - relativePos.Length() / m_arenaDiagonal;
+        }
+        else
+        {
+            m_inputVector[1] = 0.0;
+            m_inputVector[2] = 0.0;
         }
 
-        return inputVector;
+        return m_inputVector;
     }
 }

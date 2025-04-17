@@ -11,7 +11,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Numerics;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Screensavers.AI;
@@ -26,6 +25,7 @@ public class Game : AiGameBase
     private int m_gameTicks;
     private int m_leftTurns;
     private int m_rightTurns;
+    private GameState m_gameState;
 
     /// <summary>
     /// Score used for public display.
@@ -53,6 +53,7 @@ public class Game : AiGameBase
     {
         Ship = new Ship(ArenaWidth, ArenaHeight);
         Score = 0;
+        m_gameState = new GameState(Ship, Asteroids, ArenaWidth, ArenaHeight);
 
         Asteroids.Clear();
         Bullets.Clear();
@@ -69,7 +70,7 @@ public class Game : AiGameBase
 
     private void EnsureMinimumAsteroidCount()
     {
-        while (Asteroids.Sum(o => o.SizeMetric) < 12)
+        while (Asteroids.FastSum(o => o.SizeMetric) < 12)
         {
             var pos = new Vector2(GameRand.NextFloat() * ArenaWidth, GameRand.NextFloat() * ArenaHeight);
             if (Vector2.Distance(pos, Ship.Position) < 25)
@@ -99,7 +100,7 @@ public class Game : AiGameBase
         // Spawn new bullets.
         if (Ship.IsShooting && Bullets.Count < Ship.MaxBullets)
         {
-            var target = Asteroids.OrderBy(o => Vector2.DistanceSquared(Ship.Position, o.Position)).FirstOrDefault();
+            var target = Asteroids.FastFindMin(o => Vector2.DistanceSquared(Ship.Position, o.Position));
             Bullets.Add(new Bullet(Ship.Position, Ship.Theta, target, ArenaWidth, ArenaHeight));
             m_bulletsFired++;
         }
@@ -117,8 +118,9 @@ public class Game : AiGameBase
 
         // Check for bullet/asteroid collisions.
         var bulletsToRemove = new List<Bullet>();
-        foreach (var bullet in Bullets)
+        for (var index = 0; index < Bullets.Count; index++)
         {
+            var bullet = Bullets[index];
             Asteroid hitAsteroid = null;
             // ReSharper disable once ForCanBeConvertedToForeach
             // ReSharper disable once LoopCanBeConvertedToQuery
@@ -129,6 +131,7 @@ public class Game : AiGameBase
                 hitAsteroid = Asteroids[i];
                 break;
             }
+
             if (hitAsteroid == null)
                 continue; // Bullet not hitting anything.
 
@@ -136,20 +139,21 @@ public class Game : AiGameBase
             bulletsToRemove.Add(bullet);
             hitAsteroid.Explode(Asteroids);
             Score += hitAsteroid.HitScore;
-            
+
             // Bonus points if it was the asteroid we were aiming for.
             if (bullet.Target == hitAsteroid)
                 m_perfectHits++;
         }
 
-        bulletsToRemove.ForEach(o => Bullets.Remove(o));
+        for (var i = 0; i < bulletsToRemove.Count; i++)
+            Bullets.Remove(bulletsToRemove[i]);
 
         // Check for ship/asteroid collisions.
-        foreach (var asteroid in Asteroids)
+        const float shipRadius = 4.5f;
+        for (var i = 0; i < Asteroids.Count; i++)
         {
-            var distance = asteroid.DistanceTo(Ship.Position);
-            const float shipRadius = 4.0f;
-            if (distance < asteroid.Radius + shipRadius)
+            var distance = Asteroids[i].DistanceTo(Ship.Position);
+            if (distance < Asteroids[i].Radius + shipRadius)
             {
                 Ship.Shield = Math.Max(0.0, Ship.Shield - 0.05);
                 break;
@@ -157,8 +161,7 @@ public class Game : AiGameBase
         }
 
         // Apply the AI.
-        var gameState = new GameState(Ship, Asteroids, ArenaWidth, ArenaHeight);
-        var moves = ((Brain)Brain).ChooseMoves(gameState);
+        var moves = ((Brain)Brain).ChooseMoves(m_gameState);
         Ship.IsShooting = moves.IsShooting;
         Ship.Turning = moves.Turn;
         Ship.IsThrusting = moves.IsThrusting;
