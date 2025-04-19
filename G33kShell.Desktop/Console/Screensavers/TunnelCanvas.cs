@@ -27,7 +27,6 @@ public class TunnelCanvas : ScreensaverBase
     private const float PointSpeed = 12.0f;
     private const float TunnelRadius = 2.5f;
 
-    private readonly Random m_random = new Random();
     private Vector3[] m_points;
 
     public TunnelCanvas(int width, int height) : base(width, height)
@@ -65,16 +64,17 @@ public class TunnelCanvas : ScreensaverBase
         }
     }
 
-    private Vector3[] CreatePoints()
+    private static Vector3[] CreatePoints()
     {
         var points = new Vector3[PointCount];
         for (var i = 0; i < PointCount; i++)
         {
-            var theta = (float)m_random.NextDouble() * MathF.PI * 2.0f;
+            var random = Random.Shared;
+            var theta = (float)random.NextDouble() * MathF.PI * 2.0f;
 
             var x = MathF.Cos(theta) * TunnelRadius;
             var y = MathF.Sin(theta) * TunnelRadius;
-            var z = (float)m_random.NextDouble() * MaxDepth;
+            var z = (float)random.NextDouble() * MaxDepth;
             points[i] = new Vector3(x, y, z);
         }
         

@@ -26,7 +26,6 @@ public class StarsCanvas : ScreensaverBase
     private const float MaxDepth = 10.0f;
     private const float StarSpeed = 2.0f;
 
-    private readonly Random m_random = new Random();
     private Vector3[] m_stars;
 
     public StarsCanvas(int width, int height) : base(width, height)
@@ -59,17 +58,18 @@ public class StarsCanvas : ScreensaverBase
         }
     }
 
-    private Vector3[] CreateStars()
+    private static Vector3[] CreateStars()
     {
         var stars = new Vector3[StarCount];
         for (var i = 0; i < StarCount; i++)
         {
-            var theta = (float)m_random.NextDouble() * MathF.PI * 2.0f;
-            var dist = 0.25f + 2.25f * (float)m_random.NextDouble();
+            var random = Random.Shared;
+            var theta = (float)random.NextDouble() * MathF.PI * 2.0f;
+            var dist = 0.25f + 2.25f * (float)random.NextDouble();
             
             var x = MathF.Cos(theta) * dist;
             var y = MathF.Sin(theta) * dist;
-            var z = (float)m_random.NextDouble() * MaxDepth;
+            var z = (float)random.NextDouble() * MaxDepth;
             stars[i] = new Vector3(x, y, z);
         }
         

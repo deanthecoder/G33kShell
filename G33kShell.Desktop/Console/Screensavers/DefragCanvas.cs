@@ -32,7 +32,6 @@ public class DefragCanvas : ScreensaverBase
         Complete
     }
 
-    private readonly Random m_rand = new Random();
     private readonly List<int> m_readingBlocks = [];
     private readonly List<int> m_writingBlocks = [];
     private readonly Stopwatch m_stopwatch = Stopwatch.StartNew();
@@ -64,14 +63,15 @@ public class DefragCanvas : ScreensaverBase
         m_chunkDisplayHeight = (screen.Height - 8) / 2;
         m_chunks = new int[m_chunkDisplayWidth * m_chunkDisplayHeight - (int)(m_chunkDisplayWidth * 0.75)];
 
-        var unmovable = m_rand.Next(5, 10);
-        var filled = (int)(m_chunks.Length * m_rand.Next(15, 25) / 100.0);
+        var rand = Random.Shared;
+        var unmovable = rand.Next(5, 10);
+        var filled = (int)(m_chunks.Length * rand.Next(15, 25) / 100.0);
         for (var i = 0; i < m_chunks.Length; i++)
         {
             if (i < unmovable)
                 m_chunks[i] = -1;
             else
-                m_chunks[i] = i < filled ? 255 : m_rand.Next(-300, 256).Clamp(0, 255);
+                m_chunks[i] = i < filled ? 255 : rand.Next(-300, 256).Clamp(0, 255);
         }
 
         m_readingBlocks.Clear();
@@ -88,7 +88,7 @@ public class DefragCanvas : ScreensaverBase
                     // Find some blocks to read.
                     var firstCandidate = m_chunks.TakeWhile(o => o < 0 || o == 255).Count();
                     var readableBlockIndices = m_chunks.Select((o, i) => (o, i)).Where(o => o.i >= firstCandidate && o.o > 0).Select(o => o.i);
-                    var indicesToRead = readableBlockIndices.OrderBy(_ => m_rand.Next()).ToArray();
+                    var indicesToRead = readableBlockIndices.OrderBy(_ => Random.Shared.Next()).ToArray();
                     if (indicesToRead.Length == 0 || (indicesToRead.Length == 1 && indicesToRead[0] == firstCandidate))
                     {
                         m_action = Action.Complete;

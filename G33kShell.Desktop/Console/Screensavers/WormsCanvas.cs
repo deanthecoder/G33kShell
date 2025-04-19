@@ -34,7 +34,6 @@ public class WormsCanvas : ScreensaverBase
     }
 
     private const int MaxIlluminatedCount = 40;
-    private readonly Random m_random = new Random();
 
     private readonly Dictionary<int, (int dx, int dy)> m_directions = new()
     {
@@ -85,7 +84,7 @@ public class WormsCanvas : ScreensaverBase
                     break;
             }
             
-            var worm = new Worm(startPos.Value.X, startPos.Value.Y, m_random, layer);
+            var worm = new Worm(startPos.Value.X, startPos.Value.Y, Random.Shared, layer);
             worms.Add(worm);
 
             // Grow it.
@@ -162,7 +161,7 @@ public class WormsCanvas : ScreensaverBase
             var nonIlluminatedWorms = m_worms.Where(o => !o.IsIlluminated).ToArray();
             if (nonIlluminatedWorms.Length > 0)
             {
-                var toIlluminate = nonIlluminatedWorms[m_random.Next(nonIlluminatedWorms.Length)];
+                var toIlluminate = nonIlluminatedWorms[Random.Shared.Next(nonIlluminatedWorms.Length)];
                 toIlluminate.Illuminate();
             }
         }
@@ -175,8 +174,9 @@ public class WormsCanvas : ScreensaverBase
     {
         for (var i = 0; i < 150; i++)
         {
-            var x = m_random.Next(0, Width);
-            var y = m_random.Next(0, Height);
+            var random = Random.Shared;
+            var x = random.Next(0, Width);
+            var y = random.Next(0, Height);
             if (!failedStartPoints.Contains((x, y)) && IsValidStartPoint(cells, x, y))
                 return (x, y);
         }

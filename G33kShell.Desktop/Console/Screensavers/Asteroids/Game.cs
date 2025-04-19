@@ -53,7 +53,7 @@ public class Game : AiGameBase
     {
         Ship = new Ship(ArenaWidth, ArenaHeight);
         Score = 0;
-        m_gameState = new GameState(Ship, Asteroids, ArenaWidth, ArenaHeight);
+        m_gameState = new GameState(Ship, Asteroids, Bullets, ArenaWidth, ArenaHeight);
 
         Asteroids.Clear();
         Bullets.Clear();

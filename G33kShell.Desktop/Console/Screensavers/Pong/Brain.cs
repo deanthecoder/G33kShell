@@ -21,6 +21,10 @@ public class Brain : AiBrainBase
     {
     }
 
+    private Brain(Brain brain) : base(brain)
+    {
+    }
+
     private static int GetInputSize() =>
         new GameState([Vector2.One, Vector2.One], Vector2.One, Vector2.One, 1, 1).ToInputVector().Length;
 
@@ -42,4 +46,6 @@ public class Brain : AiBrainBase
             
         return (leftBatDirection, rightBatDirection);
     }
+
+    public override AiBrainBase Clone() => new Brain(this);
 }

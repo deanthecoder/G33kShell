@@ -27,7 +27,6 @@ namespace G33kShell.Desktop.Console.Screensavers;
 public class WillyCanvas : ScreensaverBase
 {
     private const int MaxWillies = 5;
-    private readonly Random m_random = new Random();
     private readonly Stopwatch m_spawnTimer = Stopwatch.StartNew();
     private readonly List<Willy> m_willys = [];
     private bool[,,] m_frames;
@@ -88,8 +87,9 @@ public class WillyCanvas : ScreensaverBase
         {
             if (m_willys.Count < MaxWillies)
             {
-                m_willys.Add(new Willy(m_random, screen, m_frameWidth, m_frameHeight, m_frames));
-                m_spawnTimeSecs = m_random.NextDouble() * 4 + 1;
+                var random = Random.Shared;
+                m_willys.Add(new Willy(random, screen, m_frameWidth, m_frameHeight, m_frames));
+                m_spawnTimeSecs = random.NextDouble() * 4 + 1;
                 m_spawnTimer.Restart();
             }
         }

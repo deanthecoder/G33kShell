@@ -23,8 +23,6 @@ namespace G33kShell.Desktop.Console.Screensavers;
 [UsedImplicitly]
 public class MatrixCanvas : ScreensaverBase
 {
-    private readonly Random m_random = new Random();
-
     public MatrixCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight, 15)
     {
         Name = "matrix";
@@ -33,20 +31,21 @@ public class MatrixCanvas : ScreensaverBase
     public override void BuildScreen(ScreenData screen)
     {
         // Seed screen with invisible characters.
+        var random = Random.Shared;
         for (var y = 0; y < screen.Height; y++)
         {
             for (var x = 0; x < screen.Width; x++)
             {
-                var ch = (char)('\x3A' + m_random.Next(0, 33));
+                var ch = (char)('\x3A' + random.Next(0, 33));
                 screen.PrintAt(x, y, new Attr(ch, Background));
             }
         }
 
         // Add 'trails'.
-        for (var x = 0; x < screen.Width; x += m_random.Next(2, 4))
+        for (var x = 0; x < screen.Width; x += random.Next(2, 4))
         {
-            var length = m_random.Next(6, 12);
-            var y = m_random.Next(0, screen.Height - length - 1);
+            var length = random.Next(6, 12);
+            var y = random.Next(0, screen.Height - length - 1);
             var i = 0;
             for (; i < length - 1; i++)
                 screen.SetForeground(x, y + i, Foreground.WithBrightness(0.2 + 0.6 * i / length));

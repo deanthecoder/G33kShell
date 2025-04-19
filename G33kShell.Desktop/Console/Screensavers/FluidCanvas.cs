@@ -24,7 +24,6 @@ namespace G33kShell.Desktop.Console.Screensavers;
 [UsedImplicitly]
 public class FluidCanvas : ScreensaverBase
 {
-    private readonly Random m_random = new Random();
     private FluidCube m_fluid;
     private bool m_isLit;
     private int m_dyeX;
@@ -52,9 +51,10 @@ public class FluidCanvas : ScreensaverBase
     public override void UpdateFrame(ScreenData screen)
     {
         // Inject more dye and velocity.
-        var dyeToAdd = 0.5 + m_random.NextDouble() * 2.5;
-        var angle = -((m_random.NextDouble() - 0.5) * Math.PI - Math.PI / 2);
-        var speed = 0.5 + 1.5 * m_random.NextDouble();
+        var random = Random.Shared;
+        var dyeToAdd = 0.5 + random.NextDouble() * 2.5;
+        var angle = -((random.NextDouble() - 0.5) * Math.PI - Math.PI / 2);
+        var speed = 0.5 + 1.5 * random.NextDouble();
         var velocityX = Math.Cos(angle) * speed;
         var velocityY = Math.Sin(angle) * speed;
         
@@ -120,7 +120,7 @@ public class FluidCanvas : ScreensaverBase
 
     private void RefreshDyeX()
     {
-        m_dyeX = (m_fluid.Size >> 1) + (int)((m_random.NextDouble() * 2.0 - 1.0) * m_fluid.Size / 3.0);
+        m_dyeX = (m_fluid.Size >> 1) + (int)((Random.Shared.NextDouble() * 2.0 - 1.0) * m_fluid.Size / 3.0);
     }
 
     private Rgb GetDensityRgb(int x, int y)

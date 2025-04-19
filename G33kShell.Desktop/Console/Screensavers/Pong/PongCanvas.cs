@@ -40,7 +40,7 @@ public class PongCanvas : AiGameCanvasBase
         screen.ClearChars();
 
         if (ActivationName.Contains("_train"))
-            TrainAi(screen, brainBytes => Settings.Instance.PongBrain = brainBytes, () => new Brain());
+            TrainAi(screen, brainBytes => Settings.Instance.PongBrain = brainBytes);
         else
             PlayGame(screen);
 

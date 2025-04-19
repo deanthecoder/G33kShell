@@ -18,8 +18,6 @@ namespace G33kShell.Desktop.Terminal.Commands;
 [CommandDescription("Display work-day progress and a motivational message.")]
 public class WorktimeCommand : CommandBase
 {
-    private readonly Random m_random = new Random();
-
     protected override Task<bool> Run(ITerminalState state)
     {
         var now = DateTime.Now;
@@ -46,7 +44,7 @@ public class WorktimeCommand : CommandBase
         return Task.FromResult(true);
     }
     
-    private string GetMotivationalMessage(double progress)
+    private static string GetMotivationalMessage(double progress)
     {
         string[] messages;
         if (progress < 0.33)
@@ -119,6 +117,6 @@ public class WorktimeCommand : CommandBase
             };
         }
         
-        return messages[m_random.Next(messages.Length)];
+        return messages[Random.Shared.Next(messages.Length)];
     }
 }

@@ -21,7 +21,6 @@ namespace G33kShell.Desktop.Console.Screensavers;
 [UsedImplicitly]
 public class BounceCanvas : ScreensaverBase
 {
-    private readonly Random m_random = new Random();
     private readonly Attr[] m_brickAttr = new Attr[2];
     private readonly Ball[] m_balls = new Ball[4];
     private bool[,] m_bricks;
@@ -56,9 +55,9 @@ public class BounceCanvas : ScreensaverBase
             }
         }
     }
-
-    private Ball SpawnBall(ScreenData screen, double x) =>
-        new Ball(x, m_random.Next(2, screen.Height - 2), m_random.NextBool() ? -1 : 1, m_random.NextBool() ? -1 : 1);
+    
+    private static Ball SpawnBall(ScreenData screen, double x) =>
+        new Ball(x, Random.Shared.Next(2, screen.Height - 2), Random.Shared.NextBool() ? -1 : 1, Random.Shared.NextBool() ? -1 : 1);
 
     public override void UpdateFrame(ScreenData screen)
     {

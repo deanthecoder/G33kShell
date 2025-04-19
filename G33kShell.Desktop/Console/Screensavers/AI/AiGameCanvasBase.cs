@@ -12,7 +12,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using CSharp.Core.AI;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
 using JetBrains.Annotations;
@@ -24,11 +23,10 @@ namespace G33kShell.Desktop.Console.Screensavers.AI;
 /// </summary>
 public abstract class AiGameCanvasBase : ScreensaverBase
 {
-    private readonly Random m_rand = new Random();
     private int m_generation;
     private double m_savedRating;
     private const int InitialPopSize = 300;
-    private const int MinPopSize = 80;
+    private const int MinPopSize = 150;
     private int m_generationsSinceImprovement;
     private int m_currentPopSize = InitialPopSize;
     private Task m_trainingTask;
@@ -48,7 +46,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     }
 
     [UsedImplicitly]
-    protected void TrainAi(ScreenData screen, Action<byte[]> saveBrainBytes, Func<AiBrainBase> createBrain)
+    protected void TrainAi(ScreenData screen, Action<byte[]> saveBrainBytes)
     {
         const string animChars = "/-\\|";
         var animFrame = Environment.TickCount64 / 100 % animChars.Length;
@@ -64,7 +62,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         m_trainingTask = Task.Run(() =>
         {
             while (!m_stopTraining)
-                TrainAiImpl(saveBrainBytes, createBrain);
+                TrainAiImpl(saveBrainBytes);
         });
     }
 
@@ -75,7 +73,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         m_stopTraining = true;
     }
 
-    private void TrainAiImpl(Action<byte[]> saveBrainBytes, Func<AiBrainBase> createBrain)
+    private void TrainAiImpl(Action<byte[]> saveBrainBytes)
     {
         m_games ??= Enumerable.Range(0, m_currentPopSize).Select(_ => CreateGameWithSeed(m_generation)).ToArray();
         
@@ -100,11 +98,14 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         System.Console.WriteLine(stats);
 
         // Persist brain improvements.
+        AiBrainBase goatBrain = null;
+        var increaseMutation = false;
         if (veryBest.Rating > m_savedRating)
         {
             m_savedRating = veryBest.Rating;
             System.Console.WriteLine("Saved.");
             saveBrainBytes(veryBest.Brain.Save());
+            goatBrain = veryBest.Brain.Clone();
 
             m_generationsSinceImprovement = 0;
         }
@@ -113,47 +114,44 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             m_generationsSinceImprovement++;
             
             m_currentPopSize = Math.Max(m_currentPopSize - 2, MinPopSize);
-            if (m_generationsSinceImprovement >= 100)
-            {
-                m_generationsSinceImprovement = 0;
-                m_currentPopSize = InitialPopSize;
-                System.Console.WriteLine("Stagnation detected — Perturbing entire population.");
-            }
+            // if (m_generationsSinceImprovement >= 100)
+            // {
+            //     m_generationsSinceImprovement = 0;
+            //     m_currentPopSize = InitialPopSize;
+            //     //increaseMutation = true;
+            //     System.Console.WriteLine("Stagnation detected — Increasing population size.");
+            // }
         }
 
         // Build the brains for the next generation.
         var nextBrains = new List<AiBrainBase>(m_games.Length);
         
+        // The GOAT lives on.
+        if (goatBrain != null)
+            nextBrains.Add(goatBrain.Clone());
+
         // Elite 10% brains get a free pass.
-        nextBrains.AddRange(eliteGames.Select(o => o.Brain));
+        nextBrains.AddRange(eliteGames.Select(o => o.Brain.Clone()));
         
-        // ...and again with a small variation, (10%)
-        nextBrains.AddRange(eliteGames.Select(o => createBrain().InitWithNudgedWeights(o.Brain, NeuralNetwork.NudgeFactor.Low)));
+        // ...and 10% more with a small mutation.
+        nextBrains.AddRange(eliteGames.Select(o => o.Brain.Clone().Mutate(0.02)));
+
+        if (increaseMutation)
+        {
+            // Fill 50% of the population with more mutations.
+            nextBrains.AddRange(orderedGames.Take(orderedGames.Length / 2).Select(o => o.Brain.Clone().Mutate(0.5)));
+        }
 
         // Spawn 5% pure randoms.
-        nextBrains.AddRange(Enumerable.Range(0, (int)(m_currentPopSize * 0.05)).Select(_ => createBrain()));
+        nextBrains.AddRange(Enumerable.Range(0, (int)(m_currentPopSize * 0.05)).Select(_ => veryBest.Brain.Clone().Randomize()));
             
         // Elite get to be parents.
-        var breeders = eliteGames.Select(o => o.Brain).ToList();
-        var minBreederCount = Math.Max(5, breeders.Count * 0.25);
         while (nextBrains.Count < m_currentPopSize)
         {
-            var mumBrain = breeders[m_rand.Next(breeders.Count)];
-            var dadBrain = breeders[m_rand.Next(breeders.Count)];
-            var childBrain = m_rand.Next(0, 4) switch
-            {
-                0 => createBrain().InitWithLerp(mumBrain, dadBrain, 0.5),
-                1 => createBrain().InitWithLerp(mumBrain, dadBrain, m_rand.NextDouble()),
-                2 => createBrain().InitWithSpliced(mumBrain, dadBrain),
-                3 => createBrain().InitWithSpliced(mumBrain, dadBrain).NudgeWeights(NeuralNetwork.NudgeFactor.Low),
-                _ => throw new ArgumentOutOfRangeException()
-            };
-
+            var mumBrain = Random.Shared.RouletteSelection(m_games, o => o.Rating).Brain;
+            var dadBrain = Random.Shared.RouletteSelection(m_games, o => o.Rating).Brain;
+            var childBrain = mumBrain.Clone().CrossWith(dadBrain, 0.5).Mutate(0.05);
             nextBrains.Add(childBrain);
-            
-            // Reduce the set size to eliminate the worst breeder.
-            if (breeders.Count > minBreederCount)
-                breeders.RemoveAt(breeders.Count - 1);
         }
         
         // Make the next generation of games.

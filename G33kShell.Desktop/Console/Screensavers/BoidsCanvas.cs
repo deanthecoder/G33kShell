@@ -27,7 +27,6 @@ namespace G33kShell.Desktop.Console.Screensavers;
 public class BoidsCanvas : ScreensaverBase
 {
     private const int MaxBoids = 100;
-    private readonly Random m_rand = new Random();
     private readonly List<Boid> m_boids = [];
     private Ball m_ball;
 
@@ -42,13 +41,13 @@ public class BoidsCanvas : ScreensaverBase
         m_boids.Clear();
 
         const int radius = 10;
-        m_ball = new Ball(m_rand.Next(radius, screen.Width - radius), m_rand.Next(radius, screen.Height - radius), radius, m_rand);
+        m_ball = new Ball(Random.Shared.Next(radius, screen.Width - radius), Random.Shared.Next(radius, screen.Height - radius), radius);
     }
     
     public override void UpdateFrame(ScreenData screen)
     {
         while (m_boids.Count < MaxBoids)
-            m_boids.Add(new Boid(m_rand.Next(0, screen.Width), m_rand.Next(0, screen.Height), m_rand));
+            m_boids.Add(new Boid(Random.Shared.Next(0, screen.Width), Random.Shared.Next(0, screen.Height), Random.Shared));
         
         screen.Clear(Foreground, Background);
 
@@ -78,13 +77,13 @@ public class BoidsCanvas : ScreensaverBase
         public int Y => (int)m_y;
         public int Radius { get; }
 
-        public Ball(int x, int y, int radius, Random rand)
+        public Ball(int x, int y, int radius)
         {
             m_x = x;
             m_y = y;
             Radius = radius;
 
-            var theta = rand.NextDouble();
+            var theta = Random.Shared.NextDouble();
             m_dx = Math.Cos(theta * Math.PI * 2.0);
             m_dy = Math.Sin(theta * Math.PI * 2.0);
         }

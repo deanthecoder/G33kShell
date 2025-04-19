@@ -23,6 +23,9 @@ public abstract class AiBrainBase
         m_qNet = new NeuralNetwork(inputSize, hiddenLayers, outputSize, learningRate: 0.05);
     }
 
+    protected AiBrainBase(AiBrainBase toCopy) =>
+        m_qNet = toCopy.m_qNet.Clone();
+
     protected int ChooseHighestOutput(IAiGameState state) => ArgMax(GetOutputs(state));
 
     protected double[] GetOutputs(IAiGameState state) => m_qNet.Predict(state.ToInputVector());
@@ -49,35 +52,23 @@ public abstract class AiBrainBase
 
     public void Load(byte[] brainBytes) => JsonConvert.PopulateObject(brainBytes.DecompressToString(), this);
 
-    public AiBrainBase InitWithLerp(AiBrainBase first, AiBrainBase second, double mix)
+    public AiBrainBase Randomize()
     {
-        m_qNet = first.m_qNet.CreateLerped(second.m_qNet, mix);
+        m_qNet.Randomize();
         return this;
     }
 
-    public AiBrainBase InitWithSpliced(AiBrainBase first, AiBrainBase second)
+    public AiBrainBase CrossWith(AiBrainBase second, double crossoverRate)
     {
-        m_qNet = first.m_qNet.CreateSpliced(second.m_qNet);
+        m_qNet.CrossWith(second.m_qNet, crossoverRate);
         return this;
     }
 
-    public AiBrainBase InitWithNudgedWeights(AiBrainBase brain, NeuralNetwork.NudgeFactor nudge)
+    public AiBrainBase Mutate(double mutationRate)
     {
-        m_qNet = brain.m_qNet.CloneWithNudgeWeights(nudge);
+        m_qNet.Mutate(mutationRate);
         return this;
     }
 
-    public AiBrainBase NudgeWeights(NeuralNetwork.NudgeFactor nudge)
-    {
-        m_qNet = m_qNet.CloneWithNudgeWeights(nudge);
-        return this;
-    }
-
-    public AiBrainBase InitWithBrain(AiBrainBase brain)
-    {
-        lock (m_qNet)
-        lock (brain.m_qNet)
-            m_qNet = brain.m_qNet.Clone();
-        return this;
-    }
+    public abstract AiBrainBase Clone();
 }

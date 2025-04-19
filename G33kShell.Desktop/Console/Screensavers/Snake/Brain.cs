@@ -20,9 +20,15 @@ public class Brain : AiBrainBase
     {
     }
 
+    private Brain(Brain brain) : base(brain)
+    {
+    }
+
     private static int GetInputSize() =>
         new GameState(new Snake(16, 16), IntPoint.Zero).ToInputVector().Length;
 
     public Direction ChooseMove(IAiGameState state) =>
         (Direction)ChooseHighestOutput(state);
+
+    public override AiBrainBase Clone() => new Brain(this);
 }

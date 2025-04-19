@@ -101,21 +101,24 @@ public class Asteroid
     /// </summary>
     public void Explode(List<Asteroid> asteroids)
     {
-        asteroids.Remove(this);
-        if (m_size == 0)
+        if (m_size ==0)
+        {
+            asteroids.Remove(this);
             return; // This is the smallest an asteroid can be.
+        }
 
         // Spawn smaller asteroids evenly spaced around this one, moving away from the center.
-        var countToSpawn = new[] { 2, 3, 4 }[m_size];
+        var countToSpawn = new[] { 1, 2, 3 }[m_size];
+        m_size--;
         var angleStep = MathF.Tau / countToSpawn;
 
         for (var i = 0; i < countToSpawn; i++)
         {
-            var angle = i * angleStep * m_rand.NextFloat().Lerp(0.8f, 1.2f);
+            var angle = m_rand.NextFloat() + i * angleStep * m_rand.NextFloat().Lerp(0.8f, 1.2f);
             var newPosition = Position + angle.ToDirection() * Radius * 0.5f;
             var newAsteroid = new Asteroid(newPosition, m_speed, m_rand, m_arenaWidth, m_arenaHeight, angle)
             {
-                m_size = m_size - 1
+                m_size = m_size
             };
 
             asteroids.Add(newAsteroid);

@@ -9,18 +9,21 @@
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
-using G33kShell.Desktop.Console.Screensavers.AI;
+ using G33kShell.Desktop.Console.Screensavers.AI;
 
-namespace G33kShell.Desktop.Console.Screensavers.Asteroids;
+ namespace G33kShell.Desktop.Console.Screensavers.Asteroids;
 
 public class Brain : AiBrainBase
 {
-    public Brain() : base(GetInputSize(), [16, 8], 4)
+    public const int BrainInputCount = 10;
+
+    public Brain() : base(BrainInputCount, [16, 8], 4)
     {
     }
 
-    private static int GetInputSize() =>
-        new GameState(new Ship(1, 1), [], 1, 1).ToInputVector().Length;
+    private Brain(Brain brain) : base(brain)
+    {
+    }
 
     public (Ship.Turn Turn, bool IsShooting, bool IsThrusting) ChooseMoves(IAiGameState state)
     {
@@ -37,4 +40,6 @@ public class Brain : AiBrainBase
         
         return (turn, shoot, thrust);
     }
+
+    public override AiBrainBase Clone() => new Brain(this);
 }

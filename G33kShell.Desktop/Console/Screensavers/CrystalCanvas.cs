@@ -26,7 +26,6 @@ namespace G33kShell.Desktop.Console.Screensavers;
 public class CrystalCanvas : ScreensaverBase
 {
     private const int MaxCrystals = 1500;
-    private static readonly Random Rand = new Random();
     private readonly List<Particle> m_particles = [];
     private char[,] m_crystal;
     private int m_crystalCount;
@@ -150,21 +149,23 @@ public class CrystalCanvas : ScreensaverBase
         private (int, int) Spawn()
         {
             // Spawn particles near the outer edge for efficiency
-            var edge = Rand.Next(4);
+            var rand = Random.Shared;
+            var edge = rand.Next(4);
             return edge switch
             {
-                0 => (Rand.Next(m_screen.Width), 0),                   // Top
-                1 => (Rand.Next(m_screen.Width), m_screen.Height - 1), // Bottom
-                2 => (0, Rand.Next(m_screen.Height)),                  // Left
-                _ => (m_screen.Width - 1, Rand.Next(m_screen.Height))  // Right
+                0 => (rand.Next(m_screen.Width), 0),                   // Top
+                1 => (rand.Next(m_screen.Width), m_screen.Height - 1), // Bottom
+                2 => (0, rand.Next(m_screen.Height)),                  // Left
+                _ => (m_screen.Width - 1, rand.Next(m_screen.Height))  // Right
             };
         }
 
         private (int dx, int dy) GetPreferredDirection()
         {
             // Random direction.
-            var dx = Rand.NextDouble() * 2.0 - 1.0;
-            var dy = Rand.NextDouble() * 2.0 - 1.0;
+            var rand = Random.Shared;
+            var dx = rand.NextDouble() * 2.0 - 1.0;
+            var dy = rand.NextDouble() * 2.0 - 1.0;
 
             // ...with a very slight bias towards the center.
             dx += (m_screen.Width / 2.0 - X) / (m_screen.Width / 2.0) * 0.15;

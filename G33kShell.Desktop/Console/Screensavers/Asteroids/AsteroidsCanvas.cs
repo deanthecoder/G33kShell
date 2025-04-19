@@ -35,7 +35,7 @@ public class AsteroidsCanvas : AiGameCanvasBase
         screen.ClearChars();
         
         if (ActivationName.Contains("_train"))
-            TrainAi(screen, brainBytes => Settings.Instance.AsteroidsBrain = brainBytes, () => new Brain());
+            TrainAi(screen, brainBytes => Settings.Instance.AsteroidsBrain = brainBytes);
         else
             PlayGame(screen);
     }

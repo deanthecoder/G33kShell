@@ -21,7 +21,6 @@ public class FireCanvas : ScreensaverBase
     private readonly string m_fireChars = " ,;+ltgti!lI?/\\|)(1}{][rcvzjftJUOQocxfXhqwWB8&%$#@";
     private readonly int m_maxCharIndex;
     private readonly int[] m_firePixelsArray;
-    private readonly Random m_random = new Random();
 
     public FireCanvas(int width, int height) : base(width, height)
     {
@@ -36,17 +35,18 @@ public class FireCanvas : ScreensaverBase
     public override void UpdateFrame(ScreenData screen)
     {
         // Create fire at the bottom row
+        var random = Random.Shared;
         for (var i = 0; i < Width; i++)
         {
-            var randomCol = m_random.Next(Width);
+            var randomCol = random.Next(Width);
             var index = randomCol + Width * Height;
-            m_firePixelsArray[index] = m_random.Next(m_maxCharIndex);
+            m_firePixelsArray[index] = random.Next(m_maxCharIndex);
         }
 
         // Reset some pixels to create the fading effect
         for (var i = 0; i < Width; i++)
         {
-            var randomCol = m_random.Next(Width);
+            var randomCol = random.Next(Width);
             var index = randomCol + Width * Height;
             m_firePixelsArray[index] = 0;
         }

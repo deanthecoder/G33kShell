@@ -24,7 +24,6 @@ namespace G33kShell.Desktop.Console.Screensavers;
 public class GameOfLifeCanvas : ScreensaverBase
 {
     private readonly bool[,] m_cells;
-    private readonly Random m_random = new Random();
     private readonly Queue<int> m_checksums = new Queue<int>();
     private const int ChecksumHistorySize = 10;
 
@@ -40,7 +39,7 @@ public class GameOfLifeCanvas : ScreensaverBase
         for (var y = 0; y < m_cells.GetLength(1); y++)
         {
             for (var x = 0; x < m_cells.GetLength(0); x++)
-                m_cells[x, y] = m_random.NextDouble() < 0.25; // 25% chance of a live cell
+                m_cells[x, y] = Random.Shared.NextDouble() < 0.25; // 25% chance of a live cell
         }
     }
 
