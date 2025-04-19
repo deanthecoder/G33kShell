@@ -62,7 +62,7 @@ public class PongCanvas : AiGameCanvasBase
             m_games[0].ResetGame();
     }
 
-    protected override void DrawGame(ScreenData screen, AiGameBase aiGame)
+    private void DrawGame(ScreenData screen, AiGameBase aiGame)
     {
         var game = (Game)aiGame;
         var dimRgb = 0.2.Lerp(Background, Foreground);

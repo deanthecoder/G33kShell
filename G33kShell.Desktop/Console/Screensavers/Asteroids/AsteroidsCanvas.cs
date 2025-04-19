@@ -56,7 +56,7 @@ public class AsteroidsCanvas : AiGameCanvasBase
             m_games[0].ResetGame();
     }
 
-    protected override void DrawGame(ScreenData screen, AiGameBase aiGame)
+    private void DrawGame(ScreenData screen, AiGameBase aiGame)
     {
         screen.Clear(Foreground, Background);
         

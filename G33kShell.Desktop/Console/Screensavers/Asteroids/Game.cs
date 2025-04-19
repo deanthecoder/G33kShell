@@ -17,7 +17,7 @@ using G33kShell.Desktop.Console.Screensavers.AI;
 
 namespace G33kShell.Desktop.Console.Screensavers.Asteroids;
 
-[DebuggerDisplay("Rating = {Rating}, Score = {Score}")]
+[DebuggerDisplay("Rating = {Rating}, Score = {Score}, Lives = {m_lives}")]
 public class Game : AiGameBase
 {
     private int m_bulletsFired;
@@ -26,6 +26,7 @@ public class Game : AiGameBase
     private int m_leftTurns;
     private int m_rightTurns;
     private GameState m_gameState;
+    private int m_lives = 3;
 
     /// <summary>
     /// Score used for public display.
@@ -38,7 +39,7 @@ public class Game : AiGameBase
         (1.0 - (double)Math.Abs(m_leftTurns - m_rightTurns) / (m_leftTurns + m_rightTurns + 1)) * 5.0 + // Reward not spinning.
         Score / 1000.0;                                                                                 // Reward score.
 
-    public override bool IsGameOver => Ship.Shield <= 0.0 || m_gameTicks > 200_000;
+    public override bool IsGameOver => m_lives == 0 || m_gameTicks > 200_000;
     public Ship Ship { get; private set; }
     public List<Asteroid> Asteroids { get; } = [];
     public List<Bullet> Bullets { get; } = [];
@@ -155,7 +156,18 @@ public class Game : AiGameBase
             var distance = Asteroids[i].DistanceTo(Ship.Position);
             if (distance < Asteroids[i].Radius + shipRadius)
             {
-                Ship.Shield = Math.Max(0.0, Ship.Shield - 0.05);
+                var newShield = Ship.Shield - 0.08;
+                if (newShield < 0.0)
+                {
+                    // Ship is dead - Reset asteroids and bullets.
+                    m_lives--;
+                    Asteroids.Clear();
+                    Bullets.Clear();
+                    Ship.Reset();
+                    return;
+                }
+                
+                Ship.Shield = newShield;
                 break;
             }
         }

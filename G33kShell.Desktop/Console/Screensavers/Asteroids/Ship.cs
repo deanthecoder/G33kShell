@@ -19,11 +19,12 @@ public class Ship
     private readonly int m_arenaWidth;
     private readonly int m_arenaHeight;
     private const float MaxSpeed = 0.2f;
+    private const double MaxShield = 1.0;
     
     private Vector2 m_acceleration = Vector2.Zero;
     
     public enum Turn { None, Left, Right }
-    public double Shield { get; set; } = 1.0;
+    public double Shield { get; set; }
     public float Theta { get; private set; }
     public static int MaxBullets => 8;
 
@@ -44,7 +45,8 @@ public class Ship
     {
         m_arenaWidth = arenaWidth;
         m_arenaHeight = arenaHeight;
-        Position = new Vector2(arenaWidth / 2.0f, arenaHeight / 2.0f);
+        
+        Reset();
     }
 
     public void Move()
@@ -73,5 +75,18 @@ public class Ship
         var newX = (Position.X + m_arenaWidth) % m_arenaWidth;
         var newY = (Position.Y + m_arenaHeight) % m_arenaHeight;
         Position = new Vector2(newX, newY);
+    }
+
+    /// <summary>
+    /// Called when the ship is destroyed. Reset to the center of the arena.
+    /// </summary>
+    public void Reset()
+    {
+        Position = new Vector2(m_arenaWidth / 2.0f, m_arenaHeight / 2.0f);
+        Shield = MaxShield;
+        IsShooting = false;
+        Turning = Turn.None;
+        IsThrusting = false;
+        Velocity = Vector2.Zero;
     }
 }

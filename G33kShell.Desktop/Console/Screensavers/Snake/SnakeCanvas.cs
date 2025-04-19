@@ -51,7 +51,7 @@ public class SnakeCanvas : AiGameCanvasBase
         m_games[0].Tick();
     }
 
-    protected override void DrawGame(ScreenData screen, AiGameBase aiGame)
+    private static void DrawGame(ScreenData screen, AiGameBase aiGame)
     {
         var game = (Game)aiGame;
         

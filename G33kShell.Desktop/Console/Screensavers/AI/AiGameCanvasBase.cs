@@ -37,8 +37,6 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     protected int ArenaWidth { get; }
     protected int ArenaHeight { get; }
 
-    protected abstract void DrawGame(ScreenData screen, AiGameBase game);
-
     protected AiGameCanvasBase(int width, int height, int targetFps = 30) : base(width, height, targetFps)
     {
         ArenaWidth = width;
@@ -99,7 +97,6 @@ public abstract class AiGameCanvasBase : ScreensaverBase
 
         // Persist brain improvements.
         AiBrainBase goatBrain = null;
-        var increaseMutation = false;
         if (veryBest.Rating > m_savedRating)
         {
             m_savedRating = veryBest.Rating;
@@ -114,13 +111,12 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             m_generationsSinceImprovement++;
             
             m_currentPopSize = Math.Max(m_currentPopSize - 2, MinPopSize);
-            // if (m_generationsSinceImprovement >= 100)
-            // {
-            //     m_generationsSinceImprovement = 0;
-            //     m_currentPopSize = InitialPopSize;
-            //     //increaseMutation = true;
-            //     System.Console.WriteLine("Stagnation detected — Increasing population size.");
-            // }
+            if (m_generationsSinceImprovement >= 100)
+            {
+                m_generationsSinceImprovement = 0;
+                m_currentPopSize = InitialPopSize;
+                System.Console.WriteLine("Stagnation detected — Increasing population size.");
+            }
         }
 
         // Build the brains for the next generation.
@@ -135,12 +131,6 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         
         // ...and 10% more with a small mutation.
         nextBrains.AddRange(eliteGames.Select(o => o.Brain.Clone().Mutate(0.02)));
-
-        if (increaseMutation)
-        {
-            // Fill 50% of the population with more mutations.
-            nextBrains.AddRange(orderedGames.Take(orderedGames.Length / 2).Select(o => o.Brain.Clone().Mutate(0.5)));
-        }
 
         // Spawn 5% pure randoms.
         nextBrains.AddRange(Enumerable.Range(0, (int)(m_currentPopSize * 0.05)).Select(_ => veryBest.Brain.Clone().Randomize()));
