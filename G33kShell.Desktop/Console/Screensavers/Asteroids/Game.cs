@@ -26,18 +26,68 @@ public class Game : AiGameBase
     private int m_leftTurns;
     private int m_rightTurns;
     private GameState m_gameState;
-    private int m_lives = 3;
+    private int m_lives;
+    private int m_thrustTicks;
 
     /// <summary>
     /// Score used for public display.
     /// </summary>
     public int Score { get; private set; }
 
-    public override double Rating =>
-        m_bulletsFired * HitAccuracy +                                                                  // Reward hit accuracy.
-        (Ship.DistanceTravelled / 100.0).Clamp(0.0, 1.0) * 5.0 +                                        // Reward moving a bit.
-        (1.0 - (double)Math.Abs(m_leftTurns - m_rightTurns) / (m_leftTurns + m_rightTurns + 1)) * 5.0 + // Reward not spinning.
-        Score / 1000.0;                                                                                 // Reward score.
+    public override double Rating
+    {
+        get
+        {
+            if (Score == 0)
+                return -50.0; // Penalize pacifists.
+
+            if (m_gameTicks > 2000 && m_bulletsFired < 5)
+                return -100.0; // Penalize idle campers.
+
+            var accuracyScore = HitAccuracy * 25.0;                        // Strongly reward aiming carefully.
+            var perfectHitBonus = m_perfectHits * 1.0;                     // Bigger incentive for intentional targeting.
+            var shotDiscipline = -(m_bulletsFired - m_perfectHits) * 0.02; // Stronger spam punishment.
+            var rawScore = Score / 180.0;                                  // Increase actual game score importance.
+
+            // Reward repositioning, but penalize constant thrust with no balance.
+            var thrustRatio = m_thrustTicks / (double)m_gameTicks;
+            var repositioningBonus = thrustRatio > 0.2 && thrustRatio < 0.8 ? 5.0 : -2.0;
+
+            // Strongly penalize sustained unidirectional spinning:
+            var turnReward = TurnEquality > 0.5 ? TurnEquality * 5.0 : -5.0;
+
+            // Introduce a simple collision-avoidance reward:
+            var survivalBonus = m_gameTicks / 4500.0; // Survive longer by avoiding collisions.
+
+            return rawScore + accuracyScore + perfectHitBonus +
+                   shotDiscipline + repositioningBonus +
+                   turnReward + survivalBonus;
+        }
+    }
+    
+    public override IEnumerable<(string Name, string Value)> ExtraGameStats()
+    {
+        yield return ("Score", Score.ToString());
+        yield return ("HitAccuracy", HitAccuracy.ToString("P1"));
+        yield return ("GameTicks", m_gameTicks.ToString());
+        yield return ("TurnEquality", TurnEquality.ToString("P1"));
+        yield return ("BulletsFired", m_bulletsFired.ToString());
+        yield return ("PerfectHits", m_perfectHits.ToString());
+        yield return ("LeftTurns", m_leftTurns.ToString());
+        yield return ("RightTurns", m_rightTurns.ToString());
+        yield return ("ThrustTicks", m_thrustTicks.ToString());
+    }
+
+    private double TurnEquality
+    {
+        get
+        {
+            var totalTurns = m_leftTurns + m_rightTurns;
+            if (totalTurns == 0)
+                return 0.0; // No turns - no bonus.
+            return 1.0 - (double)Math.Abs(m_leftTurns - m_rightTurns) / totalTurns;
+        }
+    }
 
     public override bool IsGameOver => m_lives == 0 || m_gameTicks > 200_000;
     public Ship Ship { get; private set; }
@@ -63,6 +113,8 @@ public class Game : AiGameBase
         m_gameTicks = 0;
         m_leftTurns = 0;
         m_rightTurns = 0;
+        m_thrustTicks = 0;
+        m_lives = 3;
 
         EnsureMinimumAsteroidCount();
         
@@ -93,6 +145,9 @@ public class Game : AiGameBase
 
         // Move ship.
         Ship.Move();
+        if (Ship.IsThrusting)
+            m_thrustTicks++;
+
         if (Ship.Turning == Ship.Turn.Left)
             m_leftTurns++;
         else if (Ship.Turning == Ship.Turn.Right)
@@ -177,13 +232,5 @@ public class Game : AiGameBase
         Ship.IsShooting = moves.IsShooting;
         Ship.Turning = moves.Turn;
         Ship.IsThrusting = moves.IsThrusting;
-    }
-
-    public override IEnumerable<(string Name, string Value)> ExtraGameStats()
-    {
-        yield return ("Score", Score.ToString());
-        yield return ("HitAccuracy", HitAccuracy.ToString("P1"));
-        yield return ("GameTicks", m_gameTicks.ToString());
-        yield return ("DistanceTravelled", Ship.DistanceTravelled.ToString("F1"));
     }
 }

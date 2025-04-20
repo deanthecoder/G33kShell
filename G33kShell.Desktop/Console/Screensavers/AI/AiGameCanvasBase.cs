@@ -56,11 +56,21 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             return;
         }
         
+        System.Console.WriteLine("Starting training...");
+        var brain = CreateGame().Brain;
+        System.Console.WriteLine($"Brain layers: {brain.InputSize} : {brain.HiddenLayers.ToCsv(' ')} : {brain.OutputSize}");
+        
         m_stopTraining = false;
         m_trainingTask = Task.Run(() =>
         {
             while (!m_stopTraining)
                 TrainAiImpl(saveBrainBytes);
+            
+            System.Console.WriteLine("Training complete.");
+            System.Console.WriteLine("Summary:");
+            System.Console.WriteLine($"  Brain layers: {brain.InputSize} : {brain.HiddenLayers.ToCsv(' ')} : {brain.OutputSize}");
+            System.Console.WriteLine($"   Generations: {m_generation}");
+            System.Console.WriteLine($"        Rating: {m_savedRating:F1}");
         });
     }
 
@@ -89,7 +99,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         // Report summary of results.
         m_generation++;
         var veryBest = eliteGames[0];
-        var stats = $"Gen {m_generation} | Pop {m_currentPopSize} | GOAT {m_savedRating:F1} | Best {veryBest.Rating:F1}";
+        var stats = $"Gen {m_generation}|Pop {m_currentPopSize}|Rating {veryBest.Rating:F1}|GOAT {m_savedRating:F1}";
         var extraStats = veryBest.ExtraGameStats().Select(o => $" {o.Name}: {o.Value}").ToArray().ToCsv().Trim();
         if (!string.IsNullOrEmpty(extraStats))
             stats += $" | {extraStats}";

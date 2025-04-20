@@ -18,8 +18,15 @@ public abstract class AiBrainBase
 {
     [JsonProperty] private NeuralNetwork m_qNet;
 
+    public int InputSize { get; private set; }
+    public int[] HiddenLayers { get; private set; }
+    public int OutputSize { get; private set; }
+
     protected AiBrainBase(int inputSize, int[] hiddenLayers, int outputSize)
     {
+        InputSize = inputSize;
+        HiddenLayers = hiddenLayers;
+        OutputSize = outputSize;
         m_qNet = new NeuralNetwork(inputSize, hiddenLayers, outputSize, learningRate: 0.05);
     }
 

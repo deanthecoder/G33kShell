@@ -34,9 +34,6 @@ public class Ship
     public Vector2 Position { get; private set; }
 
     public Vector2 Velocity { get; private set; } = Vector2.Zero;
-
-    public double DistanceTravelled { get; private set; }
-    
     public bool IsThrusting { get; set; }
     public Turn Turning { get; set; }
     public bool IsShooting { get; set; }
@@ -69,7 +66,6 @@ public class Ship
         
         // Position.
         Position += Velocity;
-        DistanceTravelled += Velocity.Length();
         
         // Wrap to the arena.
         var newX = (Position.X + m_arenaWidth) % m_arenaWidth;
