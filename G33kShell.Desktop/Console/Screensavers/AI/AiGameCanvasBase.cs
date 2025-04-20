@@ -102,7 +102,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         var stats = $"Gen {m_generation}|Pop {m_currentPopSize}|Rating {veryBest.Rating:F1}|GOAT {m_savedRating:F1}";
         var extraStats = veryBest.ExtraGameStats().Select(o => $" {o.Name}: {o.Value}").ToArray().ToCsv().Trim();
         if (!string.IsNullOrEmpty(extraStats))
-            stats += $" | {extraStats}";
+            stats += $"|{extraStats}";
         System.Console.WriteLine(stats);
 
         // Persist brain improvements.
