@@ -8,7 +8,6 @@
 // about your modifications. Your contributions are valued!
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
-using System.Collections.Generic;
 using System.Numerics;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Screensavers.AI;
@@ -37,18 +36,21 @@ public class GameState : IAiGameState
 
     public double[] ToInputVector()
     {
-        var inputVector = new List<double>();
+        var inputVector = new double[Brain.BrainInputCount];
 
         // Encode bat positions.
-        inputVector.Add(m_bats[0].Y / m_arenaHeight * 2.0f - 1.0f);
-        inputVector.Add(m_bats[1].Y / m_arenaHeight * 2.0f - 1.0f);
-        
-        // Encode ball state.
-        inputVector.Add(m_ballPosition.X / m_arenaWidth * 2.0f - 1.0f);
-        inputVector.Add(m_ballPosition.Y / m_arenaHeight * 2.0f - 1.0f);
-        inputVector.Add(m_ballVelocity.X.Clamp(-1.0f, 1.0f));
-        inputVector.Add(m_ballVelocity.Y.Clamp(-1.0f, 1.0f));
+        inputVector[0] = m_bats[0].Y / m_arenaHeight * 2.0f - 1.0f;
+        inputVector[1] = m_bats[1].Y / m_arenaHeight * 2.0f - 1.0f;
 
-        return inputVector.ToArray();
+        inputVector[2] = (m_bats[0].Y - m_ballPosition.Y) / m_arenaHeight * 2.0f;
+        inputVector[3] = (m_bats[1].Y - m_ballPosition.Y) / m_arenaHeight * 2.0f;
+
+        // Encode ball state.
+        inputVector[4] = m_ballPosition.X / m_arenaWidth * 2.0f - 1.0f;
+        inputVector[5] = m_ballPosition.Y / m_arenaHeight * 2.0f - 1.0f;
+        inputVector[6] = m_ballVelocity.X.Clamp(-1.0f, 1.0f);
+        inputVector[7] = m_ballVelocity.Y.Clamp(-1.0f, 1.0f);
+
+        return inputVector;
     }
 }

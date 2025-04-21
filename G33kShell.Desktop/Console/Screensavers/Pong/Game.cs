@@ -23,6 +23,7 @@ public class Game : AiGameBase
 {
     private const int ScoreToWin = 10;
     private const float BatSpeed = 0.22f;
+    private readonly int[] m_batMoves = new int[2];
     private Vector2 m_ballVelocity;
     private int m_ballMoves;
     private int m_rallies;
@@ -36,12 +37,11 @@ public class Game : AiGameBase
     {
         get
         {
-            if (Scores[0] + Scores[1] == 0)
+            if (Scores[0] * Scores[1] == 0)
                 return 0.0; // No score - rubbish game.
-            return m_rallies * 0.2                                    // Reward rallies.
-                   + m_ballMoves * 0.01                             // ...and long games.
-                   + (ScoreToWin - Math.Abs(Scores[0] - Scores[1])) // Reward balanced scores.
-                   + (Scores[0] + Scores[1]) / (2.0 * ScoreToWin);  // Reward high score. (Note: Might be small if game times-out.)
+            if (Math.Min(m_batMoves[0], m_batMoves[1]) < 300)
+                return 0.0; // No moves - rubbish game.
+            return m_rallies * (Scores[0] + Scores[1]);
         }
     }
 
@@ -50,7 +50,12 @@ public class Game : AiGameBase
 
     public override IEnumerable<(string Name, string Value)> ExtraGameStats()
     {
-        yield break;
+        yield return ("Ticks", m_ballMoves.ToString());
+        yield return ("Score1", Scores[0].ToString());
+        yield return ("Score2", Scores[1].ToString());
+        yield return ("LeftMoves", m_batMoves[0].ToString());
+        yield return ("RightMoves", m_batMoves[1].ToString());
+        yield return ("Rallies", m_rallies.ToString());
     }
 
     public Game(int arenaWidth, int arenaHeight) : base(arenaWidth, arenaHeight, new Brain())
@@ -65,6 +70,7 @@ public class Game : AiGameBase
         Scores[0] = Scores[1] = 0;
         m_rallies = 0;
         m_ballMoves = 0;
+        m_batMoves[0] = m_batMoves[1] = 0;
         
         return this;
     }
@@ -139,7 +145,10 @@ public class Game : AiGameBase
             _ => 0
         };
         if (nextY >= BatHeight / 2.0f && nextY < ArenaHeight - BatHeight / 2.0f)
+        {
             BatPositions[0].Y = nextY;
+            m_batMoves[0]++;
+        }
         nextY = BatPositions[1].Y + BatSpeed * newDirections.RightBat switch
         {
             Direction.Up => -1,
@@ -147,7 +156,10 @@ public class Game : AiGameBase
             _ => 0
         };
         if (nextY >= BatHeight / 2.0f && nextY < ArenaHeight - BatHeight / 2.0f)
+        {
             BatPositions[1].Y = nextY;
+            m_batMoves[1]++;
+        }
     }
 
     private void NormalizeBallVelocity() =>
