@@ -119,7 +119,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         {
             m_generationsSinceImprovement++;
             
-            m_currentPopSize = Math.Max(m_currentPopSize - 2, MinPopSize);
+            m_currentPopSize = Math.Max(m_currentPopSize - 1, MinPopSize);
             if (m_generationsSinceImprovement >= 100)
             {
                 m_generationsSinceImprovement = 0;

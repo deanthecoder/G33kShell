@@ -16,7 +16,6 @@ public class Asteroid
     private readonly float m_direction;
     private readonly Vector2[] m_offsets;
     private static readonly int[] Radii = [2, 4, MaxRadius];
-    private static readonly int[] HitScores = [20, 10, 5];
     private static readonly int[] SizeMetrics = [1, 2, 4];
     private static readonly float[] Speeds = [1.5f, 1.0f, 0.6f];
     private int m_size = 2;
@@ -25,7 +24,6 @@ public class Asteroid
     
     public int SizeMetric => SizeMetrics[m_size];
     public int Radius => Radii[m_size];
-    public int HitScore => HitScores[m_size];
     public bool IsInvulnerable => m_invulnerable > 0;
     
     /// <summary>
@@ -33,7 +31,7 @@ public class Asteroid
     /// </summary>
     public Vector2 Position { get; private set; }
 
-    private Vector2 Velocity
+    public Vector2 Velocity
     {
         get
         {

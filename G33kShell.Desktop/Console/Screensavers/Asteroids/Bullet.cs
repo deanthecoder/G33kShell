@@ -26,18 +26,12 @@ public class Bullet
     public Vector2 Position { get; private set; }
 
     public bool IsExpired { get; private set; }
-
-    /// <summary>
-    /// The target the bullet is nominally aiming for.
-    /// </summary>
-    public Asteroid Target { get; }
-
-    public Bullet(Vector2 position, float theta, Asteroid target, int arenaWidth, int arenaHeight)
+    
+    public Bullet(Vector2 position, float theta, int arenaWidth, int arenaHeight)
     {
         m_arenaWidth = arenaWidth;
         m_arenaHeight = arenaHeight;
         Position = position;
-        Target = target;
         m_velocity = theta.ToDirection();
         m_distanceUntilDeath = new Vector2(arenaWidth, arenaHeight).Length() * 0.4;
     }

@@ -21,8 +21,6 @@ namespace G33kShell.Desktop.Console.Screensavers.Asteroids;
 public class Game : AiGameBase
 {
     private int m_bulletsFired;
-    private int m_asteroidsHit;
-    private int m_perfectHits;
     private int m_gameTicks;
     private int m_leftTurns;
     private int m_rightTurns;
@@ -39,33 +37,19 @@ public class Game : AiGameBase
     {
         get
         {
-            if (Score == 0)
-                return 0.0; // Penalize pacifists.
-            if (m_gameTicks > 2000 && m_bulletsFired < 5)
-                return 0.0; // Penalize idle campers.
             if (TurnEquality < 0.3)
                 return 0.0; // Penalize wonky-turners.
             if (m_thrustTicks == 0)
                 return 0.0; // Penalize non-thrusters.
 
-            var thrustRatio = m_thrustTicks / (double)m_gameTicks;
-            var survivalBonus = (m_gameTicks / 8000.0).Clamp(0.0, 1.0);
-
-            return Score / 8000.0 * 10.0 +
-                   HitRatio * 0.5 * 0.1 +
-                   PerfectHitRatio * 1.0 * 0.1 +
-                   thrustRatio * 2.0 * 0.1 +
-                   TurnEquality * 0.5 * 0.1 +
-                   survivalBonus * 1.0 * 0.1
-                   ;
+            return Score * HitRatio * HitRatio * m_gameTicks * 0.001;
         }
     }
     
     public override IEnumerable<(string Name, string Value)> ExtraGameStats()
     {
         yield return ("Score", Score.ToString());
-        yield return ("Accuracy", HitRatio.ToString("P1"));
-        yield return ("Perfect", PerfectHitRatio.ToString("P1"));
+        yield return ("HitRatio", HitRatio.ToString("P1"));
         yield return ("Ticks", m_gameTicks.ToString());
         yield return ("TurnEquality", TurnEquality.ToString("P1"));
         yield return ("Thrusts", m_thrustTicks.ToString());
@@ -87,8 +71,7 @@ public class Game : AiGameBase
     public List<Asteroid> Asteroids { get; } = [];
     public List<Bullet> Bullets { get; } = [];
 
-    private double PerfectHitRatio => m_bulletsFired == 0 ? 0.0 : (double)m_perfectHits / m_bulletsFired;
-    private double HitRatio => m_bulletsFired == 0 ? 0.0 : (double)m_asteroidsHit / m_bulletsFired;
+    private double HitRatio => m_bulletsFired == 0 ? 0.0 : (double)Score / m_bulletsFired;
 
     public Game(int arenaWidth, int arenaHeight) : base(arenaWidth, arenaHeight, new Brain())
     {
@@ -98,13 +81,11 @@ public class Game : AiGameBase
     {
         Ship = new Ship(ArenaWidth, ArenaHeight);
         Score = 0;
-        m_gameState = new GameState(Ship, Asteroids, Bullets, ArenaWidth, ArenaHeight);
+        m_gameState = new GameState(Ship, Asteroids, ArenaWidth, ArenaHeight);
 
         Asteroids.Clear();
         Bullets.Clear();
         m_bulletsFired = 0;
-        m_perfectHits = 0;
-        m_asteroidsHit = 0;
         m_gameTicks = 0;
         m_leftTurns = 0;
         m_rightTurns = 0;
@@ -151,8 +132,7 @@ public class Game : AiGameBase
         // Spawn new bullets.
         if (Ship.IsShooting && Bullets.Count < Ship.MaxBullets)
         {
-            var target = Asteroids.FastFindMin(o => Vector2.DistanceSquared(Ship.Position, o.Position));
-            Bullets.Add(new Bullet(Ship.Position, Ship.Theta, target, ArenaWidth, ArenaHeight));
+            Bullets.Add(new Bullet(Ship.Position, Ship.Theta, ArenaWidth, ArenaHeight));
             m_bulletsFired++;
         }
 
@@ -189,12 +169,7 @@ public class Game : AiGameBase
             // Bullet hit an asteroid.
             bulletsToRemove.Add(bullet);
             hitAsteroid.Explode(Asteroids);
-            Score += hitAsteroid.HitScore;
-
-            // Bonus points if it was the asteroid we were aiming for.
-            if (bullet.Target == hitAsteroid)
-                m_perfectHits++;
-            m_asteroidsHit++;
+            Score++;
         }
 
         for (var i = 0; i < bulletsToRemove.Count; i++)
