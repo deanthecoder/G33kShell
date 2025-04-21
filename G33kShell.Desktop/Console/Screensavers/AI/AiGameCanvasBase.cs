@@ -94,11 +94,10 @@ public abstract class AiGameCanvasBase : ScreensaverBase
 
         // Select the breeders.
         var orderedGames = m_games.OrderByDescending(o => o.Rating).ToArray();
-        var eliteGames = orderedGames.Take((int)(m_currentPopSize * 0.1)).ToArray();
         
         // Report summary of results.
         m_generation++;
-        var veryBest = eliteGames[0];
+        var veryBest = orderedGames[0];
         var stats = $"Gen {m_generation}|Pop {m_currentPopSize}|Rating {veryBest.Rating:F1}|GOAT {m_savedRating:F1}";
         var extraStats = veryBest.ExtraGameStats().Select(o => $" {o.Name}: {o.Value}").ToArray().ToCsv().Trim();
         if (!string.IsNullOrEmpty(extraStats))
@@ -134,13 +133,10 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         
         // The GOAT lives on.
         if (goatBrain != null)
+        {
             nextBrains.Add(goatBrain.Clone());
-
-        // Elite 10% brains get a free pass.
-        nextBrains.AddRange(eliteGames.Select(o => o.Brain.Clone()));
-        
-        // ...and 10% more with a small mutation.
-        nextBrains.AddRange(eliteGames.Select(o => o.Brain.Clone().Mutate(0.02)));
+            nextBrains.AddRange(Enumerable.Range(0, (int)(m_currentPopSize * 0.05)).Select(_ => goatBrain.Clone().Mutate(0.03)));
+        }
 
         // Spawn 5% pure randoms.
         nextBrains.AddRange(Enumerable.Range(0, (int)(m_currentPopSize * 0.05)).Select(_ => veryBest.Brain.Clone().Randomize()));
