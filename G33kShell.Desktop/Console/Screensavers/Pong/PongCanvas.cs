@@ -27,6 +27,7 @@ namespace G33kShell.Desktop.Console.Screensavers.Pong;
 public class PongCanvas : AiGameCanvasBase
 {
     private readonly FIGletFont m_font;
+    private Game m_game;
 
     public PongCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight, 60)
     {
@@ -49,17 +50,17 @@ public class PongCanvas : AiGameCanvasBase
     [UsedImplicitly]
     private void PlayGame(ScreenData screen)
     {
-        if (m_games == null)
+        if (m_game == null)
         {
-            m_games = [CreateGame().ResetGame()];
-            m_games[0].LoadBrainData(Settings.Instance.PongBrain);
+            m_game = (Game)CreateGame().ResetGame();
+            m_game.LoadBrainData(Settings.Instance.PongBrain);
         }
 
-        DrawGame(screen, m_games[0]);
+        DrawGame(screen, m_game);
 
-        m_games[0].Tick();
-        if (((Game)m_games[0]).IsGameOver)
-            m_games[0].ResetGame();
+        m_game.Tick();
+        if (m_game.IsGameOver)
+            m_game.ResetGame();
     }
 
     private void DrawGame(ScreenData screen, AiGameBase aiGame)

@@ -25,6 +25,8 @@ namespace G33kShell.Desktop.Console.Screensavers.Asteroids;
 [UsedImplicitly]
 public class AsteroidsCanvas : AiGameCanvasBase
 {
+    private Game m_game;
+
     public AsteroidsCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight, 60)
     {
         Name = "asciiroids";
@@ -43,17 +45,17 @@ public class AsteroidsCanvas : AiGameCanvasBase
     [UsedImplicitly]
     private void PlayGame(ScreenData screen)
     {
-        if (m_games == null)
+        if (m_game == null)
         {
-            m_games = [CreateGame().ResetGame()];
-            m_games[0].LoadBrainData(Settings.Instance.AsteroidsBrain);
+            m_game = (Game)CreateGame().ResetGame();
+            m_game.LoadBrainData(Settings.Instance.AsteroidsBrain);
         }
 
-        m_games[0].Tick();
-        DrawGame(screen, m_games[0]);
+        m_game.Tick();
+        DrawGame(screen, m_game);
         
-        if (((Game)m_games[0]).IsGameOver)
-            m_games[0].ResetGame();
+        if (m_game.IsGameOver)
+            m_game.ResetGame();
     }
 
     private void DrawGame(ScreenData screen, AiGameBase aiGame)

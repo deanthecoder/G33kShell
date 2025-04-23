@@ -22,6 +22,8 @@ namespace G33kShell.Desktop.Console.Screensavers.Snake;
 [UsedImplicitly]
 public class SnakeCanvas : AiGameCanvasBase
 {
+    private Game m_game;
+
     public SnakeCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight, 60)
     {
         Name = "snake";
@@ -40,15 +42,15 @@ public class SnakeCanvas : AiGameCanvasBase
     [UsedImplicitly]
     private void PlayGame(ScreenData screen)
     {
-        if (m_games == null)
+        if (m_game == null)
         {
-            m_games = [new Game(ArenaWidth, ArenaHeight).ResetGame()];
-            m_games[0].LoadBrainData(Settings.Instance.SnakeBrain);
+            m_game = (Game)new Game(ArenaWidth, ArenaHeight).ResetGame();
+            m_game.LoadBrainData(Settings.Instance.SnakeBrain);
         }
 
-        DrawGame(screen, m_games[0]);
+        DrawGame(screen, m_game);
 
-        m_games[0].Tick();
+        m_game.Tick();
     }
 
     private static void DrawGame(ScreenData screen, AiGameBase aiGame)
