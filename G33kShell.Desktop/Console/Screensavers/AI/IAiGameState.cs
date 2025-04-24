@@ -15,5 +15,5 @@ namespace G33kShell.Desktop.Console.Screensavers.AI;
 /// </summary>
 public interface IAiGameState
 {
-    double[] ToInputVector();
+    void FillInputVector(double[] inputVector);
 }

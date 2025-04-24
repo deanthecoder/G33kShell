@@ -37,12 +37,10 @@ public class Game : AiGameBase
     {
         get
         {
-            if (TurnEquality < 0.3)
-                return 0.0; // Penalize wonky-turners.
             if (m_thrustTicks == 0)
                 return 0.0; // Penalize non-thrusters.
 
-            var rating = 1.0 + Score * HitRatio * 0.001;
+            var rating = 1.0 + Score * Score * HitRatio * Math.Min(m_gameTicks, 20 * 60) * TurnEquality * 0.00001;
             return rating * rating;
         }
     }
@@ -74,7 +72,7 @@ public class Game : AiGameBase
 
     private double HitRatio => m_bulletsFired == 0 ? 0.0 : (double)Score / m_bulletsFired;
 
-    public Game(int arenaWidth, int arenaHeight) : base(arenaWidth, arenaHeight, new Brain())
+    public Game(int arenaWidth, int arenaHeight, Brain brain) : base(arenaWidth, arenaHeight, brain)
     {
     }
 
@@ -150,7 +148,6 @@ public class Game : AiGameBase
         Bullets.RemoveAll(o => o.IsExpired);
 
         // Check for bullet/asteroid collisions.
-        var hitDetected = false;
         if (Bullets.Count > 0)
         {
             var bulletsToRemove = new List<Bullet>();
@@ -176,7 +173,6 @@ public class Game : AiGameBase
                 hitAsteroid.Explode(Asteroids);
                 Score++;
                 m_ticksSinceScore = 0;
-                hitDetected = true;
             }
 
             for (var i = 0; i < bulletsToRemove.Count; i++)

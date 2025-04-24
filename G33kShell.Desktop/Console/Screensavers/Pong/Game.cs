@@ -58,7 +58,7 @@ public class Game : AiGameBase
         yield return ("Rallies", m_rallies.ToString());
     }
 
-    public Game(int arenaWidth, int arenaHeight) : base(arenaWidth, arenaHeight, new Brain())
+    public Game(int arenaWidth, int arenaHeight, Brain brain) : base(arenaWidth, arenaHeight, brain)
     {
     }
 

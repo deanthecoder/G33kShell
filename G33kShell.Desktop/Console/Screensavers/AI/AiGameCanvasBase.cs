@@ -59,7 +59,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         }
         
         System.Console.WriteLine("Starting training...");
-        var brain = CreateGame().Brain;
+        var brain = CreateBrain();
         System.Console.WriteLine($"Brain layers: {brain.InputSize} : {brain.HiddenLayers.ToCsv(' ')} : {brain.OutputSize}");
         
         m_stopTraining = false;
@@ -85,7 +85,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
 
     private void TrainAiImpl(Action<byte[]> saveBrainBytes)
     {
-        m_nextGenBrains ??= Enumerable.Range(0, InitialPopSize).Select(_ => CreateGame().Brain).ToList();
+        m_nextGenBrains ??= Enumerable.Range(0, InitialPopSize).Select(_ => CreateBrain()).ToList();
         
         var games = new (double AverageRating, AiGameBase Game, AiBrainBase Brain)[m_nextGenBrains.Count];
         Parallel.For(0, games.Length, i =>
@@ -102,13 +102,10 @@ public abstract class AiGameCanvasBase : ScreensaverBase
                 var gameCount = 1;
                 for (var trial = 0; trial < 4 && !m_stopTraining; trial++, gameCount++)
                 {
-                    var game = CreateGameWithSeed(Random.Shared.Next());
-                    game.Brain = baseGame.Brain;
+                    var game = CreateGameWithSeed(Random.Shared.Next(), baseGame.Brain);
                     while (!game.IsGameOver)
                         game.Tick();
                     totalRating += game.Rating;
-                    if (game.Rating <= 0.0001)
-                        break; // No score, no point in continuing.
                 }
 
                 totalRating /= gameCount;
@@ -170,7 +167,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         nextBrains.AddRange(m_goatBrains.Select(o => o.Brain.Clone()));
 
         // Spawn 5% pure randoms.
-        nextBrains.AddRange(Enumerable.Range(0, (int)(m_currentPopSize * 0.05)).Select(_ => CreateGameWithSeed(0).Brain.Clone().Randomize()));
+        nextBrains.AddRange(Enumerable.Range(0, (int)(m_currentPopSize * 0.05)).Select(_ => CreateBrain()));
             
         // Elite get to be parents.
         var breeders = orderedGames.Select(o => (o.AverageRating, o.Brain)).ToList();
@@ -187,13 +184,14 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         m_nextGenBrains = nextBrains;
     }
 
-    private AiGameBase CreateGameWithSeed(int seed)
+    private AiGameBase CreateGameWithSeed(int seed, AiBrainBase brain = null)
     {
-        var game = CreateGame();
+        var game = CreateGame(brain ?? CreateBrain());
         game.GameRand = new Random(seed);
         game.ResetGame();
         return game;
     }
 
-    protected abstract AiGameBase CreateGame();
+    protected abstract AiGameBase CreateGame(AiBrainBase brain);
+    protected abstract AiBrainBase CreateBrain();
 }

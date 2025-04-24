@@ -8,7 +8,6 @@
 // about your modifications. Your contributions are valued!
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
-using System.Collections.Generic;
 using CSharp.Core;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Screensavers.AI;
@@ -29,28 +28,28 @@ public class GameState : IAiGameState
         m_foodPosition = foodPosition;
     }
 
-    public double[] ToInputVector()
+    public void FillInputVector(double[] inputVector)
     {
-        var inputVector = new List<double>();
+        var currentIndex = 0;
 
         // Encode snake length.
-        inputVector.Add((m_snake.Length / (double)m_snake.MaxLength).Clamp(0.0, 1.0));
-        
-        // Encode snake direction.
-        inputVector.Add(m_snake.Direction == Direction.Up ? -1.0 : m_snake.Direction == Direction.Down ? 1.0 : 0.0);
-        inputVector.Add(m_snake.Direction == Direction.Left ? -1.0 : m_snake.Direction == Direction.Right ? 1.0 : 0.0);
-        
-        // Encode distances to food.
-        inputVector.Add(((m_snake.HeadPosition.X - m_foodPosition.X) / 16.0).Clamp(-1.0, 1.0));
-        inputVector.Add(((m_snake.HeadPosition.Y - m_foodPosition.Y) / 16.0).Clamp(-1.0, 1.0));
-        
-        // Encode time since food was eaten.
-        inputVector.Add((m_snake.StepsSinceFood / (double)m_snake.TotalStepsToStarvation).Clamp(0.0, 1.0));
-        
-        // Encode local view.
-        inputVector.AddRange(GetLocalViewGrid());
+        inputVector[currentIndex++] = (m_snake.Length / (double)m_snake.MaxLength).Clamp(0.0, 1.0);
 
-        return inputVector.ToArray();
+        // Encode snake direction.
+        inputVector[currentIndex++] = m_snake.Direction == Direction.Up ? -1.0 : m_snake.Direction == Direction.Down ? 1.0 : 0.0;
+        inputVector[currentIndex++] = m_snake.Direction == Direction.Left ? -1.0 : m_snake.Direction == Direction.Right ? 1.0 : 0.0;
+
+        // Encode distances to food.
+        inputVector[currentIndex++] = ((m_snake.HeadPosition.X - m_foodPosition.X) / 16.0).Clamp(-1.0, 1.0);
+        inputVector[currentIndex++] = ((m_snake.HeadPosition.Y - m_foodPosition.Y) / 16.0).Clamp(-1.0, 1.0);
+
+        // Encode time since food was eaten.
+        inputVector[currentIndex++] = (m_snake.StepsSinceFood / (double)m_snake.TotalStepsToStarvation).Clamp(0.0, 1.0);
+
+        // Encode local view.
+        var localViewGrid = GetLocalViewGrid();
+        for (var i = 0; i < localViewGrid.Length; i++)
+            inputVector[currentIndex++] = localViewGrid[i];
     }
 
     private double[] GetLocalViewGrid()

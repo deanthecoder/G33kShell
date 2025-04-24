@@ -21,7 +21,6 @@ namespace G33kShell.Desktop.Console.Screensavers.Asteroids;
 /// </summary>
 public class GameState : IAiGameState
 {
-    private readonly double[] m_inputVector = new double[Brain.BrainInputCount];
     private readonly Ship m_ship;
     private readonly List<Asteroid> m_asteroids;
     private readonly float m_arenaDiagonal;
@@ -34,10 +33,10 @@ public class GameState : IAiGameState
         m_arenaDiagonal = new Vector2(arenaWidth, arenaHeight).Length();
     }
 
-    public double[] ToInputVector()
+    public void FillInputVector(double[] inputVector)
     {
         // Bias.
-        m_inputVector[0] = 1.0;
+        inputVector[0] = 1.0;
 
         // Find nearest asteroid.
         var asteroid = m_asteroids.Count == 0 ? null : m_asteroids.FastFindMin(o => Vector2.DistanceSquared(o.Position, m_ship.Position));
@@ -45,21 +44,19 @@ public class GameState : IAiGameState
         {
             var relativePos = asteroid.Position - m_ship.Position;
             var angleToAsteroid = Vector2.Dot(Vector2.Normalize(relativePos), m_ship.Theta.ToDirection()).Clamp(-1.0f, 1.0f);
-            m_inputVector[1] = angleToAsteroid;
-            m_inputVector[2] = 1.0 - relativePos.Length() / m_arenaDiagonal;
+            inputVector[1] = angleToAsteroid;
+            inputVector[2] = 1.0 - relativePos.Length() / m_arenaDiagonal;
         }
         else
         {
-            m_inputVector[1] = 0.0;
-            m_inputVector[2] = 0.0;
+            inputVector[1] = 0.0;
+            inputVector[2] = 0.0;
         }
         
         var relativeVelocity = asteroid?.Velocity ?? Vector2.Zero - m_ship.Velocity;
         relativeVelocity = relativeVelocity.LengthSquared() > 0.0f ? Vector2.Normalize(relativeVelocity) : Vector2.Zero;
-        m_inputVector[3] = relativeVelocity.X.Clamp(-1.0f, 1.0f);
-        m_inputVector[4] = relativeVelocity.Y.Clamp(-1.0f, 1.0f);
-        m_inputVector[5] = (m_ship.Theta / Math.Tau).Clamp(-1.0f, 1.0f);
-
-        return m_inputVector;
+        inputVector[3] = relativeVelocity.X.Clamp(-1.0f, 1.0f);
+        inputVector[4] = relativeVelocity.Y.Clamp(-1.0f, 1.0f);
+        inputVector[5] = (m_ship.Theta / Math.Tau).Clamp(-1.0f, 1.0f);
     }
 }

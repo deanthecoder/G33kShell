@@ -34,10 +34,8 @@ public class GameState : IAiGameState
         m_arenaHeight = arenaHeight;
     }
 
-    public double[] ToInputVector()
+    public void FillInputVector(double[] inputVector)
     {
-        var inputVector = new double[Brain.BrainInputCount];
-
         // Encode bat positions.
         inputVector[0] = m_bats[0].Y / m_arenaHeight * 2.0f - 1.0f;
         inputVector[1] = m_bats[1].Y / m_arenaHeight * 2.0f - 1.0f;
@@ -50,7 +48,5 @@ public class GameState : IAiGameState
         inputVector[5] = m_ballPosition.Y / m_arenaHeight * 2.0f - 1.0f;
         inputVector[6] = m_ballVelocity.X.Clamp(-1.0f, 1.0f);
         inputVector[7] = m_ballVelocity.Y.Clamp(-1.0f, 1.0f);
-
-        return inputVector;
     }
 }

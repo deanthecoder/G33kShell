@@ -47,8 +47,8 @@ public class AsteroidsCanvas : AiGameCanvasBase
     {
         if (m_game == null)
         {
-            m_game = (Game)CreateGame().ResetGame();
-            m_game.LoadBrainData(Settings.Instance.AsteroidsBrain);
+            var brain = new Brain().Load(Settings.Instance.AsteroidsBrain);
+            m_game = (Game)CreateGame(brain).ResetGame();
         }
 
         m_game.Tick();
@@ -105,6 +105,6 @@ public class AsteroidsCanvas : AiGameCanvasBase
         screen.PrintAt(2, 0, $"Score: {game.Score.ToString().PadLeft(5, '0')}   Shield: {game.Ship.Shield.ToProgressBar(73)}");
     }
 
-    protected override AiGameBase CreateGame() =>
-        new Game(ArenaWidth, ArenaHeight * 2);
+    protected override AiGameBase CreateGame(AiBrainBase brain) => new Game(ArenaWidth, ArenaHeight * 2, (Brain)brain);
+    protected override AiBrainBase CreateBrain() => new Brain();
 }

@@ -52,8 +52,8 @@ public class PongCanvas : AiGameCanvasBase
     {
         if (m_game == null)
         {
-            m_game = (Game)CreateGame().ResetGame();
-            m_game.LoadBrainData(Settings.Instance.PongBrain);
+            var brain = new Brain().Load(Settings.Instance.PongBrain);
+            m_game = (Game)CreateGame(brain).ResetGame();
         }
 
         DrawGame(screen, m_game);
@@ -111,6 +111,6 @@ public class PongCanvas : AiGameCanvasBase
         return new FIGletFont(fontStream);
     }
 
-    protected override AiGameBase CreateGame() =>
-        new Game(ArenaWidth, ArenaHeight);
+    protected override AiGameBase CreateGame(AiBrainBase brain) => new Game(ArenaWidth, ArenaHeight, (Brain)brain);
+    protected override AiBrainBase CreateBrain() => new Brain();
 }

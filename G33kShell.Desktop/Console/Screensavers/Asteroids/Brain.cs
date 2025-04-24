@@ -15,9 +15,7 @@
 
 public class Brain : AiBrainBase
 {
-    public const int BrainInputCount = 6;
-
-    public Brain() : base(BrainInputCount, [16, 8], 4)
+    public Brain() : base(6, [16, 8], 4)
     {
     }
 

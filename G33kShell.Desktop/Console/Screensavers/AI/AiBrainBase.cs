@@ -17,8 +17,9 @@ namespace G33kShell.Desktop.Console.Screensavers.AI;
 public abstract class AiBrainBase
 {
     [JsonProperty] private NeuralNetwork m_qNet;
+    private readonly double[] m_inputVector;
 
-    public int InputSize { get; private set; }
+    public int InputSize { get; }
     public int[] HiddenLayers { get; private set; }
     public int OutputSize { get; private set; }
 
@@ -28,6 +29,7 @@ public abstract class AiBrainBase
         HiddenLayers = hiddenLayers;
         OutputSize = outputSize;
         m_qNet = new NeuralNetwork(inputSize, hiddenLayers, outputSize, learningRate: 0.05);
+        m_inputVector = new double[inputSize];
     }
 
     protected AiBrainBase(AiBrainBase toCopy) =>
@@ -35,7 +37,18 @@ public abstract class AiBrainBase
 
     protected int ChooseHighestOutput(IAiGameState state) => ArgMax(GetOutputs(state));
 
-    protected double[] GetOutputs(IAiGameState state) => m_qNet.Predict(state.ToInputVector());
+    protected double[] GetOutputs(IAiGameState state)
+    {
+#if DEBUG
+        Array.Fill(m_inputVector, 0xDE);
+#endif
+        state.FillInputVector(m_inputVector);
+#if DEBUG
+        if (m_inputVector.Contains(0xDE))
+            throw new Exception("Input vector contains uninitialized data.");
+#endif
+        return m_qNet.Predict(m_inputVector);
+    }
 
     /// <summary>
     /// Finds the index of the maximum value in the array.
@@ -57,11 +70,10 @@ public abstract class AiBrainBase
 
     public byte[] Save() => JsonConvert.SerializeObject(this).Compress();
 
-    public void Load(byte[] brainBytes) => JsonConvert.PopulateObject(brainBytes.DecompressToString(), this);
-
-    public AiBrainBase Randomize()
+    public AiBrainBase Load(byte[] brainBytes)
     {
-        m_qNet.Randomize();
+        if (brainBytes != null)
+            JsonConvert.PopulateObject(brainBytes.DecompressToString(), this);
         return this;
     }
 

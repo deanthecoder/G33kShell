@@ -46,7 +46,7 @@ public class Game : AiGameBase
         yield return ("HighScore", HighScore.ToString());
     }
 
-    public Game(int arenaWidth, int arenaHeight, bool limitLives = true) : base(arenaWidth, arenaHeight, new Brain())
+    public Game(int arenaWidth, int arenaHeight, AiBrainBase brain, bool limitLives = true) : base(arenaWidth, arenaHeight, brain)
     {
         m_limitLives = limitLives;
     }

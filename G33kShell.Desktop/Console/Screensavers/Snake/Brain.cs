@@ -16,16 +16,13 @@ namespace G33kShell.Desktop.Console.Screensavers.Snake;
 
 public class Brain : AiBrainBase
 {
-    public Brain() : base(GetInputSize(), [32, 16, 16], 4)
+    public Brain() : base(15, [32, 16, 16], 4)
     {
     }
 
-    private Brain(Brain brain) : base(brain)
+    private Brain(AiBrainBase brain) : base(brain)
     {
     }
-
-    private static int GetInputSize() =>
-        new GameState(new Snake(16, 16), IntPoint.Zero).ToInputVector().Length;
 
     public Direction ChooseMove(IAiGameState state) =>
         (Direction)ChooseHighestOutput(state);

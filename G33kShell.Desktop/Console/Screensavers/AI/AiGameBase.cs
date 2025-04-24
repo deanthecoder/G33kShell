@@ -10,6 +10,7 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
 using System.Collections.Generic;
+using JetBrains.Annotations;
 
 namespace G33kShell.Desktop.Console.Screensavers.AI;
 
@@ -38,11 +39,11 @@ public abstract class AiGameBase
 
     public abstract IEnumerable<(string Name, string Value)> ExtraGameStats();
 
-    protected AiGameBase(int arenaWidth, int arenaHeight, AiBrainBase brain)
+    protected AiGameBase(int arenaWidth, int arenaHeight, [NotNull] AiBrainBase brain)
     {
         ArenaWidth = arenaWidth;
         ArenaHeight = arenaHeight;
-        Brain = brain;
+        Brain = brain ?? throw new ArgumentNullException(nameof(brain));
     }
 
     /// <summary>
@@ -54,10 +55,4 @@ public abstract class AiGameBase
     /// Reset all game state back to the same initial conditions.
     /// </summary>
     public abstract AiGameBase ResetGame();
-
-    public void LoadBrainData(byte[] brainBytes)
-    {
-        if (brainBytes != null && brainBytes.Length > 0)
-            Brain.Load(brainBytes);
-    }
 }

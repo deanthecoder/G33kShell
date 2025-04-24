@@ -44,8 +44,8 @@ public class SnakeCanvas : AiGameCanvasBase
     {
         if (m_game == null)
         {
-            m_game = (Game)new Game(ArenaWidth, ArenaHeight).ResetGame();
-            m_game.LoadBrainData(Settings.Instance.SnakeBrain);
+            var brain = CreateBrain().Load(Settings.Instance.SnakeBrain);
+            m_game = (Game)CreateGame(brain).ResetGame();
         }
 
         DrawGame(screen, m_game);
@@ -64,6 +64,6 @@ public class SnakeCanvas : AiGameCanvasBase
         screen.PrintAt(0, 0, $"Score: {game.Score}, High Score: {game.HighScore}");
     }
 
-    protected override AiGameBase CreateGame() =>
-        new Game(ArenaWidth, ArenaHeight);
+    protected override AiGameBase CreateGame(AiBrainBase brain) => new Game(ArenaWidth, ArenaHeight, brain);
+    protected override AiBrainBase CreateBrain() => new Brain();
 }
