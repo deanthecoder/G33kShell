@@ -40,7 +40,12 @@ public class Game : AiGameBase
             if (m_thrustTicks == 0)
                 return 0.0; // Penalize non-thrusters.
 
-            var rating = 1.0 + Score * Score * HitRatio * Math.Min(m_gameTicks, 20 * 60) * TurnEquality * 0.00001;
+            var rating = 1.0 +
+                         Score * Score *
+                         HitRatio *
+                         Math.Min(m_gameTicks, 20 * 60) *
+                         TurnEquality
+                         * 0.00001;
             return rating * rating;
         }
     }
@@ -91,12 +96,12 @@ public class Game : AiGameBase
         m_thrustTicks = 0;
         m_ticksSinceScore = 0;
 
-        EnsureMinimumAsteroidCount();
+        EnsureMinimumAsteroidCount(true);
         
         return this;
     }
 
-    private void EnsureMinimumAsteroidCount()
+    private void EnsureMinimumAsteroidCount(bool aimForShip)
     {
         while (Asteroids.FastSum(o => o.SizeMetric) < 12)
         {
@@ -104,7 +109,10 @@ public class Game : AiGameBase
             if (Vector2.Distance(pos, Ship.Position) < 25)
                 continue; // Too close to the ship.
 
-            Asteroids.Add(new Asteroid(pos, 0.1f, GameRand, ArenaWidth, ArenaHeight));
+            var asteroid = new Asteroid(pos, 0.1f, GameRand, ArenaWidth, ArenaHeight);
+            if (aimForShip)
+                asteroid.AimTowards(Ship.Position);
+            Asteroids.Add(asteroid);
         }
     }
 
@@ -117,7 +125,7 @@ public class Game : AiGameBase
         m_ticksSinceScore++;
 
         // Spawn asteroids.
-        EnsureMinimumAsteroidCount();
+        EnsureMinimumAsteroidCount(false);
 
         // Move ship.
         Ship.Move();
@@ -150,7 +158,7 @@ public class Game : AiGameBase
         // Check for bullet/asteroid collisions.
         if (Bullets.Count > 0)
         {
-            var bulletsToRemove = new List<Bullet>();
+            List<Bullet> bulletsToRemove = null;
             for (var index = 0; index < Bullets.Count; index++)
             {
                 var bullet = Bullets[index];
@@ -169,14 +177,18 @@ public class Game : AiGameBase
                     continue; // Bullet not hitting anything.
 
                 // Bullet hit an asteroid.
+                bulletsToRemove ??= new List<Bullet>();
                 bulletsToRemove.Add(bullet);
                 hitAsteroid.Explode(Asteroids);
                 Score++;
                 m_ticksSinceScore = 0;
             }
 
-            for (var i = 0; i < bulletsToRemove.Count; i++)
-                Bullets.Remove(bulletsToRemove[i]);
+            if (bulletsToRemove != null)
+            {
+                for (var i = 0; i < bulletsToRemove.Count; i++)
+                    Bullets.Remove(bulletsToRemove[i]);
+            }
         }
 
         // Check for ship/asteroid collisions.

@@ -13,7 +13,7 @@ public class Asteroid
     private readonly Random m_rand;
     private readonly int m_arenaWidth;
     private readonly int m_arenaHeight;
-    private readonly float m_direction;
+    private float m_direction;
     private readonly Vector2[] m_offsets;
     private static readonly int[] Radii = [2, 4, MaxRadius];
     private static readonly int[] SizeMetrics = [1, 2, 4];
@@ -130,5 +130,11 @@ public class Asteroid
             minDist = MathF.Min(minDist, Vector2.DistanceSquared(shipPosition, Position + offset));
 
         return MathF.Sqrt(minDist);
+    }
+
+    public void AimTowards(Vector2 target)
+    {
+        var direction = target - Position;
+        m_direction = MathF.Atan2(direction.Y, direction.X);
     }
 }

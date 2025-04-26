@@ -9,10 +9,11 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
-using System.Linq;
 using CSharp.Core.AI;
 using CSharp.Core.Extensions;
 using Newtonsoft.Json;
+// ReSharper disable once RedundantUsingDirective
+using System.Linq;
 
 namespace G33kShell.Desktop.Console.Screensavers.AI;
 

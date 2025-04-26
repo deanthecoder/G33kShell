@@ -39,7 +39,7 @@ public class GameState : IAiGameState
         inputVector[0] = 1.0;
 
         // Find nearest asteroid.
-        var asteroid = m_asteroids.Count == 0 ? null : m_asteroids.FastFindMin(o => Vector2.DistanceSquared(o.Position, m_ship.Position));
+        var asteroid = m_asteroids.Count == 0 ? null : m_asteroids.FastFindMin(o => GetDistanceToAsteroid(o, m_ship));
         if (asteroid != null)
         {
             var relativePos = asteroid.Position - m_ship.Position;
@@ -59,4 +59,7 @@ public class GameState : IAiGameState
         inputVector[4] = relativeVelocity.Y.Clamp(-1.0f, 1.0f);
         inputVector[5] = (m_ship.Theta / Math.Tau).Clamp(-1.0f, 1.0f);
     }
+
+    private static float GetDistanceToAsteroid(Asteroid asteroid, Ship ship) =>
+        Vector2.DistanceSquared(asteroid.Position, ship.Position);
 }
