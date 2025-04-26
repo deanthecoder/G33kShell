@@ -48,7 +48,8 @@ public class AsteroidsCanvas : AiGameCanvasBase
         if (m_game == null)
         {
             var brain = new Brain().Load(Settings.Instance.AsteroidsBrain);
-            m_game = (Game)CreateGame(brain).ResetGame();
+            m_game = (Game)CreateGame(brain);
+            m_game.ResetGame();
         }
 
         m_game.Tick();

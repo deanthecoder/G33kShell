@@ -8,6 +8,8 @@
 // about your modifications. Your contributions are valued!
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+using System;
+using System.Linq;
 using CSharp.Core.AI;
 using CSharp.Core.Extensions;
 using Newtonsoft.Json;
@@ -17,23 +19,25 @@ namespace G33kShell.Desktop.Console.Screensavers.AI;
 public abstract class AiBrainBase
 {
     [JsonProperty] private NeuralNetwork m_qNet;
-    private readonly double[] m_inputVector;
+    private double[] m_inputVector;
 
     public int InputSize { get; }
-    public int[] HiddenLayers { get; private set; }
-    public int OutputSize { get; private set; }
+    public int[] HiddenLayers { get; }
+    public int OutputSize { get; }
 
-    protected AiBrainBase(int inputSize, int[] hiddenLayers, int outputSize)
+    protected AiBrainBase(int inputSize, int[] hiddenLayers, int outputSize, NeuralNetwork qNet = null)
     {
         InputSize = inputSize;
-        HiddenLayers = hiddenLayers;
+        HiddenLayers = (int[])hiddenLayers.Clone();
         OutputSize = outputSize;
-        m_qNet = new NeuralNetwork(inputSize, hiddenLayers, outputSize, learningRate: 0.05);
+        m_qNet = qNet?.Clone() ?? new NeuralNetwork(inputSize, hiddenLayers, outputSize, learningRate: 0.05);
         m_inputVector = new double[inputSize];
     }
 
-    protected AiBrainBase(AiBrainBase toCopy) =>
-        m_qNet = toCopy.m_qNet.Clone();
+    protected AiBrainBase(AiBrainBase toCopy)
+        : this(toCopy.InputSize, toCopy.HiddenLayers, toCopy.OutputSize, toCopy.m_qNet)
+    {
+    }
 
     protected int ChooseHighestOutput(IAiGameState state) => ArgMax(GetOutputs(state));
 
@@ -72,8 +76,11 @@ public abstract class AiBrainBase
 
     public AiBrainBase Load(byte[] brainBytes)
     {
-        if (brainBytes != null)
-            JsonConvert.PopulateObject(brainBytes.DecompressToString(), this);
+        if (brainBytes == null || brainBytes.Length == 0)
+            throw new ArgumentException("Brain data cannot be null or empty.", nameof(brainBytes));
+
+        JsonConvert.PopulateObject(brainBytes.DecompressToString(), this);
+        m_inputVector = new double[InputSize];
         return this;
     }
 

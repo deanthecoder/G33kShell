@@ -12,6 +12,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using CSharp.Core;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
 using JetBrains.Annotations;
@@ -86,44 +87,47 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     private void TrainAiImpl(Action<byte[]> saveBrainBytes)
     {
         m_nextGenBrains ??= Enumerable.Range(0, InitialPopSize).Select(_ => CreateBrain()).ToList();
+        m_generation++;
         
-        var games = new (double AverageRating, AiGameBase Game, AiBrainBase Brain)[m_nextGenBrains.Count];
-        Parallel.For(0, games.Length, i =>
+        var gameResults = new (double AverageRating, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats)[m_nextGenBrains.Count];
+        Parallel.For(0, gameResults.Length, i =>
         {
-            // Play the base game.
-            var baseGame = CreateGameWithSeed(m_generation);
-            while (!baseGame.IsGameOver && !m_stopTraining)
-                baseGame.Tick();
-
-            var totalRating = baseGame.Rating;
-            if (baseGame.Rating > 0.0)
+            try
             {
-                // Play several more games.
-                var gameCount = 1;
-                for (var trial = 0; trial < 4 && !m_stopTraining; trial++, gameCount++)
+                // Play a few games.
+                var brain = m_nextGenBrains[i];
+                var seeds = Enumerable.Range(0, 4).Select(_ => Random.Shared.Next(10000)).ToArray();
+                var games = seeds.Select(seed => CreateGameWithSeed(seed, brain)).ToArray();
+                for (var gameIndex = 0; gameIndex < games.Length; gameIndex++)
                 {
-                    var game = CreateGameWithSeed(Random.Shared.Next(), baseGame.Brain);
-                    while (!game.IsGameOver)
-                        game.Tick();
-                    totalRating += game.Rating;
+                    while (!games[gameIndex].IsGameOver && !m_stopTraining)
+                        games[gameIndex].Tick();
                 }
+            
+                // Get the average rating.
+                var averageRating = games.FastAvg(o => o.Rating);
+                var bestGame = games.FastFindMax(o => o.Rating);
+                var bestGameSeed = seeds[games.FastFindIndexOf(bestGame)];
+            
+                // Capture game stats.
+                var extraStats = bestGame.ExtraGameStats().Select(o => $"{o.Name} {o.Value}").ToCsv('|');
 
-                totalRating /= gameCount;
+                gameResults[i] = (averageRating, bestGame.Rating, bestGameSeed, brain, extraStats);
             }
-
-            games[i] = (totalRating, baseGame, baseGame.Brain);
+            catch (Exception e)
+            {
+                Logger.Instance.Exception("Training failed.", e);
+            }
         });
 
         // Select the breeders.
-        var orderedGames = games.OrderByDescending(o => o.AverageRating).ToArray();
+        var orderedGames = gameResults.OrderByDescending(o => o.AverageRating).ToArray();
         var theBest = orderedGames[0];
 
         // Report summary of results.
-        m_generation++;
-        var stats = $"Gen {m_generation}|Pop {m_currentPopSize}|Rating {theBest.AverageRating:F1}|GOAT {m_savedRating:F1}";
-        var extraStats = theBest.Game.ExtraGameStats().Select(o => $" {o.Name}: {o.Value}").ToArray().ToCsv().Trim();
-        if (!string.IsNullOrEmpty(extraStats))
-            stats += $"|{extraStats}";
+        var stats = $"Gen {m_generation}|Pop {m_currentPopSize}|GOAT {m_savedRating:F1}|Rating {theBest.AverageRating:F1}|Seed {theBest.GameSeed}";
+        if (!string.IsNullOrEmpty(theBest.GameStats))
+            stats += $"|{theBest.GameStats}";
         System.Console.WriteLine(stats);
         
         // Remember the GOAT brains.
@@ -163,7 +167,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         }
 
         // Build the brains for the next generation.
-        var nextBrains = new List<AiBrainBase>(games.Length);
+        var nextBrains = new List<AiBrainBase>(gameResults.Length);
         nextBrains.AddRange(m_goatBrains.Select(o => o.Brain.Clone()));
 
         // Spawn 5% pure randoms.
