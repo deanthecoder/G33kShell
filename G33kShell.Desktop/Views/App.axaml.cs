@@ -15,11 +15,13 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Remote.Protocol.Input;
 using CSharp.Core.Extensions;
 using G33kShell.Desktop.Skins;
 using G33kShell.Desktop.Terminal;
 using G33kShell.Desktop.Terminal.Commands;
 using G33kShell.Desktop.ViewModels;
+using PhysicalKey = Avalonia.Input.PhysicalKey;
 
 namespace G33kShell.Desktop.Views;
 
@@ -43,6 +45,12 @@ public class App : Application
             {
                 DataContext = viewModel
             };
+            desktop.MainWindow.KeyDown += (_, args) =>
+            {
+                if (args.PhysicalKey == PhysicalKey.Escape)
+                    viewModel.CancelLogin();
+            };
+
             desktop.Exit += (_, _) => viewModel.Dispose();
 
             if (!Design.IsDesignMode)

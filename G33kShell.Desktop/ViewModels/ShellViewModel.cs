@@ -25,6 +25,10 @@ using G33kShell.Desktop.Skins;
 using G33kShell.Desktop.Terminal;
 using G33kShell.Desktop.Terminal.Controls;
 using SkiaSharp;
+using Border = G33kShell.Desktop.Console.Controls.Border;
+using Image = G33kShell.Desktop.Console.Controls.Image;
+using ProgressBar = G33kShell.Desktop.Console.Controls.ProgressBar;
+using TextBlock = G33kShell.Desktop.Console.Controls.TextBlock;
 
 // ReSharper disable UnusedMember.Local
 
@@ -41,6 +45,7 @@ public class ShellViewModel : ViewModelBase, IDisposable
 {
     private TerminalState m_terminalState;
     private ScreensaverControl m_screensaverControl;
+    private bool m_cancelLogin;
 
     /// <summary>
     /// Occurs when a request is made to reveal the current working directory.
@@ -62,10 +67,28 @@ public class ShellViewModel : ViewModelBase, IDisposable
         WindowManager = new WindowManager(100, 38, skin);
         _ = StartAsync();
     }
-    
+
+    public void CancelLogin() => m_cancelLogin = true;
+
 #pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
     private async Task StartAsync()
     {
+#if !DEBUG
+        // Start the 'sign in' face-finding background task.
+        var signInTask = CaptureFaceAsync();
+
+        // Log-in awesomeness.
+        if (!m_cancelLogin)
+            await BiosCheckAsync();
+        if (!m_cancelLogin)
+            await LoadOsAsync();
+
+        if (!m_cancelLogin)
+        {
+            var signInResult = await signInTask;
+            await LogInAsync(signInResult);
+        }
+#endif
         
         // Run the terminal.
         _ = Task.Run(RunTerminal);
@@ -186,10 +209,19 @@ public class ShellViewModel : ViewModelBase, IDisposable
             })
             .AddChild(biosText);
 
-        await Task.Run(() => biosText.Waiter.Wait());
-        await Task.Delay(TimeSpan.FromSeconds(1));
+        if (!m_cancelLogin)
+            await Task.Run(() =>
+            {
+                while (!m_cancelLogin && !biosText.Waiter.Wait(100))
+                {
+                    // Wait.
+                }
+            });
+        if (!m_cancelLogin)
+            await Task.Delay(TimeSpan.FromSeconds(1));
         await WindowManager.Root.ClearAsync(ClearTransition.Immediate);
-        await Task.Delay(TimeSpan.FromSeconds(2));
+        if (!m_cancelLogin)
+            await Task.Delay(TimeSpan.FromSeconds(2));
     }
 
     private async Task LoadOsAsync()
@@ -221,25 +253,28 @@ public class ShellViewModel : ViewModelBase, IDisposable
             });
 
         // Animate the 'Penetration' process.
-        await new Animation(
-                TimeSpan.FromSeconds(2),
-                TimeSpan.FromSeconds(5),
-                f =>
-                {
-                    WindowManager.Find<ProgressBar>("LogoProgress").Progress = (int)(f * 100);
-                    return true;
-                })
-            .StartAsync();
+        if (!m_cancelLogin)
+            await new Animation(
+                    TimeSpan.FromSeconds(2),
+                    TimeSpan.FromSeconds(5),
+                    f =>
+                    {
+                        WindowManager.Find<ProgressBar>("LogoProgress").Progress = (int) (f * 100);
+                        return !m_cancelLogin;
+                    })
+                .StartAsync();
 
         // Clear the screen with the Explode transition.
-        await Task.Delay(TimeSpan.FromSeconds(2));
+        if (!m_cancelLogin)
+            await Task.Delay(TimeSpan.FromSeconds(2));
         await WindowManager.Root.ClearAsync(ClearTransition.Explode);
-        await Task.Delay(TimeSpan.FromSeconds(1));
+        if (!m_cancelLogin)
+            await Task.Delay(TimeSpan.FromSeconds(1));
     }
 
     private async Task LogInAsync((SKBitmap Image, FaceFinder.FaceDetails Face)? faceAnalysis)
     {
-        if (faceAnalysis == null)
+        if (faceAnalysis == null || m_cancelLogin)
             return;
         
         // 'Sign in' face analysis...
@@ -307,7 +342,7 @@ public class ShellViewModel : ViewModelBase, IDisposable
             featureBoxes.Add(border);
         }
 
-        for (var i = 0; i < 8; i++)
+        for (var i = 0; i < 8 && !m_cancelLogin; i++)
         {
             featureBoxes.Shuffle();
             foreach (var featureBox in featureBoxes)
@@ -333,9 +368,11 @@ public class ShellViewModel : ViewModelBase, IDisposable
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
         });
 
-        await Task.Delay(TimeSpan.FromSeconds(4));
+        if (!m_cancelLogin)
+            await Task.Delay(TimeSpan.FromSeconds(4));
         await WindowManager.Root.ClearAsync(ClearTransition.Explode);
-        await Task.Delay(TimeSpan.FromSeconds(1));
+        if (!m_cancelLogin)
+            await Task.Delay(TimeSpan.FromSeconds(1));
     }
     
     private static FaceFinder CreateFaceFinder() =>
