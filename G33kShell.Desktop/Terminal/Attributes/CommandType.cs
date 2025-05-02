@@ -18,5 +18,6 @@ public enum CommandType
     File,
     Navigation,
     System,
-    Misc
+    Misc,
+    Hidden
 }

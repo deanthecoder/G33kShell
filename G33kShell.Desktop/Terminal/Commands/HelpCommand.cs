@@ -25,17 +25,11 @@ public class HelpCommand : CommandBase
     {
         var commands = Enum.GetValues<MyCommandType>()
             .Select(o => (GetCategory(o), CommandsHelper.GetCommandNames(o).ToArray().ToCsv(), CommandsHelper.GetCommandAttribute(o).Description))
-            /*
-            .Select(CommandsHelper.GetCommandAttribute)
-            .OrderBy(o => o.LongName)
-            .Select(o => (CommandsHelper.GetCommandNames(o).ToArray().ToCsv(), o.Description))
-            .ToArray();
-            */
             .ToArray();
 
         var maxLength = commands.Select(o => o.Item2.Length).Max();
         var isFirstLine = true;
-        foreach (var category in commands.Select(o => o.Item1).Distinct())
+        foreach (var category in commands.Select(o => o.Item1).Where(o => o != CommandType.Hidden).Distinct())
         {
             if (!isFirstLine)
                 WriteLine();

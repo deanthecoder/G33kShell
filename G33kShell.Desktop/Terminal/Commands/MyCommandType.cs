@@ -11,6 +11,7 @@
 
 using G33kShell.Desktop.Terminal.Attributes;
 using NClap.Metadata;
+// ReSharper disable UnusedMember.Global
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
@@ -88,11 +89,11 @@ public enum MyCommandType
     Clip,
 
     [Command(typeof(ExitCommand), LongName = "exit", Description = "Quit the terminal.")]
-    [CommandCategory(CommandType.System)]
+    [CommandCategory(CommandType.Hidden)]
     Exit,
 
     [Command(typeof(HelpCommand), LongName = "help", ShortName = "?", Description = "Get help information.")]
-    [CommandCategory(CommandType.System)]
+    [CommandCategory(CommandType.Hidden)]
     Help,
 
     [Command(typeof(HistoryCommand), LongName = "history", Description = "List command history.")]
@@ -100,7 +101,7 @@ public enum MyCommandType
     History,
 
     [Command(typeof(ManCommand), LongName = "man", Description = "Get usage information for a specific command.")]
-    [CommandCategory(CommandType.System)]
+    [CommandCategory(CommandType.Hidden)]
     Man,
 
     [Command(typeof(MaxCommand), LongName = "max", Description = "Toggle the terminal window between maximized and restored states.")]
@@ -110,6 +111,10 @@ public enum MyCommandType
     [Command(typeof(NowCommand), LongName = "now", Description = "Report the current date and time.")]
     [CommandCategory(CommandType.System)]
     Now,
+
+    [Command(typeof(PathsCommand), LongName = "paths", Description = "Lists all PATH entries alphabetically.")]
+    [CommandCategory(CommandType.System)]
+    Path,
 
     [Command(typeof(ScreensaverCommand), LongName = "screensaver", Description = "Select and activate the screensaver.")]
     [CommandCategory(CommandType.System)]
