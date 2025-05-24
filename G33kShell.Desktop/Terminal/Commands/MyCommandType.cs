@@ -11,6 +11,7 @@
 
 using G33kShell.Desktop.Terminal.Attributes;
 using NClap.Metadata;
+
 // ReSharper disable UnusedMember.Global
 
 namespace G33kShell.Desktop.Terminal.Commands;
@@ -80,6 +81,10 @@ public enum MyCommandType
     PushD,
 
     // System & Utility
+    [Command(typeof(AsciiCommand), LongName = "ascii", Description = "Displays an ASCII table.")]
+    [CommandCategory(CommandType.System)]
+    Ascii,
+
     [Command(typeof(ClearCommand), LongName = "clear", ShortName = "cls", Description = "Clear the terminal.")]
     [CommandCategory(CommandType.System)]
     Clear,
