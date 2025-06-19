@@ -12,7 +12,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using CSharp.Core.Extensions;
+using DTC.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
 using G33kShell.Desktop.Console.Extensions;
 using JetBrains.Annotations;

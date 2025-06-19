@@ -11,7 +11,7 @@
 using System;
 using System.Diagnostics;
 using System.Numerics;
-using CSharp.Core.Extensions;
+using DTC.Core.Extensions;
 using G33kShell.Desktop.Console._3D;
 using G33kShell.Desktop.Console.Controls;
 using JetBrains.Annotations;

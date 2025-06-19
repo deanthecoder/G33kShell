@@ -9,7 +9,7 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using Avalonia.Input;
-using CSharp.Core;
+using DTC.Core;
 
 namespace G33kShell.Desktop.Console.Events;
 

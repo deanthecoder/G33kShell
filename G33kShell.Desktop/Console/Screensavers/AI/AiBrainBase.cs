@@ -9,8 +9,8 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
-using CSharp.Core.AI;
-using CSharp.Core.Extensions;
+using DTC.Core.AI;
+using DTC.Core.Extensions;
 using Newtonsoft.Json;
 // ReSharper disable once RedundantUsingDirective
 using System.Linq;

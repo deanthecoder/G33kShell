@@ -13,8 +13,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using CSharp.Core.Extensions;
-using CSharp.Core.Settings;
+using DTC.Core.Extensions;
+using DTC.Core.Settings;
 
 namespace G33kShell.Desktop.Terminal;
 

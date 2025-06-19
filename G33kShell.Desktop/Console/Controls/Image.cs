@@ -12,8 +12,8 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using CSharp.Core;
-using CSharp.Core.Extensions;
+using DTC.Core;
+using DTC.Core.Extensions;
 using SkiaSharp;
 
 namespace G33kShell.Desktop.Console.Controls;

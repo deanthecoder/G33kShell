@@ -11,7 +11,7 @@
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
-using CSharp.Core;
+using DTC.Core;
 
 namespace G33kShell.Desktop.Console.Controls;
 

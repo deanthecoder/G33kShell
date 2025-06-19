@@ -12,7 +12,7 @@
 using System;
 using System.Threading.Tasks;
 using Avalonia;
-using CSharp.Core;
+using DTC.Core;
 using G33kShell.Desktop.Terminal;
 using G33kShell.Desktop.Views;
 

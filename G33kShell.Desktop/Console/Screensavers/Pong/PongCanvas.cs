@@ -11,7 +11,7 @@
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
-using CSharp.Core.Extensions;
+using DTC.Core.Extensions;
 using G33kShell.Desktop.Console.Screensavers.AI;
 using G33kShell.Desktop.Terminal;
 using JetBrains.Annotations;

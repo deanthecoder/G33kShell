@@ -9,8 +9,8 @@
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
-using CSharp.Core;
-using CSharp.Core.Extensions;
+using DTC.Core;
+using DTC.Core.Extensions;
 using JetBrains.Annotations;
 
 namespace G33kShell.Desktop.Console._3D;

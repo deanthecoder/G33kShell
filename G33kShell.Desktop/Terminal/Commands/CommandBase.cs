@@ -16,7 +16,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using CSharp.Core.Extensions;
+using DTC.Core.Extensions;
 using G33kShell.Desktop.Console;
 using G33kShell.Desktop.Terminal.Attributes;
 using G33kShell.Desktop.Terminal.Controls;

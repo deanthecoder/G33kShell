@@ -11,8 +11,8 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
-using CSharp.Core;
-using CSharp.Core.Extensions;
+using DTC.Core;
+using DTC.Core.Extensions;
 using G33kShell.Desktop.Terminal.Attributes;
 using JetBrains.Annotations;
 using NClap.Metadata;

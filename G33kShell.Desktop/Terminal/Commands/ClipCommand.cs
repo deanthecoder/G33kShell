@@ -8,8 +8,13 @@
 // about your modifications. Your contributions are valued!
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+
+using System;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using DTC.Core;
+using DTC.Core.Extensions;
 using G33kShell.Desktop.Terminal.Attributes;
 using JetBrains.Annotations;
 using NClap.Metadata;
@@ -28,6 +33,9 @@ public class ClipCommand : CommandBase
 
     [PositionalArgument(0, Description = "Select a single line (1+).")]
     public int? LineNumber { get; [UsedImplicitly] set; }
+
+    [NamedArgument(Description = "Open in the default text editor.", ShortName = "o")]
+    public bool AutoOpen { get; [UsedImplicitly] set; }
 
     protected override Task<bool> Run(ITerminalState state)
     {
@@ -56,6 +64,18 @@ public class ClipCommand : CommandBase
             output = $">{lastCommand.Command}\n{output}";
             
         ClipboardService.SetText(output);
+
+        if (AutoOpen)
+        {
+            var tempFile = new TempFile(".txt");
+            tempFile.WriteAllText(output);
+            
+            // Open tempFile in the OS's default .txt viewer.
+            ((FileInfo)tempFile).OpenWithDefaultViewer();
+            
+            // Delete the file after 20 seconds.
+            _ = Task.Delay(TimeSpan.FromSeconds(20)).ContinueWith(_ => tempFile.Dispose());
+        }
 
         return Task.FromResult(true);
     }

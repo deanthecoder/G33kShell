@@ -11,14 +11,14 @@
 //#define VIEW_Z_BUFFER
 
 #if VIEW_Z_BUFFER
-using CSharp.Core;
+using DTC.Core;
 #endif
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using CSharp.Core.Extensions;
+using DTC.Core.Extensions;
 using JetBrains.Annotations;
 
 namespace G33kShell.Desktop.Console._3D;

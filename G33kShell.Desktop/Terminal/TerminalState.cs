@@ -15,7 +15,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using CSharp.Core.Extensions;
+using DTC.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
 using G33kShell.Desktop.Skins;
 using G33kShell.Desktop.Terminal.Commands;

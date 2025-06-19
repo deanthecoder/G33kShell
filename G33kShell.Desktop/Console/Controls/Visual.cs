@@ -15,8 +15,8 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Layout;
 using Avalonia.Media;
-using CSharp.Core;
-using CSharp.Core.Extensions;
+using DTC.Core;
+using DTC.Core.Extensions;
 using G33kShell.Desktop.Console.Events;
 using G33kShell.Desktop.Skins;
 

@@ -13,7 +13,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Layout;
-using CSharp.Core;
+using DTC.Core;
 using G33kShell.Desktop.Console.Controls;
 using G33kShell.Desktop.Console.Events;
 using G33kShell.Desktop.Skins;

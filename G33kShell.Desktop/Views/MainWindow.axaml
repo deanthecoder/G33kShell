@@ -3,7 +3,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:viewModels="clr-namespace:G33kShell.Desktop.ViewModels"
-        xmlns:ui="clr-namespace:CSharp.Core.UI;assembly=CSharp.Core"
+        xmlns:ui="clr-namespace:DTC.Core.UI;assembly=DTC.Core"
         xmlns:views="clr-namespace:G33kShell.Desktop.Console.Views"
         mc:Ignorable="d"
         d:DesignWidth="640" d:DesignHeight="480"

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
-using CSharp.Core.Extensions;
+using DTC.Core.Extensions;
 
 namespace G33kShell.Desktop.Console.Screensavers.Asteroids;
 

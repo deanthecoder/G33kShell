@@ -18,7 +18,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Input;
-using CSharp.Core.Extensions;
+using DTC.Core.Extensions;
 using G33kShell.Desktop.Console.Events;
 
 namespace G33kShell.Desktop.Console.Controls;

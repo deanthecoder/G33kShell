@@ -11,7 +11,7 @@
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
-using CSharp.Core.Extensions;
+using DTC.Core.Extensions;
 using G33kShell.Desktop.Terminal.Attributes;
 
 namespace G33kShell.Desktop.Terminal.Commands;

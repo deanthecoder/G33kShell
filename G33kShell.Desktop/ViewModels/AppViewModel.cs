@@ -10,9 +10,9 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System.Windows.Input;
 using Avalonia;
-using CSharp.Core.Commands;
-using CSharp.Core.Extensions;
-using CSharp.Core.ViewModels;
+using DTC.Core.Commands;
+using DTC.Core.Extensions;
+using DTC.Core.ViewModels;
 using G33kShell.Desktop.Views;
 
 namespace G33kShell.Desktop.ViewModels;

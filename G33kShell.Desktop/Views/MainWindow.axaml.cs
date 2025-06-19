@@ -13,7 +13,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using CSharp.Core.UI;
+using DTC.Core.UI;
 using G33kShell.Desktop.Console.Views;
 using G33kShell.Desktop.Skins;
 using G33kShell.Desktop.ViewModels;

@@ -11,7 +11,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using CSharp.Core;
+using DTC.Core;
 
 namespace G33kShell.Desktop.Console.Screensavers.Snake;
 

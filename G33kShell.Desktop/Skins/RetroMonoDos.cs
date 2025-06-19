@@ -9,7 +9,7 @@
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using Avalonia.Media;
-using CSharp.Core;
+using DTC.Core;
 
 namespace G33kShell.Desktop.Skins;
 

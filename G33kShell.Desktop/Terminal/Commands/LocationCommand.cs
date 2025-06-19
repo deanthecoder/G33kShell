@@ -12,8 +12,8 @@
 using System;
 using System.IO;
 using System.Linq;
-using CSharp.Core;
-using CSharp.Core.Extensions;
+using DTC.Core;
+using DTC.Core.Extensions;
 using JetBrains.Annotations;
 using NClap.Metadata;
 

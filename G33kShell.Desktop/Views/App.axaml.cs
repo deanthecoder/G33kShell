@@ -15,7 +15,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
-using CSharp.Core.Extensions;
+using DTC.Core.Extensions;
 using G33kShell.Desktop.Skins;
 using G33kShell.Desktop.Terminal;
 using G33kShell.Desktop.Terminal.Commands;

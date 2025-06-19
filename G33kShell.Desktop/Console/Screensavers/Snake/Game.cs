@@ -11,7 +11,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using CSharp.Core;
+using DTC.Core;
 using G33kShell.Desktop.Console.Screensavers.AI;
 
 namespace G33kShell.Desktop.Console.Screensavers.Snake;

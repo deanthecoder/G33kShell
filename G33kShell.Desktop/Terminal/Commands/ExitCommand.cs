@@ -10,7 +10,7 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System.Threading.Tasks;
 using Avalonia;
-using CSharp.Core.Extensions;
+using DTC.Core.Extensions;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 

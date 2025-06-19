@@ -11,7 +11,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using CSharp.Core.Extensions;
+using DTC.Core.Extensions;
 using G33kShell.Desktop.Console.Screensavers.AI;
 
 namespace G33kShell.Desktop.Console.Screensavers.Asteroids;

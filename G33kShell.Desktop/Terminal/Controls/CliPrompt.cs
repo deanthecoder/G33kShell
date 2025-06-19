@@ -13,7 +13,7 @@ using System;
 using System.IO;
 using System.Linq;
 using Avalonia.Input;
-using CSharp.Core.Extensions;
+using DTC.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
 using G33kShell.Desktop.Console.Events;
 using JetBrains.Annotations;

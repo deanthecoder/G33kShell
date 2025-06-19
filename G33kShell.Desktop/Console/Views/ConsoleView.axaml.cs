@@ -17,7 +17,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
-using CSharp.Core;
+using DTC.Core;
 using G33kShell.Desktop.Console.Events;
 
 namespace G33kShell.Desktop.Console.Views;
