@@ -12,6 +12,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Avalonia.Input;
 using Avalonia.Layout;
 using DTC.Core;
 using G33kShell.Desktop.Console.Controls;
@@ -27,6 +28,7 @@ public class WindowManager
     private readonly List<ConsoleEvent> m_consoleEvents = new List<ConsoleEvent>();
     private SkinBase m_skin;
     private ConsoleCursor m_cursor;
+    internal int OffsetY { get; private set; }
 
     public Visual Root { get; }
 
@@ -86,7 +88,7 @@ public class WindowManager
                     visual.ActualX = pos.x;
                     visual.ActualY = pos.y;
                     using (visual.Screen.Lock(out var sourceScreen))
-                        sourceScreen.CopyTo(targetScreen, pos.x, pos.y);
+                        sourceScreen.CopyTo(targetScreen, pos.x, pos.y + OffsetY);
                 }
             }
         }
@@ -225,6 +227,31 @@ public class WindowManager
             var visualTree = GetVisualTree(Root).ToArray();
             foreach (var consoleEvent in m_consoleEvents)
             {
+                if (consoleEvent is KeyConsoleEvent keyEvent && keyEvent.Direction == KeyConsoleEvent.KeyDirection.Down)
+                {
+                    if ((keyEvent.Modifiers & KeyModifiers.Control) != KeyModifiers.None)
+                    {
+                        switch (keyEvent.Key)
+                        {
+                            case Key.Up:
+                                OffsetY++;
+                                Root.InvalidateVisual();
+                                continue;
+                            case Key.Down:
+                                OffsetY--;
+                                Root.InvalidateVisual();
+                                continue;
+                        }
+                    }
+                    
+                    // Any other key resets scroll offset.
+                    if (OffsetY != 0 && keyEvent.Modifiers == KeyModifiers.None)
+                    {
+                        Root.InvalidateVisual();
+                        OffsetY = 0;
+                    }
+                }
+                
                 foreach (var visual in visualTree)
                 {
                     var handled = false;

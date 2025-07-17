@@ -143,22 +143,29 @@ public partial class ConsoleView : Control
         
         // Draw the screen cursor.
         var cursor = m_windowManager.Cursor;
-        if (cursor?.IsVisible == true && cursor.X >= 0 && cursor.X < screen.Width && cursor.Y >= 0 && cursor.Y < screen.Height)
+        if (cursor?.IsVisible == true)
         {
-            var foregroundColor = m_windowManager.Skin.ForegroundColor;
-            if (cursor.IsBusy)
+            var cursorY = cursor.Y + m_windowManager.OffsetY;
+            if (cursorY >= 0 && cursorY < screen.Height)
             {
-                var animChars = "/-\\|";
-                var animFrame = (Environment.TickCount64 / 100) % animChars.Length;
-                DrawTextRun(context, new StringBuilder(animChars, (int)animFrame, 1, 1), cursor.X, cursor.Y, foregroundColor, screen.Chars[cursor.Y][cursor.X].Background);
-            }
-            else
-            {
-                var isFlashOn = (Environment.TickCount64 - cursor.MoveTime) % 1000 < 500;
-                if (isFlashOn)
+                if (cursor.X >= 0 && cursor.X < screen.Width)
                 {
-                    var cursorRect = new Rect(cursor.X * CharWidth + Padding.Left, cursor.Y * CharHeight + Padding.Top, CharWidth, CharHeight);
-                    context.FillRectangle(GetBrush(foregroundColor), cursorRect);
+                    var foregroundColor = m_windowManager.Skin.ForegroundColor;
+                    if (cursor.IsBusy)
+                    {
+                        var animChars = "/-\\|";
+                        var animFrame = (Environment.TickCount64 / 100) % animChars.Length;
+                        DrawTextRun(context, new StringBuilder(animChars, (int)animFrame, 1, 1), cursor.X, cursorY, foregroundColor, screen.Chars[cursorY][cursor.X].Background);
+                    }
+                    else
+                    {
+                        var isFlashOn = (Environment.TickCount64 - cursor.MoveTime) % 1000 < 500;
+                        if (isFlashOn)
+                        {
+                            var cursorRect = new Rect(cursor.X * CharWidth + Padding.Left, cursorY * CharHeight + Padding.Top, CharWidth, CharHeight);
+                            context.FillRectangle(GetBrush(foregroundColor), cursorRect);
+                        }
+                    }
                 }
             }
         }
