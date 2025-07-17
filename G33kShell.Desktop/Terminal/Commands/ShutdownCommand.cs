@@ -11,6 +11,8 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using Avalonia;
+using DTC.Core.Extensions;
 using G33kShell.Desktop.Terminal.Attributes;
 
 namespace G33kShell.Desktop.Terminal.Commands;
@@ -29,6 +31,8 @@ public class ShutdownCommand : CommandBase
         {
             FileName = "shutdown", Arguments = $"/s /f /t {delayInSeconds}", CreateNoWindow = true, UseShellExecute = false
         }) != null;
+        if (success)
+            Application.Current.GetMainWindow().Close();
         return Task.FromResult(success);
     }
 }
