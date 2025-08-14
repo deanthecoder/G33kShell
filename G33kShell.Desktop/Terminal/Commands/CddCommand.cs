@@ -58,6 +58,6 @@ public class CddCommand : LocationCommand
     private static double GetScore(string path, string subPath)
     {
         var lastSegment = path.ToDir().Name;
-        return string.IsNullOrEmpty(lastSegment) ? 0.0 : Fuzz.PartialRatio(lastSegment, subPath) / 100.0;
+        return string.IsNullOrEmpty(lastSegment) ? 0.0 : Fuzz.PartialRatio(lastSegment.ToLower(), subPath.ToLower()) / 100.0;
     }
 }
