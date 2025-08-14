@@ -8,7 +8,7 @@
 // about your modifications. Your contributions are valued!
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
-using System;
+
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -25,21 +25,10 @@ public class SpaceCommand : CommandBase
         var drives = DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed);
         foreach (var drive in drives)
         {
-            var totalSpace = drive.TotalSize;
-            var freeSpace = drive.AvailableFreeSpace;
-            var usagePercentage = (double)(totalSpace - freeSpace) / totalSpace;
-
-            // Build the size string and calculate its length.
-            var infoText = drive.TotalSize.ToSize();
-
-            // Progress bar width calculation.
-            var totalWidth = state.CliPrompt.Width;
-            var fixedTextWidth = drive.Name.Length + infoText.Length + 5;
-            var progressWidth = totalWidth - fixedTextWidth;
-            var filledWidth = (int)Math.Round(progressWidth * usagePercentage);
-
-            // Display drive info.
-            WriteLine($"{drive.Name} [{new string('=', filledWidth).PadRight(progressWidth, '.')}] {infoText}");
+            var usagePercent = (double)(drive.TotalSize - drive.AvailableFreeSpace) / drive.TotalSize;
+            var s = $"[{drive.Name}] _ {usagePercent:P0} │ {drive.TotalSize.ToSize()}";
+            s = s.Replace("_", usagePercent.ToProgressBar(state.CliPrompt.Width - s.Length));
+            WriteLine(s);
         }
         return Task.FromResult(true);
     }
