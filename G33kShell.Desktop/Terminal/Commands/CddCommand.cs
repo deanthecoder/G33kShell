@@ -8,6 +8,8 @@
 // about your modifications. Your contributions are valued!
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+
+using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -34,15 +36,24 @@ public class CddCommand : LocationCommand
                 .Select(o => (o, GetScore(o, Path)))
                 .OrderByDescending(o => o.Item2)
                 .ToArray();
-        var result = candidates.FirstOrDefault();
+        
+        // Check for a perfect match.
+        var result = candidates.FirstOrDefault(o => System.IO.Path.GetFileName(o.o)?.Equals(Path, StringComparison.OrdinalIgnoreCase) == true);
+        
+        // ...failing that, find the best match.
+        if (result.Item2 == 0.0)
+            result = candidates.FirstOrDefault();
+        
         if (result.Item2 > 0.7)
         {
+            // Good enough to be a likely match - Use it.
             var newDir = result.o.ToDir();
             state.CurrentDirectory = newDir;
             Settings.Instance.AppendPathToHistory(newDir.FullName);
             return Task.FromResult(true);
         }
         
+        // Not enough info - Report what matches _might_ exist.
         if (candidates.Any())
         {
             WriteLine("Candidates:");
