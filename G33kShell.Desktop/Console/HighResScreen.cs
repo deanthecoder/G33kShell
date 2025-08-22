@@ -34,10 +34,13 @@ public class HighResScreen
         m_screen = screen;
         m_drawMode = drawMode;
     }
-    
+
+    public int Width => m_screen.Width;
+    public int Height => m_screen.Height * 2;
+
     public void Plot(int x, int y, Rgb color)
     {
-        if (x < 0 || x >= m_screen.Width || y < 0 || y >= m_screen.Height * 2)
+        if (x < 0 || x >= Width || y < 0 || y >= Height)
             return; // Off screen.
             
         var isTopPixel = (y & 1) == 0;
