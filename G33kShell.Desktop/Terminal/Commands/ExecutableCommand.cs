@@ -31,8 +31,16 @@ public class ExecutableCommand : CommandBase
 
     public bool CanExecute(DirectoryInfo cwd)
     {
-        var command = m_args.FirstOrDefault();
-        return !string.IsNullOrWhiteSpace(command) && WhereIsCommand.FindExecutables(command, cwd).Any();
+        try
+        {
+            var command = m_args.FirstOrDefault();
+            return !string.IsNullOrWhiteSpace(command) && WhereIsCommand.FindExecutables(command, cwd).Any();
+        }
+        catch
+        {
+            // Something went wrong - We can't execute the command.
+            return false;
+        }
     }
 
     protected override async Task<bool> Run(ITerminalState state)

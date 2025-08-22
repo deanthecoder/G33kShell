@@ -225,7 +225,7 @@ public class WindowManager
         lock (m_consoleEvents)
         {
             var visualTree = GetVisualTree(Root).ToArray();
-            foreach (var consoleEvent in m_consoleEvents)
+            foreach (var consoleEvent in m_consoleEvents.ToArray())
             {
                 if (consoleEvent is KeyConsoleEvent keyEvent && keyEvent.Direction == KeyConsoleEvent.KeyDirection.Down)
                 {

@@ -102,7 +102,7 @@ public class TerminalState : ITerminalState, IDisposable
             command = (CommandBase)parsedCommand.PrimaryCommand.InstantiatedCommand;
         }
 
-        await command.SetState(this).ExecuteAsync(new CancellationToken());
+        await command.SetState(this).ExecuteAsync(CancellationToken.None);
         
         // Prepare the next prompt for input.
         PrepareNextInputPrompt();

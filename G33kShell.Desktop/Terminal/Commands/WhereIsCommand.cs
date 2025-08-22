@@ -62,13 +62,23 @@ public class WhereIsCommand : CommandBase
         };
         paths.AddRange(pathEnv?.Split(RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ';' : ':') ?? Array.Empty<string>());
 
-        foreach (var dir in paths.Select(o => o.ToDir()).Where(o => o.Exists()))
+        foreach (var dir in paths.Where(o => !string.IsNullOrWhiteSpace(o)).Select(o => o.ToDir()).Where(o => o.Exists()))
         {
             var searchPattern = name;
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && string.IsNullOrEmpty(Path.GetExtension(name)))
                 searchPattern = name + ".*";
+
+            FileInfo[] files;
+            try
+            {
+                files = dir.GetFiles(searchPattern);
+            }
+            catch (Exception)
+            {
+                // Invalid search pattern - Assume not found.
+                files = Array.Empty<FileInfo>();
+            }
             
-            var files = dir.GetFiles(searchPattern);
             foreach (var fileInfo in files.Where(o => o.IsExecutable()))
                 yield return fileInfo;
         }
