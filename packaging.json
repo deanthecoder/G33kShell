@@ -1,0 +1,25 @@
+{
+  "ProductName": "G33kShell",
+  "CompanyName": "Dean Edis (DeanTheCoder)",
+  "BundleIdentifier": "com.deanthecoder.g33kshell",
+  "Project": "G33kShell.Desktop/G33kShell.Desktop.csproj",
+  "Win": {
+    "Executable": "G33kShell.exe",
+    "InnoScript": "Installer/templates/inno.iss",
+    "IconIco": "G33kShell.Desktop/Assets/app.ico",
+    "GUID": "{E42CAE4C-024D-45E6-B09B-12478FC29BE1}",
+    "PublisherUrl": "",
+    "RuntimeIdentifier": "win-x64"
+  },
+  "Mac": {
+    "Executable": "G33kShell.Desktop",
+    "RuntimeIdentifiers": [
+      "osx-arm64",
+      "osx-x64"
+    ],
+    "IconIcns": "",
+    "InfoPlist": "Installer/templates/Info.plist",
+    "BundleIdentifier": "com.deanthecoder.g33kshell",
+    "VolumeName": "G33kShell"
+  }
+}

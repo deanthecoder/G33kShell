@@ -3,3 +3,4 @@
 _ReSharper.Caches/**
 .vs/**
 .idea/*
+dist/**
