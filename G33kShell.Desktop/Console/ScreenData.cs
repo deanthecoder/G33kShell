@@ -220,4 +220,16 @@ public class ScreenData
 
     private bool IsWithinBounds(int x, int y) =>
         x >= 0 && x < Width && y >= 0 && y < Height;
+
+    public ScreenData Clone()
+    {
+        var clone = new ScreenData(Width, Height);
+        for (var y = 0; y < Height; y++)
+        {
+            for (var x = 0; x < Width; x++)
+                clone.Chars[y][x].Set(Chars[y][x]);
+        }
+
+        return clone;
+    }
 }

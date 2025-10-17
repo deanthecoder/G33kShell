@@ -19,5 +19,11 @@ public interface IScreensaver
     /// </summary>
     string ActivationName { get; set; }
 
+    /// <summary>
+    /// Called when the screensaver becomes visible.
+    /// </summary>
+    /// <param name="shellScreen">A copy of the current shell screen.</param>
+    void StartScreensaver(ScreenData shellScreen);
+    
     void StopScreensaver();
 }

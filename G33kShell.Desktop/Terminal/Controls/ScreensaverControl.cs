@@ -85,10 +85,16 @@ public class ScreensaverControl : Visual
                 if (m_secondsUntilDisplay > 0)
                     continue; // Not ready yet...
 
+                // Take a snapshot of the current shell screen (in case the screensaver wants it).
+                ScreenData shellScreen;
+                using (windowManager.Screen.Lock(out var screenData))
+                    shellScreen = screenData.Clone();
+                    
                 SendToFront();
                 Y = 0;
                 IsVisible = true;
                 m_windowManager.Cursor.IsVisible = false;
+                ((IScreensaver)Children.Single()).StartScreensaver(shellScreen);
             }
         });
 
