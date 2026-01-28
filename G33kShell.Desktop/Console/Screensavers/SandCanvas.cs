@@ -450,10 +450,12 @@ public class SandCanvas : ScreensaverBase
 
     private void MoveInitialActive(int fromX, int fromY, int toX, int toY)
     {
-        MoveCell(fromX, fromY, toX, toY);
         m_initialMask[toX, toY] = true;
-        m_initialMask[fromX, fromY] = false;
         m_activeInitialMask[toX, toY] = true;
+
+        MoveCell(fromX, fromY, toX, toY);
+
+        m_initialMask[fromX, fromY] = false;
         m_activeInitialMask[fromX, fromY] = false;
     }
 
