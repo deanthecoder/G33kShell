@@ -26,6 +26,7 @@ namespace G33kShell.Desktop.Terminal.Commands;
     "Searches(/replaces) text in files the specified name or pattern.",
     "Example:",
     "  grep *.txt \"some text\"",
+    "  grep -f *.txt \"some text\"",
     "  grep *.txt;*.ext \"some text\" replacement")]
 public class GrepCommand : CommandBase
 {
@@ -40,6 +41,10 @@ public class GrepCommand : CommandBase
     [PositionalArgument(ArgumentFlags.Optional, Position = 2, Description = "Text to replace with.")]
     [UsedImplicitly]
     public string Replace { get; set; }
+    
+    [NamedArgument(ArgumentFlags.Optional, ShortName = "f", Description = "Display only filenames.")]
+    [UsedImplicitly]
+    public bool FilenamesOnly { get; set; }
     
     protected override async Task<bool> Run(ITerminalState state)
     {
@@ -70,30 +75,54 @@ public class GrepCommand : CommandBase
             if (Replace == null)
             {
                 // Text search only.
-                var matches =
-                    textFiles
+                if (FilenamesOnly)
+                {
+                    // Only report filenames - stop at first match per file.
+                    var matchingFiles = textFiles
                         .AsParallel()
-                        .SelectMany(file =>
+                        .Where(file =>
                         {
                             try
                             {
-                                return file.ReadAllLines()
-                                    .Select((s, lineIndex) => (file, lineIndex, s))
-                                    .Where(o => o.s.Contains(Text, StringComparison.OrdinalIgnoreCase) && !IsCancelRequested);
+                                return file.ReadAllLines().Any(line => line.Contains(Text, StringComparison.OrdinalIgnoreCase) && !IsCancelRequested);
                             }
                             catch (Exception)
                             {
-                                return [];
+                                return false;
                             }
-                        });
-                var allMatches = await Task.Run(() => matches.GroupBy(o => o.file).ToList());
-                matchCount = allMatches.Count;
-                output = [];
-                foreach (var match in allMatches)
+                        })
+                        .Select(file => file.FullName);
+                    output = await Task.Run(() => matchingFiles.ToList());
+                    matchCount = output.Count;
+                }
+                else
                 {
-                    output.Add(match.Key.FullName);
-                    output.AddRange(match.Select(o => GetFormattedFindResult(state, o)));
-                    output.Add(string.Empty);
+                    // Report all matching lines.
+                    var matches =
+                        textFiles
+                            .AsParallel()
+                            .SelectMany(file =>
+                            {
+                                try
+                                {
+                                    return file.ReadAllLines()
+                                        .Select((s, lineIndex) => (file, lineIndex, s))
+                                        .Where(o => o.s.Contains(Text, StringComparison.OrdinalIgnoreCase) && !IsCancelRequested);
+                                }
+                                catch (Exception)
+                                {
+                                    return [];
+                                }
+                            });
+                    var allMatches = await Task.Run(() => matches.GroupBy(o => o.file).ToList());
+                    matchCount = allMatches.Count;
+                    output = [];
+                    foreach (var match in allMatches)
+                    {
+                        output.Add(match.Key.FullName);
+                        output.AddRange(match.Select(o => GetFormattedFindResult(state, o)));
+                        output.Add(string.Empty);
+                    }
                 }
             }
             else
