@@ -77,6 +77,7 @@ public class TerminalState : ITerminalState, IDisposable
 
         // Execute the command.
         var args = cmdString.ToArgumentArray();
+        args = ExpandOutputLineReferences(args);
         CommandBase command;
         if (!CommandLineParser.TryParse(args, out ProgramArguments parsedCommand))
         {
@@ -196,5 +197,39 @@ public class TerminalState : ITerminalState, IDisposable
     {
         // Save state for the next session.
         Settings.Instance.UsedCommands = CommandHistory.Commands.Select(o => o.Command).Reverse().Distinct().Reverse().ToList();
+    }
+
+    private string[] ExpandOutputLineReferences(string[] args)
+    {
+        if (args == null || args.Length <= 1)
+            return args;
+
+        var lastOutput = CommandHistory.Commands.LastOrDefault()?.Output;
+        if (string.IsNullOrEmpty(lastOutput))
+            return args;
+
+        var lines = lastOutput.ReplaceLineEndings("\n").Split('\n');
+        if (lines.Length == 0)
+            return args;
+
+        for (var i = 1; i < args.Length; i++)
+        {
+            if (!TryGetLineReference(args[i], out var lineNumber))
+                continue;
+
+            if (lineNumber <= lines.Length)
+                args[i] = lines[lineNumber - 1].Trim();
+        }
+
+        return args;
+    }
+
+    private static bool TryGetLineReference(string arg, out int lineNumber)
+    {
+        lineNumber = 0;
+        if (string.IsNullOrWhiteSpace(arg) || arg[0] != '$' || arg.Length == 1)
+            return false;
+
+        return int.TryParse(arg.AsSpan(1), out lineNumber) && lineNumber > 0;
     }
 }

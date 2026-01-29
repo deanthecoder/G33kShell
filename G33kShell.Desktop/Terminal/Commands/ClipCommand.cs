@@ -22,7 +22,9 @@ using TextCopy;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
-[CommandDescription("Copies the output from the previous command into the system clipboard.", "All output is copied, unless a specific line number is requested.")]
+[CommandDescription("Copies the output from the previous command into the system clipboard.",
+    "All output is copied, unless a specific line number is requested.",
+    "Tip: Use $<n> in any command to reuse line n of the previous output (e.g. cat $3).")]
 public class ClipCommand : CommandBase
 {
     [NamedArgument(Description = "Capture the command, as well as the output.", ShortName = "a")]
