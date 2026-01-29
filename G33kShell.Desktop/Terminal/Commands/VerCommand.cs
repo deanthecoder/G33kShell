@@ -20,6 +20,7 @@ public class VerCommand : CommandBase
     protected override Task<bool> Run(ITerminalState state)
     {
         WriteLine($"G33kShell v{Assembly.GetExecutingAssembly().GetName().Version}");
+        WriteLine("https://github.com/deanthecoder/G33kShell");
         return Task.FromResult(true);
     }
 }
