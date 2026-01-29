@@ -11,6 +11,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using DTC.Core;
 using DTC.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
@@ -78,8 +79,8 @@ public class WillyCanvas : ScreensaverBase
         // Remove any dead Willys.
         m_willys.RemoveAll(w => w.IsDead);
         
-        // Display current Willys.
-        foreach (var willy in m_willys)
+        // Display current Willys (sorted by Y position, lowest first).
+        foreach (var willy in m_willys.OrderBy(w => w.Y))
             willy.Draw(highResScreen, Foreground, screen.Width);
         
         // Spawn more Willys.
@@ -106,6 +107,7 @@ public class WillyCanvas : ScreensaverBase
         private readonly double m_speed;
 
         public bool IsDead { get; private set; }
+        public int Y => m_y;
 
         public Willy(Random random, ScreenData screen, int frameWidth, int frameHeight, bool[,,] frames) :
             this(random.Next(0, screen.Height * 2 - frameHeight),

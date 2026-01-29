@@ -11,6 +11,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using DTC.Core;
 using DTC.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
@@ -80,8 +81,8 @@ public class LemmingsCanvas : ScreensaverBase
         // Remove any dead sprites.
         m_sprites.RemoveAll(w => w.IsDead);
         
-        // Display current sprites.
-        foreach (var sprite in m_sprites)
+        // Display current sprites (sorted by Y position, lowest first).
+        foreach (var sprite in m_sprites.OrderBy(s => s.Y))
             sprite.Draw(highResScreen, Foreground, Background, screen.Width);
         
         // Spawn more sprites.
@@ -109,6 +110,7 @@ public class LemmingsCanvas : ScreensaverBase
         private readonly int m_frameCount;
 
         public bool IsDead { get; private set; }
+        public int Y => m_y;
 
         public Sprite(Random random, ScreenData screen, int frameWidth, int frameHeight, double[,,] frames) :
             this(random.Next(0, screen.Height * 2 - frameHeight),
