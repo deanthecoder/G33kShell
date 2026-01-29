@@ -23,13 +23,48 @@
 
 Tip: run `man <command>` for auto-generated manual pages, or `help` to see every command and alias.
 
-## Screensavers
-Cycle anything you like with `screensaver -l` and `screensaver <name>`—add `_train` to the AI-powered ones to watch them learn in real time.
+## Useful Command Tips
+- Reuse lines from the previous command's output with `$<n>` (for example, `cat $4`).
+- Copy the last command output to the clipboard with `clip` (use `clip -n` to show line numbers or `clip 4` for a single line).
 
-- `asciiroids`, `boids`, `bounce`, `clock`, `conway`, `crystal`, `cube`, `defrag`
-- `donut`, `earth`, `fire`, `fluid`, `lemmings`, `mandelbrot`, `matrix`, `neo`
-- `plasma`, `pong`, `scroller`, `snake`, `stars`, `swirl`, `tbibm`, `terminator`
-- `tiefighter`, `tunnel`, `twister`, `willy`, `worms`, `xenon`
+## Screensavers
+Cycle anything you like with `screensaver -l` and `screensaver <name>` - add `_train` to the AI-powered ones to watch them learn in real time.
+
+| Screensaver | Description |
+| --- | --- |
+| `asciiroids` | AI Asteroids in ASCII; add `_train` to teach it. |
+| `boids` | Flocking boids orbit a wandering sphere. |
+| `bounce` | Breakout-style brick field with ricocheting faces. |
+| `clock` | Big retro clock for the night shift. |
+| `conway` | Conway's Game of Life, always plotting. |
+| `crystal` | Growing crystal shard in chunky pixels. |
+| `cube` | Spinning 3D wireframe cube. |
+| `defrag` | Disk defrag blocks click into place. |
+| `donut` | The classic spinning ASCII torus. |
+| `earth` | Rotating ASCII Earth, tiny and proud. |
+| `fire` | Flickering fire buffer, CRT cozy. |
+| `fluid` | Low-res fluid sim, surprisingly hypnotic. |
+| `heist` | Your last screen gets stolen, then returned. |
+| `lemmings` | Tiny lemmings on an endless march. |
+| `mandelbrot` | Mandelbrot zooms in chunky characters. |
+| `matrix` | Matrix-style code rain. |
+| `neo` | Matrix corridor with glowing trails. |
+| `plasma` | Old-school plasma waves. |
+| `pong` | AI pong duel; add `_train` to coach it. |
+| `sand` | Sand pours over your last screen and settles. |
+| `scroller` | Retro text scroller for demo vibes. |
+| `snake` | AI snake that learns; add `_train`. |
+| `stars` | Warp-speed starfield. |
+| `swirl` | Hypnotic swirl patterns. |
+| `tbibm` | The British IBM tribute with Friday-night swagger. |
+| `terminator` | Pixelated Terminator portrait. |
+| `tiefighter` | 3D Tie Fighter flyby. |
+| `tron` | Light-cycle trails with a tracking camera. |
+| `tunnel` | Endless ASCII tunnel run. |
+| `twister` | Column twist effect. |
+| `willy` | Miner Willy marches across the screen. |
+| `worms` | Glowing worms wriggle across the grid. |
+| `xenon` | Xenon 2 shopkeeper cameo. |
 
 AI-enabled screensavers (`asciiroids`, `pong`, `snake`) store their trained neural weights between runs so you can pick up right where your last session left off.
 
