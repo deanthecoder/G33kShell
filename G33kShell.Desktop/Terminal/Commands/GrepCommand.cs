@@ -45,16 +45,45 @@ public class GrepCommand : CommandBase
     [NamedArgument(ArgumentFlags.Optional, ShortName = "f", Description = "Display only filenames.")]
     [UsedImplicitly]
     public bool FilenamesOnly { get; set; }
+
+    [NamedArgument(ArgumentFlags.Optional, ShortName = "c", LongName = "clean", Description = "Clear/delete the bigram index.")]
+    [UsedImplicitly]
+    public bool Clean { get; set; }
+
+    [NamedArgument(ArgumentFlags.Optional, ShortName = "i", LongName = "index-info", Description = "Display bigram index information.")]
+    [UsedImplicitly]
+    public bool IndexInfo { get; set; }
     
     protected override async Task<bool> Run(ITerminalState state)
     {
+        var startTime = DateTime.UtcNow;
+
         try
         {
-            // Find all the files.
+            // Handle -clean switch
+            if (Clean)
+            {
+                BigramIndex.Instance.Clear();
+                WriteLine("Bigram index cleared.");
+                return true;
+            }
+
+            // Start loading index in parallel.
+            var indexLoadTask = Task.Run(() =>
+            {
+                var idx = BigramIndex.Instance;
+                idx.ResetStats(); // Reset per-operation stats
+                return idx;
+            });
+
+            // Find all the files while index loads in background
+            var searchStart = DateTime.UtcNow;
             var results = new List<FileSystemInfo>();
             await foreach (var fileSystemInfo in SearchDirectory(state.CurrentDirectory, FileMask))
                 results.Add(fileSystemInfo);
-            
+            var searchElapsed = DateTime.UtcNow - searchStart;
+            System.Console.WriteLine($"[SearchDirectory took {searchElapsed.TotalSeconds:F2}s, found {results.Count} items]");
+
             if (results.Count == 0)
             {
                 WriteLine("No matching files found.");
@@ -66,10 +95,22 @@ public class GrepCommand : CommandBase
                 WriteLine("No text to search for.");
                 return false;
             }
-            
-            // Filter to get the text-only files.
+
+            // Wait for index to finish loading
+            var index = await indexLoadTask;
+
+            // Filter to get text-only files (skip IsTextFile check for already-indexed files)
             int matchCount;
-            var textFiles = await Task.Run(() => results.OfType<FileInfo>().Where(IsTextFile).ToArray());
+            var textFiles = await Task.Run(() =>
+                results.OfType<FileInfo>()
+                    .Where(f => index?.IsIndexed(f) == true || IsTextFile(f))
+                    .ToArray());
+
+            var totalFilesBeforeFilter = textFiles.Length;
+
+            // Apply bigram prefilter
+            if (index != null)
+                textFiles = index.FilterCandidates(textFiles, Text).ToArray();
 
             List<string> output;
             if (Replace == null)
@@ -168,8 +209,33 @@ public class GrepCommand : CommandBase
                 }
             });
 
-            WriteLine($"{textFiles.Length} file(s) found, {matchCount} match(es) found.");
-            
+            // Save index if modified (before displaying stats so file size is accurate)
+            index?.Save();
+
+            var elapsed = DateTime.UtcNow - startTime;
+
+            // Better message when prefilter eliminated everything
+            if (textFiles.Length == 0 && index != null && index.FilesSkippedByPrefilter > 0)
+                WriteLine($"{totalFilesBeforeFilter} file(s) checked via index, 0 actually scanned, {matchCount} match(es) found. ({elapsed.TotalSeconds:F2}s)");
+            else
+                WriteLine($"{textFiles.Length} file(s) scanned, {matchCount} match(es) found. ({elapsed.TotalSeconds:F2}s)");
+
+            // Display index stats if requested
+            if (IndexInfo && index != null)
+            {
+                WriteLine(string.Empty);
+                WriteLine("═══ Bigram Index Statistics ═══");
+                WriteLine($"  Index file size      : {index.IndexFileSize.ToSize()} on disk, {index.UncompressedSize.ToSize()} uncompressed");
+                WriteLine($"  Total entries        : {index.EntryCount:N0}");
+                WriteLine($"  Text files on disk   : {totalFilesBeforeFilter:N0}");
+                WriteLine($"  Newly indexed        : {index.NewFilesIndexed:N0}");
+                WriteLine($"  Skipped by prefilter : {index.FilesSkippedByPrefilter:N0} (avoided disk read)");
+                WriteLine($"  Scanned from disk    : {textFiles.Length:N0}");
+
+                var filterEfficiency = totalFilesBeforeFilter > 0 ? index.FilesSkippedByPrefilter * 100.0 / totalFilesBeforeFilter : 0;
+                WriteLine($"  Filter efficiency    : {filterEfficiency:F1}%");
+            }
+
             return true;
         }
         catch (Exception ex)

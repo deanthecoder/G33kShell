@@ -49,7 +49,7 @@ public class BounceCanvas : ScreensaverBase
         {
             for (var x = 1; x < screen.Width - 1; x++)
             {
-                var isBrick = ((x - 1) / (screen.Width / 4)) % 2 == 0;
+                var isBrick = (x - 1) / (screen.Width / 4) % 2 == 0;
                 m_bricks[x, y] = isBrick;
                 screen.PrintAt(x, y, m_brickAttr[isBrick ? 0 : 1]);
             }

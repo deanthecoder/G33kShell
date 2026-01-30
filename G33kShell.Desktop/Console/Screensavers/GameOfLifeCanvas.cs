@@ -131,7 +131,7 @@ public class GameOfLifeCanvas : ScreensaverBase
         for (var y = 0; y < m_cells.GetLength(1); y++)
         {
             for (var x = 0; x < m_cells.GetLength(0); x++)
-                sum = (sum * 31) + (grid[x, y] ? 1 : 0);
+                sum = sum * 31 + (grid[x, y] ? 1 : 0);
         }
         
         return sum;

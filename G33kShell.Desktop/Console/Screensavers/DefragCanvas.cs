@@ -178,7 +178,7 @@ public class DefragCanvas : ScreensaverBase
         {
             for (var x = 0; x < m_chunkDisplayWidth; x++)
             {
-                var i = (y * m_chunkDisplayWidth) + x;
+                var i = y * m_chunkDisplayWidth + x;
                 if (i >= m_chunks.Length)
                     break;
 
