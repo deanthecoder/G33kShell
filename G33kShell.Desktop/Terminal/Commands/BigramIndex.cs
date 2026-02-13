@@ -228,7 +228,7 @@ internal sealed class BigramIndex
     /// Checks if a file can possibly contain the search string using bigram prefilter.
     /// Returns true if file should be scanned, false if it definitely cannot match.
     /// </summary>
-    private bool CanContain(FileInfo file, string searchText)
+    private bool CanContain(FileInfo file, string searchText, bool caseSensitive)
     {
         if (searchText.Length < 2)
             return true; // Cannot prefilter short strings
@@ -243,11 +243,45 @@ internal sealed class BigramIndex
             // Check all bigrams from search string
             for (var i = 0; i < searchBytes.Length - 1; i++)
             {
-                var bigramKey = (searchBytes[i] << 8) | searchBytes[i + 1];
-                if (!record.IsBigramPresent(bigramKey))
+                if (caseSensitive)
                 {
-                    FilesSkippedByPrefilter++;
-                    return false; // Definitely no match
+                    // Case-sensitive: exact bigram must be present
+                    var bigramKey = (searchBytes[i] << 8) | searchBytes[i + 1];
+                    if (!record.IsBigramPresent(bigramKey))
+                    {
+                        FilesSkippedByPrefilter++;
+                        return false; // Definitely no match
+                    }
+                }
+                else
+                {
+                    // Case-insensitive: check all case variants of this bigram
+                    var b1 = searchBytes[i];
+                    var b2 = searchBytes[i + 1];
+
+                    var found = false;
+                    for (var case1 = 0; case1 < 2; case1++)
+                    {
+                        for (var case2 = 0; case2 < 2; case2++)
+                        {
+                            var testB1 = case1 == 0 ? char.ToLowerInvariant((char)b1) : char.ToUpperInvariant((char)b1);
+                            var testB2 = case2 == 0 ? char.ToLowerInvariant((char)b2) : char.ToUpperInvariant((char)b2);
+                            var bigramKey = ((byte)testB1 << 8) | (byte)testB2;
+
+                            if (record.IsBigramPresent(bigramKey))
+                            {
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (found) break;
+                    }
+
+                    if (!found)
+                    {
+                        FilesSkippedByPrefilter++;
+                        return false; // No case variant found
+                    }
                 }
             }
 
@@ -263,11 +297,11 @@ internal sealed class BigramIndex
     /// <summary>
     /// Filters a list of files to only those that might contain the search text.
     /// </summary>
-    public IEnumerable<FileInfo> FilterCandidates(IEnumerable<FileInfo> files, string searchText)
+    public IEnumerable<FileInfo> FilterCandidates(IEnumerable<FileInfo> files, string searchText, bool caseSensitive = false)
     {
         if (searchText.Length < 2)
             return files; // Cannot prefilter
 
-        return files.Where(file => CanContain(file, searchText));
+        return files.Where(file => CanContain(file, searchText, caseSensitive));
     }
 }

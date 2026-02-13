@@ -50,6 +50,10 @@ public class GrepCommand : CommandBase
     [UsedImplicitly]
     public bool Clean { get; set; }
 
+    [NamedArgument(ArgumentFlags.Optional, ShortName = "s", LongName = "case-sensitive", Description = "Enable case-sensitive search.")]
+    [UsedImplicitly]
+    public bool CaseSensitive { get; set; }
+
     [NamedArgument(ArgumentFlags.Optional, ShortName = "i", LongName = "index-info", Description = "Display bigram index information.")]
     [UsedImplicitly]
     public bool IndexInfo { get; set; }
@@ -110,7 +114,7 @@ public class GrepCommand : CommandBase
 
             // Apply bigram prefilter
             if (index != null)
-                textFiles = index.FilterCandidates(textFiles, Text).ToArray();
+                textFiles = index.FilterCandidates(textFiles, Text, CaseSensitive).ToArray();
 
             List<string> output;
             if (Replace == null)
@@ -125,7 +129,7 @@ public class GrepCommand : CommandBase
                         {
                             try
                             {
-                                return file.ReadAllLines().Any(line => line.Contains(Text, StringComparison.OrdinalIgnoreCase) && !IsCancelRequested);
+                                return file.ReadAllLines().Any(line => line.Contains(Text, CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase) && !IsCancelRequested);
                             }
                             catch (Exception)
                             {
@@ -148,7 +152,7 @@ public class GrepCommand : CommandBase
                                 {
                                     return file.ReadAllLines()
                                         .Select((s, lineIndex) => (file, lineIndex, s))
-                                        .Where(o => o.s.Contains(Text, StringComparison.OrdinalIgnoreCase) && !IsCancelRequested);
+                                        .Where(o => o.s.Contains(Text, CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase) && !IsCancelRequested);
                                 }
                                 catch (Exception)
                                 {
@@ -176,9 +180,10 @@ public class GrepCommand : CommandBase
                         try
                         {
                             var text = o.ReadAllText();
-                            if (!text.Contains(Text, StringComparison.OrdinalIgnoreCase))
+                            var comparison = CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+                            if (!text.Contains(Text, comparison))
                                 return null;
-                            o.WriteAllText(text.Replace(Text, Replace, StringComparison.OrdinalIgnoreCase));
+                            o.WriteAllText(text.Replace(Text, Replace, comparison));
                             return o;
                         }
                         catch (Exception)
