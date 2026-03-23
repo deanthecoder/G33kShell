@@ -42,6 +42,7 @@ public class TerminalState : ITerminalState, IDisposable
     public CommandHistory CommandHistory { get; } = new CommandHistory();
     public CliPrompt CliPrompt { get; private set; }
     public Stack<DirectoryInfo> DirStack { get; } = new Stack<DirectoryInfo>();
+    public string LastRunScreensaverName { get; set; }
 
     public TerminalState(DirectoryInfo cwd, [NotNull] CliPrompt cliPrompt)
     {

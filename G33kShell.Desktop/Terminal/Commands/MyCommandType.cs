@@ -113,6 +113,10 @@ public enum MyCommandType
     [CommandCategory(CommandType.System)]
     Max,
 
+    [Command(typeof(MinCommand), LongName = "min", Description = "Minimize the terminal window.")]
+    [CommandCategory(CommandType.System)]
+    Min,
+
     [Command(typeof(NowCommand), LongName = "now", Description = "Report the current date and time.")]
     [CommandCategory(CommandType.System)]
     Now,

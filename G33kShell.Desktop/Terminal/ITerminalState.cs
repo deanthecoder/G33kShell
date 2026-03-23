@@ -23,6 +23,7 @@ public interface ITerminalState
     DirectoryInfo CurrentDirectory { get; set; }
     CommandHistory CommandHistory { get; }
     CliPrompt CliPrompt { get; }
+    string LastRunScreensaverName { get; set; }
     
     /// <summary>
     /// Used by the pushd and popd commands.

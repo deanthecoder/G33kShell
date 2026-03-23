@@ -56,7 +56,12 @@ public class ScreensaverCommand : CommandBase
             }
             
             state.LoadScreensaver(selectedScreensaver, Name);
+            state.LastRunScreensaverName = Name;
+            return Task.FromResult(true);
         }
+
+        if (!List)
+            WriteLine($"Last seen: {state.LastRunScreensaverName ?? "None yet"}");
 
         return Task.FromResult(true);
     }
