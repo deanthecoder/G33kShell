@@ -21,9 +21,11 @@ public class Game : AiGameBase
 {
     private readonly bool m_limitLives;
     private const int StartingLives = 10;
+    private GameState m_gameState;
     private int m_totalMoves;
     private int m_totalScore;
     private int m_lives = StartingLives;
+    private int m_starvationDeaths;
     
     public Snake Snake { get; private set; }
     public IntPoint FoodPosition { get; private set; }
@@ -31,12 +33,23 @@ public class Game : AiGameBase
     public int Score { get; private set; }
 
     /// <summary>
-    /// Combination of high score, average score, etc.
+    /// Scores brains mostly on food collected, with a smaller bonus for peak run quality and
+    /// efficiency, and a penalty for repeated starvation resets.
     /// </summary>
-    public override double Rating =>
-        m_totalScore > 0
-            ? (double)m_totalScore / StartingLives * 2.0 + HighScore * 0.3 + m_totalMoves * 0.001
-            : 0; // no reward for circling and dying
+    public override double Rating
+    {
+        get
+        {
+            if (m_totalScore == 0)
+                return 0;
+
+            var efficiency = (double)m_totalScore / Math.Max(1, m_totalMoves);
+            return m_totalScore * 8.0 +
+                   HighScore * 3.0 +
+                   efficiency * 400.0 -
+                   m_starvationDeaths * 2.0;
+        }
+    }
 
     public override bool IsGameOver =>
         m_lives== 0 && Snake.IsDead;
@@ -44,6 +57,9 @@ public class Game : AiGameBase
     public override IEnumerable<(string Name, string Value)> ExtraGameStats()
     {
         yield return ("HighScore", HighScore.ToString());
+        yield return ("TotalScore", m_totalScore.ToString());
+        yield return ("Moves", m_totalMoves.ToString());
+        yield return ("Efficiency", ((double)m_totalScore / Math.Max(1, m_totalMoves)).ToString("F4"));
     }
 
     public Game(int arenaWidth, int arenaHeight, AiBrainBase brain, bool limitLives = true) : base(arenaWidth, arenaHeight, brain)
@@ -51,16 +67,15 @@ public class Game : AiGameBase
         m_limitLives = limitLives;
     }
 
+    /// <summary>
+    /// Resets the current life while keeping long-run training totals so a brain is judged over
+    /// several short attempts rather than a single lucky path.
+    /// </summary>
     public override AiGameBase ResetGame()
     {
-        Snake = new Snake(ArenaWidth, ArenaHeight);
-        Snake.FoodEaten += (_, _) =>
-        {
-            Score++;
-            m_totalScore++;
-            HighScore = Math.Max(HighScore, Score);
-            SpawnFood();
-        };
+        Snake ??= new Snake(ArenaWidth, ArenaHeight);
+        Snake.Reset();
+        m_gameState ??= new GameState(Snake, FoodPosition);
         Score = 0;
 
         SpawnFood();
@@ -82,19 +97,25 @@ public class Game : AiGameBase
     {
         if (Snake.IsDead)
         {
-            if  (m_limitLives)
-            {
-                if (m_lives == 0)
-                    return;
-                m_lives--;
-            }
+            if (Snake.StepsSinceFood >= Snake.TotalStepsToStarvation)
+                m_starvationDeaths++;
+
+            if (m_limitLives && --m_lives <= 0)
+                return;
             
             ResetGame();
         }
-        
-        var gameState = new GameState(Snake, FoodPosition);
-        var newDirection = ((Brain)Brain).ChooseMove(gameState);
-        Snake.Move(newDirection, FoodPosition);
+
+        m_gameState.Reset(Snake, FoodPosition);
+        var newDirection = ((Brain)Brain).ChooseMove(m_gameState);
+        if (Snake.Move(newDirection, FoodPosition))
+        {
+            Score++;
+            m_totalScore++;
+            HighScore = Math.Max(HighScore, Score);
+            SpawnFood();
+        }
+
         m_totalMoves++;
     }
 }

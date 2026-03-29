@@ -18,10 +18,18 @@ namespace G33kShell.Desktop.Console.Screensavers.Snake;
 /// <summary>
 /// AI-powered snake game.
 /// </summary>
+/// <remarks>
+/// Interactive play uses the current terminal size, while training uses a fixed arena and seed
+/// schedule so runs are more repeatable and comparable over time.
+/// </remarks>
 [DebuggerDisplay("SnakeCanvas:{X},{Y} {Width}x{Height}")]
 [UsedImplicitly]
 public class SnakeCanvas : AiGameCanvasBase
 {
+    private const int TrainingArenaWidth = 48;
+    private const int TrainingArenaHeight = 28;
+    private const int TrainingSeedBase = 1337;
+
     private Game m_game;
 
     public SnakeCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight, 60)
@@ -65,5 +73,11 @@ public class SnakeCanvas : AiGameCanvasBase
     }
 
     protected override AiGameBase CreateGame(AiBrainBase brain) => new Game(ArenaWidth, ArenaHeight, brain);
+    protected override AiGameBase CreateTrainingGame(AiBrainBase brain) => new Game(TrainingArenaWidth, TrainingArenaHeight, brain);
+    protected override bool UseHarnessStyleEvolution() => true;
+    protected override int? GetBreedingRandomSeed() => TrainingSeedBase;
+    protected override byte[] GetSavedBrainBytes() => Settings.Instance.SnakeBrain;
+    protected override int GetTrainingSeed(int generation, int brainIndex, int gameIndex) =>
+        unchecked(TrainingSeedBase + generation * 10_000 + brainIndex * 101 + gameIndex * 17);
     protected override AiBrainBase CreateBrain() => new Brain();
 }

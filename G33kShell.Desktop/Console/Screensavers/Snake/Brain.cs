@@ -16,7 +16,9 @@ namespace G33kShell.Desktop.Console.Screensavers.Snake;
 
 public class Brain : AiBrainBase
 {
-    public Brain() : base(15, [32, 16, 16], 4)
+    protected override int BrainVersion => 2;
+
+    public Brain() : base(15, [24, 16], 4)
     {
     }
 

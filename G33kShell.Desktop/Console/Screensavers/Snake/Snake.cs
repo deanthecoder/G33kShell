@@ -10,7 +10,6 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using DTC.Core;
 
 namespace G33kShell.Desktop.Console.Screensavers.Snake;
@@ -19,10 +18,8 @@ public class Snake
 {
     private readonly int m_arenaWidth;
     private readonly int m_arenaHeight;
-    private readonly LinkedList<IntPoint> m_segments = [];
+    private readonly CircularBuffer<IntPoint> m_segments;
     private readonly Dictionary<IntPoint, int> m_segmentCache = [];
-
-    public event EventHandler FoodEaten;
 
     public Direction Direction { get; private set; } = Direction.Left;
     public IntPoint HeadPosition { get; private set; }
@@ -38,12 +35,25 @@ public class Snake
         m_arenaWidth = arenaWidth;
         m_arenaHeight = arenaHeight;
         MaxLength = (int)(m_arenaWidth * arenaHeight * 0.9);
-        
-        HeadPosition = new IntPoint(arenaWidth / 2, arenaHeight / 2);
+        m_segments = new CircularBuffer<IntPoint>(MaxLength + 1);
+
+        Reset();
     }
 
-    public void Move(Direction direction, IntPoint foodPosition)
+    public void Reset()
     {
+        m_segments.Clear();
+        m_segmentCache.Clear();
+        Direction = Direction.Left;
+        HeadPosition = new IntPoint(m_arenaWidth / 2, m_arenaHeight / 2);
+        Length = 5;
+        StepsSinceFood = 0;
+        IsDead = false;
+    }
+
+    public bool Move(Direction direction, IntPoint foodPosition)
+    {
+        direction = NormalizeDirection(direction);
         Direction = direction;
         var oldHeadPosition = HeadPosition;
         HeadPosition = direction switch
@@ -58,31 +68,33 @@ public class Snake
         if (IsCollision(HeadPosition))
         {
             IsDead = true;
-            return;
+            return false;
         }
 
         StepsSinceFood++;
         if (StepsSinceFood >= TotalStepsToStarvation)
         {
             IsDead = true;
-            return;
+            return false;
         }
 
+        var foodEaten = false;
         if (HeadPosition == foodPosition)
         {
-            FoodEaten?.Invoke(this, EventArgs.Empty);
+            foodEaten = true;
             StepsSinceFood = 0;
             Length = Math.Min(Length + 3, MaxLength);
         }
         
         // Extend snake.
-        m_segments.AddFirst(oldHeadPosition);
+        m_segments.Write(oldHeadPosition);
         AddSegment(oldHeadPosition);
-        if (m_segments.Count > Length)
+        while (m_segments.Count > Length)
         {
-            RemoveSegment(m_segments.Last!.Value);
-            m_segments.RemoveLast();
+            RemoveSegment(m_segments.Read());
         }
+
+        return foodEaten;
     }
 
     public bool IsCollision(IntPoint worldPoint)
@@ -96,10 +108,7 @@ public class Snake
 
     private bool CheckForTailHit(IntPoint worldPoint)
     {
-        var count = m_segmentCache.GetValueOrDefault(worldPoint, 0);
-        if (m_segments.FirstOrDefault().Equals(worldPoint))
-            count--;
-        return count > 0;
+        return m_segmentCache.GetValueOrDefault(worldPoint, 0) > 0;
     }
     
     private void AddSegment(IntPoint pt)
@@ -119,4 +128,22 @@ public class Snake
         else
             m_segmentCache[pt] = count - 1;
     }
+
+    private Direction NormalizeDirection(Direction requestedDirection)
+    {
+        if (IsOpposite(Direction, requestedDirection))
+            return Direction;
+
+        return requestedDirection;
+    }
+
+    private static bool IsOpposite(Direction currentDirection, Direction requestedDirection) =>
+        currentDirection switch
+        {
+            Direction.Left => requestedDirection == Direction.Right,
+            Direction.Right => requestedDirection == Direction.Left,
+            Direction.Up => requestedDirection == Direction.Down,
+            Direction.Down => requestedDirection == Direction.Up,
+            _ => false
+        };
 }

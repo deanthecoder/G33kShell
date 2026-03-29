@@ -8,6 +8,7 @@
 // about your modifications. Your contributions are valued!
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+using System;
 using DTC.Core;
 using DTC.Core.Extensions;
 using G33kShell.Desktop.Console.Screensavers.AI;
@@ -15,14 +16,25 @@ using G33kShell.Desktop.Console.Screensavers.AI;
 namespace G33kShell.Desktop.Console.Screensavers.Snake;
 
 /// <summary>
-/// Captures the state of the game into a 'double' array that can be fed into the neural network.
+/// Encodes a compact Snake-centric view for the neural network.
 /// </summary>
+/// <remarks>
+/// The state stays allocation-free during play and training. Inputs include current heading,
+/// food offset, starvation pressure, and a small cross-shaped local collision/food view around
+/// the head.
+/// </remarks>
 public class GameState : IAiGameState
 {
-    private readonly Snake m_snake;
-    private readonly IntPoint m_foodPosition;
+    private Snake m_snake;
+    private IntPoint m_foodPosition;
 
     public GameState(Snake snake, IntPoint foodPosition)
+    {
+        m_snake = snake;
+        m_foodPosition = foodPosition;
+    }
+
+    public void Reset(Snake snake, IntPoint foodPosition)
     {
         m_snake = snake;
         m_foodPosition = foodPosition;
@@ -46,28 +58,23 @@ public class GameState : IAiGameState
         // Encode time since food was eaten.
         inputVector[currentIndex++] = (m_snake.StepsSinceFood / (double)m_snake.TotalStepsToStarvation).Clamp(0.0, 1.0);
 
-        // Encode local view.
-        var localViewGrid = GetLocalViewGrid();
-        for (var i = 0; i < localViewGrid.Length; i++)
-            inputVector[currentIndex++] = localViewGrid[i];
+        Array.Clear(inputVector, currentIndex, 9);
+        FillLocalViewGrid(inputVector, currentIndex);
     }
 
-    private double[] GetLocalViewGrid()
+    private void FillLocalViewGrid(double[] inputVector, int startIndex)
     {
         const int radius = 2;
-        var grid = new double[9];
 
-        // Local coordinates: (0,0) is top-left of local grid
         var i = 0;
         for (var dx = -radius; dx <= radius; dx++)
         {
             var world = m_snake.HeadPosition.WithDelta(dx, 0);
-            
-            // Get content at this world cell
+
             if (m_snake.IsCollision(world))
-                grid[i] = -1.0;
+                inputVector[startIndex + i] = -1.0;
             if (world == m_foodPosition)
-                grid[i] = 0.5;
+                inputVector[startIndex + i] = 0.5;
 
             i++;
         }
@@ -76,18 +83,15 @@ public class GameState : IAiGameState
         {
             if (dy == 0)
                 continue;
-            
+
             var world = m_snake.HeadPosition.WithDelta(0, dy);
-            
-            // Get content at this world cell
+
             if (m_snake.IsCollision(world))
-                grid[i] = -1.0;
+                inputVector[startIndex + i] = -1.0;
             if (world == m_foodPosition)
-                grid[i] = 0.5;
+                inputVector[startIndex + i] = 0.5;
 
             i++;
         }
-
-        return grid;
     }
 }
