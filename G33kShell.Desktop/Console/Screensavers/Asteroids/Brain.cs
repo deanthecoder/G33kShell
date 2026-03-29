@@ -13,9 +13,21 @@
 
  namespace G33kShell.Desktop.Console.Screensavers.Asteroids;
 
+/// <summary>
+/// Neural controller for the Asteroids screensaver.
+/// </summary>
+/// <remarks>
+/// The network consumes an egocentric state vector built by <see cref="GameState"/>:
+/// radial asteroid danger sensors, nearest-target direction, ship motion, shield, bullet load,
+/// and whether the weapon cooldown is ready. The four outputs are interpreted as left turn,
+/// right turn, shoot, and thrust intents. During training the weights evolve through the
+/// shared neuroevolution loop in <see cref="AI.AiGameCanvasBase"/>.
+/// </remarks>
 public class Brain : AiBrainBase
 {
-    public Brain() : base(6, [16, 8], 4)
+    protected override int BrainVersion => 8;
+
+    public Brain() : base(17, [32, 16], 4)
     {
     }
 
@@ -28,13 +40,14 @@ public class Brain : AiBrainBase
         var outputs = GetOutputs(state);
 
         var turn = Ship.Turn.None;
-        if (outputs[0] > outputs[1] && outputs[0] > 0.9)
+        var turnBias = outputs[0] - outputs[1];
+        if (turnBias > 0.15)
             turn = Ship.Turn.Left;
-        else if (outputs[1] > outputs[0] && outputs[1] > 0.9)
+        else if (turnBias < -0.15)
             turn = Ship.Turn.Right;
 
-        var shoot = outputs[2] > 0.9;
-        var thrust = outputs[3] > 0.9;
+        var shoot = outputs[2] > 0.15;
+        var thrust = outputs[3] > 0.05;
         
         return (turn, shoot, thrust);
     }

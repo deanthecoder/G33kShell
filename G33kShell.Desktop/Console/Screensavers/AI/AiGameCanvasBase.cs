@@ -20,12 +20,20 @@ using JetBrains.Annotations;
 namespace G33kShell.Desktop.Console.Screensavers.AI;
 
 /// <summary>
-/// Base class for AI-powered games.
+/// Base class for AI-powered games that train via simple neuroevolution.
 /// </summary>
+/// <remarks>
+/// Training does not use gradient descent against a replay buffer. Instead, each generation
+/// evaluates a population of brains by letting them play several seeded games, ranking them
+/// by the game's <see cref="AiGameBase.Rating"/>, then building the next generation from:
+/// cloned elite "GOAT" brains, a small slice of fresh random brains, and crossover/mutation
+/// children sampled from the best performers. The best serialized brain is persisted so a
+/// screensaver can resume from the strongest known policy on the next run.
+/// </remarks>
 public abstract class AiGameCanvasBase : ScreensaverBase
 {
-    private const int InitialPopSize = 300;
-    private const int MinPopSize = 150;
+    private const int InitialPopSize = 160;
+    private const int MinPopSize = 80;
     private const int MaxGoatBrains = 5;
     
     private readonly List<(double Rating, AiBrainBase Brain)> m_goatBrains = new List<(double Rating, AiBrainBase Brain)>(MaxGoatBrains);
@@ -46,6 +54,14 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         ArenaHeight = height;
     }
 
+    /// <summary>
+    /// Starts the background evolutionary training loop for the current screensaver.
+    /// </summary>
+    /// <remarks>
+    /// The on-screen output only shows a spinner; all useful progress data is written to the
+    /// console log as generation summaries. Improvements are saved through <paramref name="saveBrainBytes"/>
+    /// whenever a generation beats the best persisted rating.
+    /// </remarks>
     [UsedImplicitly]
     protected void TrainAi(ScreenData screen, Action<byte[]> saveBrainBytes)
     {

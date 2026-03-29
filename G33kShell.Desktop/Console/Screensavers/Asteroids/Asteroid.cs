@@ -42,7 +42,7 @@ public class Asteroid
 
     public double Shade { get; }
 
-    public Asteroid(Vector2 position, float speed, Random rand, int arenaWidth, int arenaHeight, float direction = float.MaxValue)
+    public Asteroid(Vector2 position, float speed, Random rand, int arenaWidth, int arenaHeight, float direction = float.NaN)
     {
         m_speed = speed;
         m_rand = rand;
