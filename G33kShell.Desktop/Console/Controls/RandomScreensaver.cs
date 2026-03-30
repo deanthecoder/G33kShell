@@ -23,6 +23,7 @@ public class RandomScreensaver : ScreensaverBase
 {
     private readonly Type[] m_screenSaverTypes ;
     private ScreensaverBase m_active;
+    private ScreenData m_shellScreen;
     private int m_frameNumber;
     private int m_activeIndex;
 
@@ -46,6 +47,7 @@ public class RandomScreensaver : ScreensaverBase
         instance.Background = Background;
         m_frameNumber = 0;
         TargetFps = instance.TargetFps;
+        ActivationName = instance.ActivationName;
         return instance;
     }
 
@@ -53,10 +55,23 @@ public class RandomScreensaver : ScreensaverBase
     {
         base.BuildScreen(screen);
 
+        m_active?.StopScreensaver();
         m_active?.Stop();
         m_activeIndex = 0;
         m_active = CreateInstance(screen.Width, screen.Height, m_screenSaverTypes[m_activeIndex]);
         m_active.BuildScreen(screen);
+        StartActiveScreensaver();
+    }
+
+    public override void StartScreensaver(ScreenData shellScreen)
+    {
+        m_shellScreen = shellScreen?.Clone();
+        StartActiveScreensaver();
+    }
+
+    public override void StopScreensaver()
+    {
+        m_active?.StopScreensaver();
     }
 
     public override void UpdateFrame(ScreenData screen)
@@ -69,6 +84,7 @@ public class RandomScreensaver : ScreensaverBase
             return; // Not ready to switch screensavers.
         
         // Cycle through the screensavers.
+        m_active.StopScreensaver();
         m_active.Stop();
         m_activeIndex++;
         if (m_activeIndex >= m_screenSaverTypes.Length)
@@ -81,5 +97,14 @@ public class RandomScreensaver : ScreensaverBase
         m_active = CreateInstance(screen.Width, screen.Height, m_screenSaverTypes[m_activeIndex]);
         base.BuildScreen(screen);
         m_active.BuildScreen(screen);
+        StartActiveScreensaver();
+    }
+
+    private void StartActiveScreensaver()
+    {
+        if (m_active == null || m_shellScreen == null)
+            return;
+
+        m_active.StartScreensaver(m_shellScreen.Clone());
     }
 }

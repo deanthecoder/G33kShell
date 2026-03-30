@@ -30,6 +30,8 @@ public class ScreensaverControl : Visual
     private Task m_periodicTask;
     private bool m_taskCancellationRequested;
 
+    public event EventHandler<string> ScreensaverStarted;
+
     public ScreensaverControl(int width, int height, int timeToSleepSecs) : base(width, height)
     {
         m_timeToSleepSecs = timeToSleepSecs;
@@ -94,7 +96,9 @@ public class ScreensaverControl : Visual
                 Y = 0;
                 IsVisible = true;
                 m_windowManager.Cursor.IsVisible = false;
-                ((IScreensaver)Children.Single()).StartScreensaver(shellScreen);
+                var screensaver = (IScreensaver)Children.Single();
+                ScreensaverStarted?.Invoke(this, screensaver.ActivationName);
+                screensaver.StartScreensaver(shellScreen);
             }
         });
 

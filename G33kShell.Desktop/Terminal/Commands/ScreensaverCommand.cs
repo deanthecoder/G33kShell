@@ -56,7 +56,6 @@ public class ScreensaverCommand : CommandBase
             }
             
             state.LoadScreensaver(selectedScreensaver, Name);
-            state.LastRunScreensaverName = Name;
             return Task.FromResult(true);
         }
 

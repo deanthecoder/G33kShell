@@ -116,6 +116,7 @@ public class ShellViewModel : ViewModelBase, IDisposable
         RevealCwdRequested += (_, _) => m_terminalState.RevealCwd();
 
         m_screensaverControl = new ScreensaverControl(WindowManager.Root.Width, WindowManager.Root.Height, 180);
+        m_screensaverControl.ScreensaverStarted += (_, activationName) => m_terminalState.LastRunScreensaverName = activationName;
         m_screensaverControl.SetScreensaver(Settings.Instance.ScreensaverName);
         WindowManager.Root.AddChild(m_screensaverControl);
     }
