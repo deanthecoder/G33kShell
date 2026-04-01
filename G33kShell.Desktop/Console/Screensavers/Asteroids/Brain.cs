@@ -25,9 +25,11 @@
 /// </remarks>
 public class Brain : AiBrainBase
 {
-    protected override int BrainVersion => 8;
+    private const int FrameHistory = 4;
 
-    public Brain() : base(17, [32, 16], 4)
+    protected override int BrainVersion => 10;
+
+    public Brain() : base(17, [40, 20], 4, FrameHistory)
     {
     }
 
@@ -41,9 +43,9 @@ public class Brain : AiBrainBase
 
         var turn = Ship.Turn.None;
         var turnBias = outputs[0] - outputs[1];
-        if (turnBias > 0.15)
+        if (turnBias > 0.24)
             turn = Ship.Turn.Left;
-        else if (turnBias < -0.15)
+        else if (turnBias < -0.24)
             turn = Ship.Turn.Right;
 
         var shoot = outputs[2] > 0.15;

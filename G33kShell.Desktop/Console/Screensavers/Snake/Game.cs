@@ -73,6 +73,7 @@ public class Game : AiGameBase
     /// </summary>
     public override AiGameBase ResetGame()
     {
+        Brain.ResetTemporalState();
         Snake ??= new Snake(ArenaWidth, ArenaHeight);
         Snake.Reset();
         m_gameState ??= new GameState(Snake, FoodPosition);

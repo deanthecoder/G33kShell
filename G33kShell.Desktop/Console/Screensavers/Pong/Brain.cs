@@ -18,8 +18,10 @@ namespace G33kShell.Desktop.Console.Screensavers.Pong;
 public class Brain : AiBrainBase
 {
     public const int BrainInputCount = 8;
+    private const int FrameHistory = 4;
+    protected override int BrainVersion => 2;
 
-    public Brain() : base(BrainInputCount, [16], 4)
+    public Brain() : base(BrainInputCount, [20, 12], 4, FrameHistory)
     {
     }
 

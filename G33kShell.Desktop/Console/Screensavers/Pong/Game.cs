@@ -64,6 +64,7 @@ public class Game : AiGameBase
 
     public override AiGameBase ResetGame()
     {
+        Brain.ResetTemporalState();
         BatPositions[0] = new Vector2(2, ArenaHeight / 2.0f);
         BatPositions[1] = new Vector2(ArenaWidth - 3, ArenaHeight / 2.0f);
         ResetBall();

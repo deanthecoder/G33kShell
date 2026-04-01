@@ -27,24 +27,31 @@ public abstract class AiBrainBase
     }
 
     [JsonProperty] private NeuralNetwork m_qNet;
+    private double[] m_currentFrameVector;
+    private int m_frameStackCount;
     private double[] m_inputVector;
 
+    public int BaseInputSize { get; }
+    public int FrameStackCount => m_frameStackCount;
     public int InputSize { get; }
     public int[] HiddenLayers { get; }
     public int OutputSize { get; }
     protected virtual int BrainVersion => 1;
 
-    protected AiBrainBase(int inputSize, int[] hiddenLayers, int outputSize, NeuralNetwork qNet = null)
+    protected AiBrainBase(int inputSize, int[] hiddenLayers, int outputSize, int frameStackCount = 1, NeuralNetwork qNet = null)
     {
-        InputSize = inputSize;
+        BaseInputSize = inputSize;
+        m_frameStackCount = Math.Max(1, frameStackCount);
+        InputSize = BaseInputSize * m_frameStackCount;
         HiddenLayers = (int[])hiddenLayers.Clone();
         OutputSize = outputSize;
-        m_qNet = qNet?.Clone() ?? new NeuralNetwork(inputSize, hiddenLayers, outputSize, learningRate: 0.05);
-        m_inputVector = new double[inputSize];
+        m_qNet = qNet?.Clone() ?? new NeuralNetwork(InputSize, hiddenLayers, outputSize, learningRate: 0.05);
+        m_currentFrameVector = new double[BaseInputSize];
+        m_inputVector = new double[InputSize];
     }
 
     protected AiBrainBase(AiBrainBase toCopy)
-        : this(toCopy.InputSize, toCopy.HiddenLayers, toCopy.OutputSize, toCopy.m_qNet)
+        : this(toCopy.BaseInputSize, toCopy.HiddenLayers, toCopy.OutputSize, toCopy.FrameStackCount, toCopy.m_qNet)
     {
     }
 
@@ -53,13 +60,18 @@ public abstract class AiBrainBase
     protected double[] GetOutputs(IAiGameState state)
     {
 #if DEBUG
-        Array.Fill(m_inputVector, 0xDE);
+        Array.Fill(m_currentFrameVector, 0xDE);
 #endif
-        state.FillInputVector(m_inputVector);
+        state.FillInputVector(m_currentFrameVector);
 #if DEBUG
-        if (m_inputVector.Contains(0xDE))
+        if (m_currentFrameVector.Contains(0xDE))
             throw new Exception("Input vector contains uninitialized data.");
 #endif
+
+        if (FrameStackCount > 1)
+            Array.Copy(m_inputVector, 0, m_inputVector, BaseInputSize, InputSize - BaseInputSize);
+        Array.Copy(m_currentFrameVector, 0, m_inputVector, 0, BaseInputSize);
+
         return m_qNet.Predict(m_inputVector);
     }
 
@@ -111,6 +123,7 @@ public abstract class AiBrainBase
             }
 
             JsonConvert.PopulateObject(envelope.Payload, this);
+            m_currentFrameVector = new double[BaseInputSize];
             m_inputVector = new double[InputSize];
             return this;
         }
@@ -122,6 +135,7 @@ public abstract class AiBrainBase
         }
 
         JsonConvert.PopulateObject(json, this);
+        m_currentFrameVector = new double[BaseInputSize];
         m_inputVector = new double[InputSize];
         return this;
     }
@@ -137,6 +151,8 @@ public abstract class AiBrainBase
         m_qNet.Mutate(mutationRate, random);
         return this;
     }
+
+    public void ResetTemporalState() => Array.Clear(m_inputVector, 0, m_inputVector.Length);
 
     public abstract AiBrainBase Clone();
 }

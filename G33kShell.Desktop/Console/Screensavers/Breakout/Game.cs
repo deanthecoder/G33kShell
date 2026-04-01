@@ -119,6 +119,7 @@ public class Game : AiGameBase
 
     public override Game ResetGame()
     {
+        Brain.ResetTemporalState();
         Score = 0;
         Lives = MaxLives;
         Level = 1;

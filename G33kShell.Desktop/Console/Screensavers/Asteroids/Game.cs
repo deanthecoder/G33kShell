@@ -40,6 +40,8 @@ public class Game : AiGameBase
     private bool m_previousShootIntent;
     private int m_rightTurns;
     private GameState m_gameState;
+    private int m_sameTurnStreak;
+    private int m_sameTurnStreakPeak;
     private int m_stationaryStreak;
     private int m_stationaryStreakPeak;
     private int m_stationaryTicks;
@@ -73,11 +75,12 @@ public class Game : AiGameBase
             var shotWastePenalty = Math.Max(0, m_bulletsFired - Score * 3) * 1.0;
             var campingPenalty = stationaryRatio * 200.0;
             var sustainedCampingPenalty = Math.Max(0.0, m_stationaryStreakPeak - 90) * 0.35;
-            var excessiveTurningPenalty = Math.Max(0.0, turnRatio - 0.55) * 500.0;
-            var imbalancePenalty = totalTurns < 100 ? 0.0 : (1.0 - TurnEquality) * 180.0;
+            var excessiveTurningPenalty = Math.Max(0.0, turnRatio - 0.50) * 950.0;
+            var imbalancePenalty = totalTurns < 60 ? 0.0 : (1.0 - TurnEquality) * 900.0;
+            var spinLockPenalty = Math.Max(0.0, m_sameTurnStreakPeak - 80) * 1.8;
             var earlyDeathPenalty = Ship.Shield <= 0.02 ? 80.0 : 0.0;
 
-            return Math.Max(0.0, survivalScore + combatScore + shieldScore + hitRatioScore + mobilityScore - shotWastePenalty - campingPenalty - sustainedCampingPenalty - excessiveTurningPenalty - imbalancePenalty - earlyDeathPenalty);
+            return Math.Max(0.0, survivalScore + combatScore + shieldScore + hitRatioScore + mobilityScore - shotWastePenalty - campingPenalty - sustainedCampingPenalty - excessiveTurningPenalty - imbalancePenalty - spinLockPenalty - earlyDeathPenalty);
         }
     }
     
@@ -92,6 +95,7 @@ public class Game : AiGameBase
         yield return ("AvgSpeed", (m_gameTicks == 0 ? 0.0 : m_cumulativeSpeed / m_gameTicks).ToString("F3"));
         yield return ("Stationary", (m_gameTicks == 0 ? 0.0 : (double)m_stationaryTicks / m_gameTicks).ToString("P1"));
         yield return ("CampPeak", m_stationaryStreakPeak.ToString());
+        yield return ("SpinPeak", m_sameTurnStreakPeak.ToString());
         yield return ("Aim", m_cumulativeAimQuality.ToString("F1"));
     }
 
@@ -113,6 +117,7 @@ public class Game : AiGameBase
 
     public override Game ResetGame()
     {
+        Brain.ResetTemporalState();
         Ship = new Ship(ArenaWidth, ArenaHeight);
         Score = 0;
 
@@ -126,6 +131,8 @@ public class Game : AiGameBase
         m_leftTurns = 0;
         m_previousShootIntent = false;
         m_rightTurns = 0;
+        m_sameTurnStreak = 0;
+        m_sameTurnStreakPeak = 0;
         m_stationaryStreak = 0;
         m_stationaryStreakPeak = 0;
         m_stationaryTicks = 0;
@@ -196,9 +203,23 @@ public class Game : AiGameBase
             m_thrustTicks++;
 
         if (Ship.Turning == Ship.Turn.Left)
+        {
             m_leftTurns++;
+            m_sameTurnStreak = m_sameTurnStreak >= 0 ? m_sameTurnStreak + 1 : 1;
+        }
         else if (Ship.Turning == Ship.Turn.Right)
+        {
             m_rightTurns++;
+            m_sameTurnStreak = m_sameTurnStreak <= 0 ? m_sameTurnStreak - 1 : -1;
+        }
+        else
+        {
+            m_sameTurnStreak = 0;
+        }
+
+        var absTurnStreak = Math.Abs(m_sameTurnStreak);
+        if (absTurnStreak > m_sameTurnStreakPeak)
+            m_sameTurnStreakPeak = absTurnStreak;
 
         // Spawn new bullets.
         if (Ship.IsShooting && Bullets.Count < Ship.MaxBullets)

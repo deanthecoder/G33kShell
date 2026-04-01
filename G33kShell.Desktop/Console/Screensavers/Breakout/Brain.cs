@@ -18,9 +18,11 @@ namespace G33kShell.Desktop.Console.Screensavers.Breakout;
 /// </summary>
 public class Brain : AiBrainBase
 {
-    protected override int BrainVersion => 5;
+    private const int FrameHistory = 4;
 
-    public Brain() : base(17, [24, 16], 3)
+    protected override int BrainVersion => 6;
+
+    public Brain() : base(17, [28, 18], 3, FrameHistory)
     {
     }
 

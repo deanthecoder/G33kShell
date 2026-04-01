@@ -16,9 +16,11 @@ namespace G33kShell.Desktop.Console.Screensavers.Snake;
 
 public class Brain : AiBrainBase
 {
-    protected override int BrainVersion => 2;
+    private const int FrameHistory = 4;
 
-    public Brain() : base(15, [24, 16], 4)
+    protected override int BrainVersion => 3;
+
+    public Brain() : base(15, [28, 18], 4, FrameHistory)
     {
     }
 
