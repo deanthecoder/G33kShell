@@ -80,7 +80,9 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             return;
         }
         
-        System.Console.WriteLine("Starting training...");
+        System.Console.WriteLine(IsFreshTraining()
+            ? "Starting training from a fresh brain..."
+            : "Starting training...");
         var brain = CreateBrain();
         System.Console.WriteLine($"Brain layers: {brain.InputSize} : {brain.HiddenLayers.ToCsv(' ')} : {brain.OutputSize}");
 
@@ -344,11 +346,14 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         }
     }
 
+    private bool IsFreshTraining() =>
+        ActivationName.Contains("_trainfresh", StringComparison.OrdinalIgnoreCase);
+
     protected virtual IEnumerable<AiBrainBase> CreateInitialPopulation()
     {
         var initialPopulationSize = GetInitialPopulationSize();
         var brains = new List<AiBrainBase>(initialPopulationSize);
-        var savedBrainBytes = GetSavedBrainBytes();
+        var savedBrainBytes = IsFreshTraining() ? null : GetSavedBrainBytes();
         if (savedBrainBytes != null && savedBrainBytes.Length > 0)
             brains.Add(CreateBrain().Load(savedBrainBytes));
 
