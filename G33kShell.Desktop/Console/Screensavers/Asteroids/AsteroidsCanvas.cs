@@ -8,6 +8,7 @@
 // about your modifications. Your contributions are valued!
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
@@ -68,6 +69,11 @@ public class AsteroidsCanvas : AiGameCanvasBase
         
         // Ship.
         var highResScreen = new HighResScreen(screen, HighResScreen.DrawMode.LightenOnly);
+
+        // Exhaust.
+        foreach (var particle in game.ExhaustParticles)
+            highResScreen.Plot((int)particle.Position.X, (int)particle.Position.Y, particle.Brightness.Lerp(Background, Foreground));
+
         byte[] ship =
         [
             0b11000000,
@@ -107,7 +113,14 @@ public class AsteroidsCanvas : AiGameCanvasBase
         screen.PrintAt(2, 0, $"Score: {game.Score.ToString().PadLeft(5, '0')}   Shield: {game.Ship.Shield.ToProgressBar(73)}");
     }
 
-    protected override AiGameBase CreateGame(AiBrainBase brain) => new Game(ArenaWidth, ArenaHeight * 2, (Brain)brain);
+    protected override AiGameBase CreateGame(AiBrainBase brain) => new Game(ArenaWidth, ArenaHeight * 2, (Brain)brain, enableVisualEffects: true);
+    protected override AiGameBase CreateTrainingGame(AiBrainBase brain, int generation, bool isValidation, int candidateIndex, int gameIndex) =>
+        new Game(
+            ArenaWidth,
+            ArenaHeight * 2,
+            (Brain)brain,
+            isValidation ? Game.TrainingProfile.Default : GetCurriculumProfile(generation),
+            enableVisualEffects: false);
     protected override int GetGamesPerBrain() => 6;
     protected override bool UseHarnessStyleEvolution() => true;
     protected override int? GetBreedingRandomSeed() => TrainingSeedBase;
@@ -117,4 +130,13 @@ public class AsteroidsCanvas : AiGameCanvasBase
     protected override int GetValidationSeed(int candidateIndex, int gameIndex) =>
         unchecked(TrainingSeedBase + 1_000_000 + candidateIndex * 1009 + gameIndex * 37);
     protected override AiBrainBase CreateBrain() => new Brain();
+
+    private static Game.TrainingProfile GetCurriculumProfile(int generation)
+    {
+        var ramp = Math.Clamp((generation - 1) / 240.0, 0.0, 1.0);
+        var asteroidMetric = (int)Math.Round(6 + ramp * 6);
+        var speed = (float)(0.07 + ramp * 0.03);
+        var aimedSpawnChance = Math.Clamp(ramp - 0.35, 0.0, 0.45);
+        return new Game.TrainingProfile(asteroidMetric, speed, aimedSpawnChance);
+    }
 }

@@ -137,7 +137,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
                 for (var gameIndex = 0; gameIndex < gamesPerBrain; gameIndex++)
                 {
                     var seed = GetTrainingSeed(m_generation, i, gameIndex);
-                    var game = CreateGameWithSeed(seed, brain);
+                    var game = CreateGameWithSeed(seed, brain, m_generation, false, i, gameIndex);
                     while (!game.IsGameOver && !m_stopTraining)
                         game.Tick();
 
@@ -188,7 +188,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             {
                 var brain = orderedGames[candidateIndex].Brain;
                 var seed = GetValidationSeed(candidateIndex, gameIndex);
-                var game = CreateGameWithSeed(seed, brain);
+                var game = CreateGameWithSeed(seed, brain, m_generation, true, candidateIndex, gameIndex);
                 while (!game.IsGameOver && !m_stopTraining)
                     game.Tick();
 
@@ -351,9 +351,9 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         return orderedGames[^1].Brain;
     }
 
-    private AiGameBase CreateGameWithSeed(int seed, AiBrainBase brain = null)
+    private AiGameBase CreateGameWithSeed(int seed, AiBrainBase brain, int generation, bool isValidation, int candidateIndex, int gameIndex)
     {
-        var game = CreateTrainingGame(brain ?? CreateBrain());
+        var game = CreateTrainingGame(brain ?? CreateBrain(), generation, isValidation, candidateIndex, gameIndex);
         game.GameRand = new Random(seed);
         game.ResetGame();
         return game;
@@ -453,6 +453,17 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     /// still uses the live terminal dimensions.
     /// </remarks>
     protected virtual AiGameBase CreateTrainingGame(AiBrainBase brain) => CreateGame(brain);
+
+    /// <summary>
+    /// Allows training runs to adjust the simulated environment based on generation or phase.
+    /// </summary>
+    /// <remarks>
+    /// Most games can ignore this and use the simpler overload above. Games with curriculum
+    /// training can override this to make early generations easier while keeping validation
+    /// on the real target difficulty.
+    /// </remarks>
+    protected virtual AiGameBase CreateTrainingGame(AiBrainBase brain, int generation, bool isValidation, int candidateIndex, int gameIndex) =>
+        CreateTrainingGame(brain);
 
     /// <summary>
     /// Returns the seed for one candidate game during training.

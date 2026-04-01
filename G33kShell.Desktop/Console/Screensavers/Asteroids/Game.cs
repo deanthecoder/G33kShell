@@ -30,12 +30,32 @@ namespace G33kShell.Desktop.Console.Screensavers.Asteroids;
 [DebuggerDisplay("Rating = {Rating}, Score = {Score}")]
 public class Game : AiGameBase
 {
+    public readonly struct TrainingProfile
+    {
+        public static TrainingProfile Default => new(12, 0.10f, 0.0);
+
+        public TrainingProfile(int desiredAsteroidMetric, float asteroidSpeedMultiplier, double aimedSpawnChance)
+        {
+            DesiredAsteroidMetric = desiredAsteroidMetric;
+            AsteroidSpeedMultiplier = asteroidSpeedMultiplier;
+            AimedSpawnChance = aimedSpawnChance;
+        }
+
+        public int DesiredAsteroidMetric { get; }
+        public float AsteroidSpeedMultiplier { get; }
+        public double AimedSpawnChance { get; }
+    }
+
     private const int FireCooldownTicks = 6;
+    private const int ShipCollisionCooldownTicks = 12;
+    private readonly bool m_enableVisualEffects;
+    private readonly TrainingProfile m_trainingProfile;
     private int m_bulletsFired;
     private double m_cumulativeSpeed;
     private double m_cumulativeAimQuality;
     private int m_gameTicks;
     private int m_lastFireTick = -FireCooldownTicks;
+    private int m_lastShipHitTick = -ShipCollisionCooldownTicks;
     private int m_leftTurns;
     private bool m_previousShootIntent;
     private int m_rightTurns;
@@ -66,13 +86,15 @@ public class Game : AiGameBase
                 return 0.0;
             if (m_gameTicks > 600 && (double)(m_leftTurns + m_rightTurns) / m_gameTicks > 0.92 && TurnEquality < 0.10)
                 return 0.0;
+            if (m_gameTicks > 900 && GetStationaryRatio() > 0.92 && GetAverageSpeed() < 0.012)
+                return 0.0;
 
             var survivalScore = Math.Min(m_gameTicks, 45 * 60) * 0.05;
             var combatScore = Score * 350.0;
             var shieldScore = Ship.Shield * 100.0;
             var hitRatioScore = HitRatio * 120.0;
-            var averageSpeed = m_gameTicks == 0 ? 0.0 : m_cumulativeSpeed / m_gameTicks;
-            var stationaryRatio = m_gameTicks == 0 ? 0.0 : (double)m_stationaryTicks / m_gameTicks;
+            var averageSpeed = GetAverageSpeed();
+            var stationaryRatio = GetStationaryRatio();
             var totalTurns = m_leftTurns + m_rightTurns;
             var turnRatio = m_gameTicks == 0 ? 0.0 : (double)totalTurns / m_gameTicks;
             var mobilityScore = Math.Min(averageSpeed / 0.04, 1.0) * 250.0;
@@ -96,13 +118,21 @@ public class Game : AiGameBase
             var equalityPenalty = m_leftTurns + m_rightTurns < 60 ? 0.0 : 1.0 - TurnEquality;
             var spinPenalty = Math.Min(1.0, Math.Max(0.0, m_sameTurnStreakPeak - 60) / 180.0);
             var turnPenalty = Math.Min(1.0, Math.Max(0.0, turnRatio - 0.55) / 0.35);
-            return Math.Max(spinPenalty, Math.Max(turnPenalty, equalityPenalty));
+            var stationaryRatio = GetStationaryRatio();
+            var stationaryPenalty = Math.Min(1.0, Math.Max(0.0, stationaryRatio - 0.55) / 0.25);
+            var campPenalty = Math.Min(1.0, Math.Max(0.0, m_stationaryStreakPeak - 240) / 720.0);
+            var lowSpeedPenalty = Math.Min(1.0, Math.Max(0.0, 0.02 - GetAverageSpeed()) / 0.02);
+            return Math.Max(
+                Math.Max(spinPenalty, Math.Max(turnPenalty, equalityPenalty)),
+                Math.Max(stationaryPenalty, Math.Max(campPenalty, lowSpeedPenalty)));
         }
     }
 
     public override string DegeneracyReason =>
         DegeneracyScore < 0.60
             ? string.Empty
+            : GetStationaryRatio() > 0.85 && GetAverageSpeed() < 0.012
+                ? "camping"
             : m_sameTurnStreakPeak >= 120
                 ? "spin-lock"
                 : TurnEquality < 0.2
@@ -133,11 +163,20 @@ public class Game : AiGameBase
     public Ship Ship { get; private set; }
     public List<Asteroid> Asteroids { get; } = [];
     public List<Bullet> Bullets { get; } = [];
+    public List<ExhaustParticle> ExhaustParticles { get; } = [];
 
     private double HitRatio => m_bulletsFired == 0 ? 0.0 : (double)Score / m_bulletsFired;
 
-    public Game(int arenaWidth, int arenaHeight, Brain brain) : base(arenaWidth, arenaHeight, brain)
+    private double GetAverageSpeed() =>
+        m_gameTicks == 0 ? 0.0 : m_cumulativeSpeed / m_gameTicks;
+
+    private double GetStationaryRatio() =>
+        m_gameTicks == 0 ? 0.0 : (double)m_stationaryTicks / m_gameTicks;
+
+    public Game(int arenaWidth, int arenaHeight, Brain brain, TrainingProfile? trainingProfile = null, bool enableVisualEffects = false) : base(arenaWidth, arenaHeight, brain)
     {
+        m_trainingProfile = trainingProfile ?? TrainingProfile.Default;
+        m_enableVisualEffects = enableVisualEffects;
     }
 
     public override Game ResetGame()
@@ -148,11 +187,13 @@ public class Game : AiGameBase
 
         Asteroids.Clear();
         Bullets.Clear();
+        ExhaustParticles.Clear();
         m_bulletsFired = 0;
         m_cumulativeSpeed = 0.0;
         m_cumulativeAimQuality = 0.0;
         m_gameTicks = 0;
         m_lastFireTick = -FireCooldownTicks;
+        m_lastShipHitTick = -ShipCollisionCooldownTicks;
         m_leftTurns = 0;
         m_previousShootIntent = false;
         m_rightTurns = 0;
@@ -172,14 +213,14 @@ public class Game : AiGameBase
 
     private void EnsureMinimumAsteroidCount(bool aimForShip)
     {
-        while (Asteroids.FastSum(o => o.SizeMetric) < 12)
+        while (Asteroids.FastSum(o => o.SizeMetric) < m_trainingProfile.DesiredAsteroidMetric)
         {
             var pos = new Vector2(GameRand.NextFloat() * ArenaWidth, GameRand.NextFloat() * ArenaHeight);
             if (Vector2.Distance(pos, Ship.Position) < 25)
                 continue; // Too close to the ship.
 
-            var asteroid = new Asteroid(pos, 0.1f, GameRand, ArenaWidth, ArenaHeight);
-            if (aimForShip)
+            var asteroid = new Asteroid(pos, m_trainingProfile.AsteroidSpeedMultiplier, GameRand, ArenaWidth, ArenaHeight);
+            if (aimForShip || GameRand.NextDouble() < m_trainingProfile.AimedSpawnChance)
                 asteroid.AimTowards(Ship.Position);
             Asteroids.Add(asteroid);
         }
@@ -225,7 +266,11 @@ public class Game : AiGameBase
             m_stationaryStreak = 0;
         }
         if (Ship.IsThrusting)
+        {
             m_thrustTicks++;
+            if (m_enableVisualEffects)
+                SpawnExhaustParticles();
+        }
 
         if (Ship.Turning == Ship.Turn.Left)
         {
@@ -264,6 +309,13 @@ public class Game : AiGameBase
 
         // Remove expired bullets.
         Bullets.RemoveAll(o => o.IsExpired);
+
+        if (m_enableVisualEffects && ExhaustParticles.Count > 0)
+        {
+            for (var i = 0; i < ExhaustParticles.Count; i++)
+                ExhaustParticles[i].Move();
+            ExhaustParticles.RemoveAll(o => o.IsExpired);
+        }
 
         // Check for bullet/asteroid collisions.
         if (Bullets.Count > 0)
@@ -308,7 +360,7 @@ public class Game : AiGameBase
             var distance = Asteroids[i].DistanceTo(Ship.Position);
             if (distance < Asteroids[i].Radius + shipRadius)
             {
-                Ship.Shield = Math.Max(0.0, Ship.Shield - 0.08);
+                HandleShipCollision(Asteroids[i], distance, shipRadius);
                 break;
             }
         }
@@ -357,5 +409,41 @@ public class Game : AiGameBase
             delta.Y += ArenaHeight;
 
         return delta;
+    }
+
+    private void HandleShipCollision(Asteroid asteroid, float distance, float shipRadius)
+    {
+        if (m_gameTicks - m_lastShipHitTick < ShipCollisionCooldownTicks)
+            return;
+
+        Ship.Shield = Math.Max(0.0, Ship.Shield - 0.08);
+        m_lastShipHitTick = m_gameTicks;
+
+        var pushDirection = WrapDelta(Ship.Position - asteroid.Position);
+        if (pushDirection.LengthSquared() <= 0.0001f)
+            pushDirection = Ship.Theta.ToDirection();
+        else
+            pushDirection = Vector2.Normalize(pushDirection);
+
+        var overlap = Math.Max(0.0f, asteroid.Radius + shipRadius - distance);
+        Ship.ApplyImpact(pushDirection, impulse: 0.12f, separationDistance: overlap + 3.5f);
+        asteroid.BounceAway(-pushDirection, separationDistance: overlap * 0.6f + 2.0f);
+    }
+
+    private void SpawnExhaustParticles()
+    {
+        var backward = -Ship.Theta.ToDirection();
+        var right = new Vector2(backward.Y, -backward.X);
+        var tailPosition = Ship.Position + backward * 4.5f;
+        var particleCount = GameRand.NextDouble() < 0.4 ? 2 : 1;
+        for (var i = 0; i < particleCount; i++)
+        {
+            var spread = (float)(GameRand.NextDouble() * 2.0 - 1.0);
+            var speed = 0.22f + (float)GameRand.NextDouble() * 0.18f;
+            var drift = ((float)GameRand.NextDouble() - 0.5f) * 0.05f;
+            var velocity = backward * speed + right * (spread * 0.08f) + Ship.Velocity * 0.15f;
+            var spawnPosition = tailPosition + right * drift + backward * ((float)GameRand.NextDouble() * 0.7f);
+            ExhaustParticles.Add(new ExhaustParticle(spawnPosition, velocity, ArenaWidth, ArenaHeight, lifetimeTicks: 14));
+        }
     }
 }

@@ -73,6 +73,21 @@ public class Ship
         Position = new Vector2(newX, newY);
     }
 
+    public void ApplyImpact(Vector2 direction, float impulse, float separationDistance)
+    {
+        if (direction.LengthSquared() <= 0.0001f)
+            direction = Theta.ToDirection();
+        else
+            direction = Vector2.Normalize(direction);
+
+        Velocity += direction * impulse;
+        if (Velocity.Length() > MaxSpeed)
+            Velocity = Vector2.Normalize(Velocity) * MaxSpeed;
+
+        Position += direction * separationDistance;
+        WrapPosition();
+    }
+
     /// <summary>
     /// Called when the ship is destroyed. Reset to the center of the arena.
     /// </summary>
@@ -84,5 +99,12 @@ public class Ship
         Turning = Turn.None;
         IsThrusting = false;
         Velocity = Vector2.Zero;
+    }
+
+    private void WrapPosition()
+    {
+        var newX = (Position.X + m_arenaWidth) % m_arenaWidth;
+        var newY = (Position.Y + m_arenaHeight) % m_arenaHeight;
+        Position = new Vector2(newX, newY);
     }
 }

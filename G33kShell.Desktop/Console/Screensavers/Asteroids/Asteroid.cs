@@ -88,6 +88,18 @@ public class Asteroid
         m_invulnerable = Math.Max(m_invulnerable - 1, 0);
     }
 
+    public void BounceAway(Vector2 direction, float separationDistance)
+    {
+        if (direction.LengthSquared() <= 0.0001f)
+            direction = Velocity.LengthSquared() > 0.0001f ? Vector2.Normalize(Velocity) : Vector2.UnitX;
+        else
+            direction = Vector2.Normalize(direction);
+
+        m_direction = MathF.Atan2(direction.Y, direction.X);
+        Position += direction * separationDistance;
+        WrapPosition();
+    }
+
     /// <summary>
     /// Used to detect if a bullet has collided with this asteroid.
     /// </summary>
@@ -136,5 +148,22 @@ public class Asteroid
     {
         var direction = target - Position;
         m_direction = MathF.Atan2(direction.Y, direction.X);
+    }
+
+    private void WrapPosition()
+    {
+        var maxX = m_arenaWidth + Radius;
+        var maxY = m_arenaHeight + Radius;
+        var minX = -Radius;
+        var minY = -Radius;
+        var nextX = Position.X;
+        var nextY = Position.Y;
+
+        if (nextX > maxX) nextX = minX;
+        if (nextX < minX) nextX = maxX;
+        if (nextY > maxY) nextY = minY;
+        if (nextY < minY) nextY = maxY;
+
+        Position = new Vector2(nextX, nextY);
     }
 }
