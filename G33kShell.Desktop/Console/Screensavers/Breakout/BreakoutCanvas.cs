@@ -13,7 +13,6 @@ using System.Diagnostics;
 using DTC.Core;
 using DTC.Core.Extensions;
 using G33kShell.Desktop.Console.Screensavers.AI;
-using G33kShell.Desktop.Console.Extensions;
 using G33kShell.Desktop.Terminal;
 using JetBrains.Annotations;
 

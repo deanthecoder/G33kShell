@@ -26,6 +26,21 @@ public abstract class AiGameBase
     /// </summary>
     public abstract double Rating { get; }
 
+    /// <summary>
+    /// Gets how strongly this run looks like a degenerate local optimum.
+    /// </summary>
+    /// <remarks>
+    /// A value of 0 means "looks healthy", while 1 means "very likely stuck in a bad policy".
+    /// Games can override this to help the shared trainer spot cases like spin-locks, no-op
+    /// strategies, or visually poor policies that still happen to score well.
+    /// </remarks>
+    public virtual double DegeneracyScore => 0.0;
+
+    /// <summary>
+    /// Optional short label describing the dominant degeneracy for this run.
+    /// </summary>
+    public virtual string DegeneracyReason => string.Empty;
+
     public abstract bool IsGameOver { get; }
     
     /// <summary>

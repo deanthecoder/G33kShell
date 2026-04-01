@@ -62,6 +62,10 @@ public class Game : AiGameBase
         {
             if (Score == 0 && m_gameTicks < 300)
                 return 0.0;
+            if (m_gameTicks > 600 && m_sameTurnStreakPeak > 240 && TurnEquality < 0.10)
+                return 0.0;
+            if (m_gameTicks > 600 && (double)(m_leftTurns + m_rightTurns) / m_gameTicks > 0.92 && TurnEquality < 0.10)
+                return 0.0;
 
             var survivalScore = Math.Min(m_gameTicks, 45 * 60) * 0.05;
             var combatScore = Score * 350.0;
@@ -83,6 +87,27 @@ public class Game : AiGameBase
             return Math.Max(0.0, survivalScore + combatScore + shieldScore + hitRatioScore + mobilityScore - shotWastePenalty - campingPenalty - sustainedCampingPenalty - excessiveTurningPenalty - imbalancePenalty - spinLockPenalty - earlyDeathPenalty);
         }
     }
+
+    public override double DegeneracyScore
+    {
+        get
+        {
+            var turnRatio = m_gameTicks == 0 ? 0.0 : (double)(m_leftTurns + m_rightTurns) / m_gameTicks;
+            var equalityPenalty = m_leftTurns + m_rightTurns < 60 ? 0.0 : 1.0 - TurnEquality;
+            var spinPenalty = Math.Min(1.0, Math.Max(0.0, m_sameTurnStreakPeak - 60) / 180.0);
+            var turnPenalty = Math.Min(1.0, Math.Max(0.0, turnRatio - 0.55) / 0.35);
+            return Math.Max(spinPenalty, Math.Max(turnPenalty, equalityPenalty));
+        }
+    }
+
+    public override string DegeneracyReason =>
+        DegeneracyScore < 0.60
+            ? string.Empty
+            : m_sameTurnStreakPeak >= 120
+                ? "spin-lock"
+                : TurnEquality < 0.2
+                    ? "one-sided turning"
+                    : "over-turning";
     
     public override IEnumerable<(string Name, string Value)> ExtraGameStats()
     {
