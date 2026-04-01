@@ -22,13 +22,15 @@ namespace G33kShell.Desktop.Console.Screensavers.Asteroids;
 /// <remarks>
 /// The first block of inputs forms eight radial sensors around the ship, where each sensor
 /// stores the strongest nearby asteroid presence in that direction. Extra inputs then describe
-/// the nearest asteroid in ship-relative coordinates, ship velocity, shield level, bullet load,
-/// and whether a shot can be fired immediately. This gives the policy a compact "what surrounds me"
-/// view instead of relying on a single target summary.
+/// the nearest asteroid, a threat-weighted priority asteroid, ship velocity, shield level, bullet
+/// load, weapon readiness, and a derived firing-lane cue. This gives the policy a compact
+/// "what surrounds me" view plus a hint about when the current tactical picture is favourable
+/// for taking the shot.
 /// </remarks>
 public class GameState : IAiGameState
 {
     private const int SensorCount = 8;
+    private const int PriorityTargetOffset = 12;
 
     private readonly Ship m_ship;
     private readonly List<Asteroid> m_asteroids;
@@ -61,7 +63,9 @@ public class GameState : IAiGameState
         var shipForward = m_ship.Theta.ToDirection();
         var shipRight = new Vector2(shipForward.Y, -shipForward.X);
         Asteroid nearestAsteroid = null;
+        Asteroid priorityAsteroid = null;
         var nearestDistance = float.MaxValue;
+        var bestThreatScore = float.MinValue;
         Array.Clear(inputVector, 1, SensorCount);
         for (var i = 0; i < m_asteroids.Count; i++)
         {
@@ -87,29 +91,75 @@ public class GameState : IAiGameState
             var proximity = (1.0f - distanceMagnitude / m_arenaDiagonal).Clamp(0.0f, 1.0f);
             var sizeWeight = asteroid.SizeMetric / 4.0f;
             inputVector[1 + sensorIndex] = Math.Max(inputVector[1 + sensorIndex], (proximity * sizeWeight).Clamp(0.0f, 1.0f));
+
+            var closingSpeed = GetClosingSpeed(relativePos, asteroid.MovementVelocity);
+            var threatScore = proximity * 1.5f + Math.Max(0.0f, closingSpeed) * 1.1f + sizeWeight * 0.35f;
+            if (threatScore > bestThreatScore)
+            {
+                bestThreatScore = threatScore;
+                priorityAsteroid = asteroid;
+            }
         }
 
-        if (nearestAsteroid != null)
+        FillTargetBlock(inputVector, 9, nearestAsteroid, shipForward, shipRight);
+        FillTargetBlock(inputVector, PriorityTargetOffset, priorityAsteroid, shipForward, shipRight);
+
+        inputVector[17] = Vector2.Dot(m_ship.Velocity * 5.0f, shipForward).Clamp(-1.0f, 1.0f);
+        inputVector[18] = Vector2.Dot(m_ship.Velocity * 5.0f, shipRight).Clamp(-1.0f, 1.0f);
+        inputVector[19] = (m_ship.Shield * 2.0 - 1.0).Clamp(-1.0, 1.0);
+        inputVector[20] = ((double)m_bullets.Count / Ship.MaxBullets * 2.0 - 1.0).Clamp(-1.0, 1.0);
+        inputVector[21] = m_isFireReady() ? 1.0 : -1.0;
+        inputVector[22] = GetFiringLaneScore(priorityAsteroid ?? nearestAsteroid, shipForward, shipRight);
+    }
+
+    private void FillTargetBlock(double[] inputVector, int offset, Asteroid asteroid, Vector2 shipForward, Vector2 shipRight)
+    {
+        if (asteroid == null)
         {
-            var nearestRelativePos = WrapDelta(nearestAsteroid.Position - m_ship.Position);
-            var nearestDistanceMagnitude = nearestRelativePos.Length();
-            var nearestDirection = nearestDistanceMagnitude > 0.0f ? nearestRelativePos / nearestDistanceMagnitude : Vector2.Zero;
-            inputVector[9] = Vector2.Dot(nearestDirection, shipForward).Clamp(-1.0f, 1.0f);
-            inputVector[10] = Vector2.Dot(nearestDirection, shipRight).Clamp(-1.0f, 1.0f);
-            inputVector[11] = (1.0f - nearestDistanceMagnitude / m_arenaDiagonal).Clamp(0.0f, 1.0f);
-        }
-        else
-        {
-            inputVector[9] = 0.0;
-            inputVector[10] = 0.0;
-            inputVector[11] = 0.0;
+            for (var i = 0; i < 5; i++)
+                inputVector[offset + i] = 0.0;
+            return;
         }
 
-        inputVector[12] = Vector2.Dot(m_ship.Velocity * 5.0f, shipForward).Clamp(-1.0f, 1.0f);
-        inputVector[13] = Vector2.Dot(m_ship.Velocity * 5.0f, shipRight).Clamp(-1.0f, 1.0f);
-        inputVector[14] = (m_ship.Shield * 2.0 - 1.0).Clamp(-1.0, 1.0);
-        inputVector[15] = ((double)m_bullets.Count / Ship.MaxBullets * 2.0 - 1.0).Clamp(-1.0, 1.0);
-        inputVector[16] = m_isFireReady() ? 1.0 : -1.0;
+        var relativePos = WrapDelta(asteroid.Position - m_ship.Position);
+        var distanceMagnitude = relativePos.Length();
+        var direction = distanceMagnitude > 0.0f ? relativePos / distanceMagnitude : Vector2.Zero;
+        inputVector[offset] = Vector2.Dot(direction, shipForward).Clamp(-1.0f, 1.0f);
+        inputVector[offset + 1] = Vector2.Dot(direction, shipRight).Clamp(-1.0f, 1.0f);
+        inputVector[offset + 2] = (1.0f - distanceMagnitude / m_arenaDiagonal).Clamp(0.0f, 1.0f);
+        inputVector[offset + 3] = GetClosingSpeed(relativePos, asteroid.MovementVelocity);
+        inputVector[offset + 4] = (asteroid.SizeMetric / 4.0f * 2.0f - 1.0f).Clamp(-1.0f, 1.0f);
+    }
+
+    private float GetClosingSpeed(Vector2 relativePos, Vector2 asteroidVelocity)
+    {
+        var distanceMagnitude = relativePos.Length();
+        if (distanceMagnitude <= 0.0001f)
+            return 0.0f;
+
+        var toShip = -relativePos / distanceMagnitude;
+        var relativeVelocity = asteroidVelocity - m_ship.Velocity;
+        return (Vector2.Dot(relativeVelocity, toShip) / 0.35f).Clamp(-1.0f, 1.0f);
+    }
+
+    private double GetFiringLaneScore(Asteroid asteroid, Vector2 shipForward, Vector2 shipRight)
+    {
+        if (asteroid == null)
+            return -1.0;
+
+        var relativePos = WrapDelta(asteroid.Position - m_ship.Position);
+        var distanceMagnitude = relativePos.Length();
+        if (distanceMagnitude <= 0.0001f)
+            return 1.0;
+
+        var direction = relativePos / distanceMagnitude;
+        var forward = Vector2.Dot(direction, shipForward).Clamp(-1.0f, 1.0f);
+        var lateral = Math.Abs(Vector2.Dot(direction, shipRight).Clamp(-1.0f, 1.0f));
+        var proximity = (1.0f - distanceMagnitude / m_arenaDiagonal).Clamp(0.0f, 1.0f);
+        var closing = Math.Max(0.0f, GetClosingSpeed(relativePos, asteroid.MovementVelocity));
+        var aimWindow = Math.Max(0.0f, forward) * Math.Max(0.0f, 1.0f - lateral * 2.5f);
+        var firingLane = aimWindow * (0.65f + proximity * 0.35f) * (0.7f + closing * 0.3f);
+        return (firingLane * 2.0f - 1.0f).Clamp(-1.0f, 1.0f);
     }
 
     private Vector2 WrapDelta(Vector2 delta)

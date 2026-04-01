@@ -18,6 +18,7 @@ public abstract class AiGameBase
 {
     protected int ArenaWidth { get; }
     protected int ArenaHeight { get; }
+    private Random m_gameRand;
     
     public AiBrainBase Brain { get; set; }
 
@@ -50,7 +51,11 @@ public abstract class AiGameBase
     /// Multiple game instances might share the same seed (and hence have the same gameplay)
     /// when part of the same training 'generation'.
     /// </remarks>
-    public Random GameRand { get; set; } = new Random();
+    public Random GameRand
+    {
+        get => m_gameRand ??= new Random();
+        set => m_gameRand = value;
+    }
 
     public abstract IEnumerable<(string Name, string Value)> ExtraGameStats();
 

@@ -40,6 +40,8 @@ public class Asteroid
         }
     }
 
+    public Vector2 MovementVelocity => Velocity * Speeds[m_size] * m_speed;
+
     public double Shade { get; }
 
     public Asteroid(Vector2 position, float speed, Random rand, int arenaWidth, int arenaHeight, float direction = float.NaN)
@@ -138,8 +140,8 @@ public class Asteroid
     public float DistanceTo(Vector2 shipPosition)
     {
         var minDist = Vector2.DistanceSquared(shipPosition, Position);
-        foreach (var offset in m_offsets)
-            minDist = MathF.Min(minDist, Vector2.DistanceSquared(shipPosition, Position + offset));
+        for (var i = 0; i < m_offsets.Length; i++)
+            minDist = MathF.Min(minDist, Vector2.DistanceSquared(shipPosition, Position + m_offsets[i]));
 
         return MathF.Sqrt(minDist);
     }

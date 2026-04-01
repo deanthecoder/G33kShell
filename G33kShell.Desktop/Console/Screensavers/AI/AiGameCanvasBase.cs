@@ -11,6 +11,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using DTC.Core;
 using DTC.Core.Extensions;
@@ -51,6 +52,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     private bool m_stopTraining;
     private List<AiBrainBase> m_nextGenBrains;
     private Random m_breedingRandom;
+    private readonly ParallelOptions m_parallelOptions = new ParallelOptions();
 
     protected int ArenaWidth { get; }
     protected int ArenaHeight { get; }
@@ -59,6 +61,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     {
         ArenaWidth = width;
         ArenaHeight = height;
+        m_parallelOptions.MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1);
     }
 
     /// <summary>
@@ -75,6 +78,10 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         const string animChars = "/-\\|";
         var animFrame = Environment.TickCount64 / 100 % animChars.Length;
         screen.PrintAt(0, 0, $"Training... {animChars[(int)animFrame]}");
+        screen.PrintAt(0, 1, $"Generation: {m_generation}");
+        var trainingStatus = GetTrainingStatusText(m_generation);
+        if (!string.IsNullOrWhiteSpace(trainingStatus))
+            screen.PrintAt(0, 2, trainingStatus);
         
         if (m_trainingTask != null)
         {
@@ -87,6 +94,10 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             : "Starting training...");
         var brain = CreateBrain();
         System.Console.WriteLine($"Brain layers: {brain.InputSize} : {brain.HiddenLayers.ToCsv(' ')} : {brain.OutputSize}");
+        ThreadPool.GetMinThreads(out var currentMinWorkers, out var currentMinIo);
+        var desiredMinWorkers = Math.Max(currentMinWorkers, m_parallelOptions.MaxDegreeOfParallelism);
+        if (desiredMinWorkers != currentMinWorkers)
+            ThreadPool.SetMinThreads(desiredMinWorkers, currentMinIo);
 
         m_currentPopSize = GetInitialPopulationSize();
         var breedingSeed = GetBreedingRandomSeed();
@@ -121,46 +132,63 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         var validationGamesPerBrain = GetValidationGamesPerBrain();
         
         var gameResults = new (double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats)[m_nextGenBrains.Count];
-        Parallel.For(0, gameResults.Length, i =>
+        var trainingTotals = new double[m_nextGenBrains.Count];
+        var trainingDegeneracyTotals = new double[m_nextGenBrains.Count];
+        var trainingBestRatings = new double[m_nextGenBrains.Count];
+        var trainingBestSeeds = new int[m_nextGenBrains.Count];
+        var trainingBestStats = new string[m_nextGenBrains.Count];
+        var trainingReasons = new string[m_nextGenBrains.Count];
+        var trainingLocks = new object[m_nextGenBrains.Count];
+        for (var i = 0; i < m_nextGenBrains.Count; i++)
         {
+            trainingBestRatings[i] = double.MinValue;
+            trainingLocks[i] = new object();
+        }
+
+        Parallel.For(0, m_nextGenBrains.Count * gamesPerBrain, m_parallelOptions, trainingJobIndex =>
+        {
+            var brainIndex = trainingJobIndex / gamesPerBrain;
+            var gameIndex = trainingJobIndex % gamesPerBrain;
             try
             {
-                // Play a few games.
-                var brain = m_nextGenBrains[i];
-                var totalRating = 0.0;
-                var totalDegeneracy = 0.0;
-                var bestRating = double.MinValue;
-                var bestGameSeed = 0;
-                var degeneracyReason = string.Empty;
-                var bestGameStats = string.Empty;
+                var brain = m_nextGenBrains[brainIndex];
+                var seed = GetTrainingSeed(m_generation, brainIndex, gameIndex);
+                var game = CreateGameWithSeed(seed, brain, m_generation, false, brainIndex, gameIndex);
+                while (!game.IsGameOver && !m_stopTraining)
+                    game.Tick();
 
-                for (var gameIndex = 0; gameIndex < gamesPerBrain; gameIndex++)
+                var gameStats = game.ExtraGameStats().Select(o => $"{o.Name} {o.Value}").ToCsv('|');
+                lock (trainingLocks[brainIndex])
                 {
-                    var seed = GetTrainingSeed(m_generation, i, gameIndex);
-                    var game = CreateGameWithSeed(seed, brain, m_generation, false, i, gameIndex);
-                    while (!game.IsGameOver && !m_stopTraining)
-                        game.Tick();
-
-                    totalRating += game.Rating;
-                    totalDegeneracy += game.DegeneracyScore;
-                    if (string.IsNullOrEmpty(degeneracyReason) && !string.IsNullOrEmpty(game.DegeneracyReason))
-                        degeneracyReason = game.DegeneracyReason;
-                    if (game.Rating <= bestRating)
-                        continue;
-
-                    bestRating = game.Rating;
-                    bestGameSeed = seed;
-                    bestGameStats = game.ExtraGameStats().Select(o => $"{o.Name} {o.Value}").ToCsv('|');
+                    trainingTotals[brainIndex] += game.Rating;
+                    trainingDegeneracyTotals[brainIndex] += game.DegeneracyScore;
+                    if (string.IsNullOrEmpty(trainingReasons[brainIndex]) && !string.IsNullOrEmpty(game.DegeneracyReason))
+                        trainingReasons[brainIndex] = game.DegeneracyReason;
+                    if (game.Rating > trainingBestRatings[brainIndex])
+                    {
+                        trainingBestRatings[brainIndex] = game.Rating;
+                        trainingBestSeeds[brainIndex] = seed;
+                        trainingBestStats[brainIndex] = gameStats;
+                    }
                 }
-
-                var averageRating = totalRating / gamesPerBrain;
-                gameResults[i] = (averageRating, totalDegeneracy / gamesPerBrain, degeneracyReason, bestRating, bestGameSeed, brain, bestGameStats);
             }
             catch (Exception e)
             {
                 Logger.Instance.Exception("Training failed.", e);
             }
         });
+
+        for (var i = 0; i < m_nextGenBrains.Count; i++)
+        {
+            gameResults[i] = (
+                trainingTotals[i] / gamesPerBrain,
+                trainingDegeneracyTotals[i] / gamesPerBrain,
+                trainingReasons[i],
+                trainingBestRatings[i],
+                trainingBestSeeds[i],
+                m_nextGenBrains[i],
+                trainingBestStats[i] ?? string.Empty);
+        }
 
         // Select the breeders.
         var orderedGames = gameResults.OrderByDescending(GetSelectionFitness).ToArray();
@@ -180,7 +208,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             validationLocks[i] = new object();
         }
 
-        Parallel.For(0, validationCandidateCount * validationGamesPerBrain, validationJobIndex =>
+        Parallel.For(0, validationCandidateCount * validationGamesPerBrain, m_parallelOptions, validationJobIndex =>
         {
             var candidateIndex = validationJobIndex / validationGamesPerBrain;
             var gameIndex = validationJobIndex % validationGamesPerBrain;
@@ -227,7 +255,6 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         UpdateExplorationBoost(bestValidation);
         var mutationRate = GetEffectiveMutationRate();
         var randomFraction = GetEffectiveRandomFraction();
-        var bestTrainFitness = GetSelectionFitness(theBest);
         var bestEvalFitness = GetSelectionFitness(bestValidation);
 
         // Report summary of results.
@@ -486,6 +513,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     protected virtual double GetRandomFraction() => 0.05;
     protected virtual double GetCrossoverRate() => 0.5;
     protected virtual double GetMutationRate() => 0.05;
+    protected virtual string GetTrainingStatusText(int generation) => string.Empty;
     protected virtual bool UseHarnessStyleEvolution() => true;
     protected virtual int? GetBreedingRandomSeed() => GetDefaultSeedBase();
     protected virtual byte[] GetSavedBrainBytes() => null;

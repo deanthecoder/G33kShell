@@ -122,6 +122,17 @@ public class AsteroidsCanvas : AiGameCanvasBase
             isValidation ? Game.TrainingProfile.Default : GetCurriculumProfile(generation),
             enableVisualEffects: false);
     protected override int GetGamesPerBrain() => 6;
+    protected override string GetTrainingStatusText(int generation)
+    {
+        var stage = GetCurriculumProfile(Math.Max(1, generation));
+        var stageIndex =
+            stage.StageLabel == "Bootcamp" ? 1 :
+            stage.StageLabel == "Scout" ? 2 :
+            stage.StageLabel == "Dogfight" ? 3 :
+            stage.StageLabel == "Chaos" ? 4 :
+            5;
+        return $"Stage: {stage.StageLabel} ({stageIndex}/5)";
+    }
     protected override bool UseHarnessStyleEvolution() => true;
     protected override int? GetBreedingRandomSeed() => TrainingSeedBase;
     protected override byte[] GetSavedBrainBytes() => Settings.Instance.AsteroidsBrain;
@@ -137,6 +148,12 @@ public class AsteroidsCanvas : AiGameCanvasBase
         var asteroidMetric = (int)Math.Round(6 + ramp * 6);
         var speed = (float)(0.07 + ramp * 0.03);
         var aimedSpawnChance = Math.Clamp(ramp - 0.35, 0.0, 0.45);
-        return new Game.TrainingProfile(asteroidMetric, speed, aimedSpawnChance);
+        var (stageLabel, collisionDamageMultiplier) =
+            ramp < 0.25 ? ("Bootcamp", 0.0) :
+            ramp < 0.50 ? ("Scout", 0.25) :
+            ramp < 0.75 ? ("Dogfight", 0.55) :
+            ramp < 1.00 ? ("Chaos", 0.85) :
+            ("Full", 1.0);
+        return new Game.TrainingProfile(asteroidMetric, speed, aimedSpawnChance, collisionDamageMultiplier, stageLabel);
     }
 }

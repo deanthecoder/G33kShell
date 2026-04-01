@@ -27,9 +27,9 @@ public class Brain : AiBrainBase
 {
     private const int FrameHistory = 4;
 
-    protected override int BrainVersion => 11;
+    protected override int BrainVersion => 13;
 
-    public Brain() : base(17, [40, 20], 4, FrameHistory)
+    public Brain() : base(23, [52, 26], 4, FrameHistory)
     {
     }
 

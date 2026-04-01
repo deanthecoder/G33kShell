@@ -27,9 +27,13 @@ public abstract class AiBrainBase
     }
 
     [JsonProperty] private NeuralNetwork m_qNet;
-    private double[] m_currentFrameVector;
     private int m_frameStackCount;
-    private double[] m_inputVector;
+    private double[][] m_frameVectors;
+    private int m_latestFrameIndex;
+    private int m_recordedFrameCount;
+    private double[][] m_segmentedInputVectors;
+    private double[] m_singleFrameVector;
+    private double[] m_zeroFrameVector;
 
     public int BaseInputSize { get; }
     public int FrameStackCount => m_frameStackCount;
@@ -46,8 +50,7 @@ public abstract class AiBrainBase
         HiddenLayers = (int[])hiddenLayers.Clone();
         OutputSize = outputSize;
         m_qNet = qNet?.Clone() ?? new NeuralNetwork(InputSize, hiddenLayers, outputSize, learningRate: 0.05);
-        m_currentFrameVector = new double[BaseInputSize];
-        m_inputVector = new double[InputSize];
+        InitializeTemporalBuffers();
     }
 
     protected AiBrainBase(AiBrainBase toCopy)
@@ -59,20 +62,21 @@ public abstract class AiBrainBase
 
     protected double[] GetOutputs(IAiGameState state)
     {
+        var frameVector = GetNextFrameVector();
 #if DEBUG
-        Array.Fill(m_currentFrameVector, 0xDE);
+        Array.Fill(frameVector, 0xDE);
 #endif
-        state.FillInputVector(m_currentFrameVector);
+        state.FillInputVector(frameVector);
 #if DEBUG
-        if (m_currentFrameVector.Contains(0xDE))
+        if (frameVector.Contains(0xDE))
             throw new Exception("Input vector contains uninitialized data.");
 #endif
 
-        if (FrameStackCount > 1)
-            Array.Copy(m_inputVector, 0, m_inputVector, BaseInputSize, InputSize - BaseInputSize);
-        Array.Copy(m_currentFrameVector, 0, m_inputVector, 0, BaseInputSize);
+        if (FrameStackCount == 1)
+            return m_qNet.Predict(m_singleFrameVector);
 
-        return m_qNet.Predict(m_inputVector);
+        BuildSegmentedInputView();
+        return m_qNet.PredictSegmented(m_segmentedInputVectors, FrameStackCount, BaseInputSize);
     }
 
     /// <summary>
@@ -123,8 +127,8 @@ public abstract class AiBrainBase
             }
 
             JsonConvert.PopulateObject(envelope.Payload, this);
-            m_currentFrameVector = new double[BaseInputSize];
-            m_inputVector = new double[InputSize];
+            m_qNet.RefreshInferenceCaches();
+            InitializeTemporalBuffers();
             return this;
         }
 
@@ -135,8 +139,8 @@ public abstract class AiBrainBase
         }
 
         JsonConvert.PopulateObject(json, this);
-        m_currentFrameVector = new double[BaseInputSize];
-        m_inputVector = new double[InputSize];
+        m_qNet.RefreshInferenceCaches();
+        InitializeTemporalBuffers();
         return this;
     }
 
@@ -152,7 +156,53 @@ public abstract class AiBrainBase
         return this;
     }
 
-    public void ResetTemporalState() => Array.Clear(m_inputVector, 0, m_inputVector.Length);
+    public void ResetTemporalState()
+    {
+        for (var i = 0; i < m_frameVectors.Length; i++)
+            Array.Clear(m_frameVectors[i], 0, m_frameVectors[i].Length);
+        Array.Clear(m_zeroFrameVector, 0, m_zeroFrameVector.Length);
+        m_latestFrameIndex = -1;
+        m_recordedFrameCount = 0;
+        for (var i = 0; i < m_segmentedInputVectors.Length; i++)
+            m_segmentedInputVectors[i] = m_zeroFrameVector;
+    }
 
     public abstract AiBrainBase Clone();
+
+    private void InitializeTemporalBuffers()
+    {
+        m_frameVectors = new double[FrameStackCount][];
+        for (var i = 0; i < FrameStackCount; i++)
+            m_frameVectors[i] = new double[BaseInputSize];
+        m_segmentedInputVectors = new double[FrameStackCount][];
+        m_zeroFrameVector = new double[BaseInputSize];
+        m_singleFrameVector = m_frameVectors[0];
+        m_latestFrameIndex = -1;
+        m_recordedFrameCount = 0;
+        for (var i = 0; i < FrameStackCount; i++)
+            m_segmentedInputVectors[i] = m_zeroFrameVector;
+    }
+
+    private double[] GetNextFrameVector()
+    {
+        m_latestFrameIndex = (m_latestFrameIndex + 1) % FrameStackCount;
+        if (m_recordedFrameCount < FrameStackCount)
+            m_recordedFrameCount++;
+        return m_frameVectors[m_latestFrameIndex];
+    }
+
+    private void BuildSegmentedInputView()
+    {
+        for (var i = 0; i < FrameStackCount; i++)
+        {
+            if (i >= m_recordedFrameCount)
+            {
+                m_segmentedInputVectors[i] = m_zeroFrameVector;
+                continue;
+            }
+
+            var sourceIndex = (m_latestFrameIndex - i + FrameStackCount) % FrameStackCount;
+            m_segmentedInputVectors[i] = m_frameVectors[sourceIndex];
+        }
+    }
 }

@@ -32,18 +32,22 @@ public class Game : AiGameBase
 {
     public readonly struct TrainingProfile
     {
-        public static TrainingProfile Default => new(12, 0.10f, 0.0);
+        public static TrainingProfile Default => new(12, 0.10f, 0.0, 1.0, "Full");
 
-        public TrainingProfile(int desiredAsteroidMetric, float asteroidSpeedMultiplier, double aimedSpawnChance)
+        public TrainingProfile(int desiredAsteroidMetric, float asteroidSpeedMultiplier, double aimedSpawnChance, double collisionDamageMultiplier, string stageLabel)
         {
             DesiredAsteroidMetric = desiredAsteroidMetric;
             AsteroidSpeedMultiplier = asteroidSpeedMultiplier;
             AimedSpawnChance = aimedSpawnChance;
+            CollisionDamageMultiplier = collisionDamageMultiplier;
+            StageLabel = stageLabel;
         }
 
         public int DesiredAsteroidMetric { get; }
         public float AsteroidSpeedMultiplier { get; }
         public double AimedSpawnChance { get; }
+        public double CollisionDamageMultiplier { get; }
+        public string StageLabel { get; }
     }
 
     private const int FireCooldownTicks = 6;
@@ -52,7 +56,6 @@ public class Game : AiGameBase
     private readonly TrainingProfile m_trainingProfile;
     private int m_bulletsFired;
     private double m_cumulativeSpeed;
-    private double m_cumulativeAimQuality;
     private int m_gameTicks;
     private int m_lastFireTick = -FireCooldownTicks;
     private int m_lastShipHitTick = -ShipCollisionCooldownTicks;
@@ -65,7 +68,6 @@ public class Game : AiGameBase
     private int m_stationaryStreak;
     private int m_stationaryStreakPeak;
     private int m_stationaryTicks;
-    private int m_thrustTicks;
     private int m_ticksSinceScore;
 
     /// <summary>
@@ -141,17 +143,14 @@ public class Game : AiGameBase
     
     public override IEnumerable<(string Name, string Value)> ExtraGameStats()
     {
+        yield return ("Stage", m_trainingProfile.StageLabel);
         yield return ("Score", Score.ToString());
         yield return ("HitRatio", HitRatio.ToString("P1"));
         yield return ("Ticks", m_gameTicks.ToString());
         yield return ("TurnEquality", TurnEquality.ToString("P1"));
         yield return ("TurnRatio", (m_gameTicks == 0 ? 0.0 : (double)(m_leftTurns + m_rightTurns) / m_gameTicks).ToString("P1"));
-        yield return ("Thrusts", m_thrustTicks.ToString());
-        yield return ("AvgSpeed", (m_gameTicks == 0 ? 0.0 : m_cumulativeSpeed / m_gameTicks).ToString("F3"));
         yield return ("Stationary", (m_gameTicks == 0 ? 0.0 : (double)m_stationaryTicks / m_gameTicks).ToString("P1"));
-        yield return ("CampPeak", m_stationaryStreakPeak.ToString());
         yield return ("SpinPeak", m_sameTurnStreakPeak.ToString());
-        yield return ("Aim", m_cumulativeAimQuality.ToString("F1"));
     }
 
     private double TurnEquality =>
@@ -190,7 +189,6 @@ public class Game : AiGameBase
         ExhaustParticles.Clear();
         m_bulletsFired = 0;
         m_cumulativeSpeed = 0.0;
-        m_cumulativeAimQuality = 0.0;
         m_gameTicks = 0;
         m_lastFireTick = -FireCooldownTicks;
         m_lastShipHitTick = -ShipCollisionCooldownTicks;
@@ -202,7 +200,6 @@ public class Game : AiGameBase
         m_stationaryStreak = 0;
         m_stationaryStreakPeak = 0;
         m_stationaryTicks = 0;
-        m_thrustTicks = 0;
         m_ticksSinceScore = 0;
         m_gameState = new GameState(Ship, Asteroids, Bullets, () => m_gameTicks - m_lastFireTick >= FireCooldownTicks, ArenaWidth, ArenaHeight);
 
@@ -239,10 +236,6 @@ public class Game : AiGameBase
 
         // Choose controls from the current world state before simulating the next frame.
         var moves = ((Brain)Brain).ChooseMoves(m_gameState);
-        var nearestAsteroid = GetNearestAsteroid();
-        var aimAlignment = nearestAsteroid != null ? GetAimAlignment(nearestAsteroid) : 0.0;
-        m_cumulativeAimQuality += Math.Max(0.0, aimAlignment);
-
         var canFire = m_gameTicks - m_lastFireTick >= FireCooldownTicks;
         var wantsToShoot = moves.IsShooting;
         Ship.IsShooting = wantsToShoot && !m_previousShootIntent && canFire;
@@ -265,12 +258,9 @@ public class Game : AiGameBase
         {
             m_stationaryStreak = 0;
         }
-        if (Ship.IsThrusting)
-        {
-            m_thrustTicks++;
-            if (m_enableVisualEffects)
-                SpawnExhaustParticles();
-        }
+        
+        if (Ship.IsThrusting && m_enableVisualEffects)
+            SpawnExhaustParticles();
 
         if (Ship.Turning == Ship.Turn.Left)
         {
@@ -365,34 +355,7 @@ public class Game : AiGameBase
             }
         }
     }
-
-    private Asteroid GetNearestAsteroid()
-    {
-        Asteroid nearestAsteroid = null;
-        var nearestDistance = float.MaxValue;
-        for (var i = 0; i < Asteroids.Count; i++)
-        {
-            var asteroid = Asteroids[i];
-            var distance = asteroid.DistanceTo(Ship.Position);
-            if (distance < nearestDistance)
-            {
-                nearestDistance = distance;
-                nearestAsteroid = asteroid;
-            }
-        }
-
-        return nearestAsteroid;
-    }
-
-    private double GetAimAlignment(Asteroid asteroid)
-    {
-        var relativePos = WrapDelta(asteroid.Position - Ship.Position);
-        if (relativePos.LengthSquared() <= 0.0f)
-            return 1.0;
-
-        return Vector2.Dot(Vector2.Normalize(relativePos), Ship.Theta.ToDirection()).Clamp(-1.0f, 1.0f);
-    }
-
+    
     private Vector2 WrapDelta(Vector2 delta)
     {
         var halfWidth = ArenaWidth / 2.0f;
@@ -416,14 +379,13 @@ public class Game : AiGameBase
         if (m_gameTicks - m_lastShipHitTick < ShipCollisionCooldownTicks)
             return;
 
-        Ship.Shield = Math.Max(0.0, Ship.Shield - 0.08);
+        var damage = 0.08 * m_trainingProfile.CollisionDamageMultiplier;
+        if (damage > 0.0)
+            Ship.Shield = Math.Max(0.0, Ship.Shield - damage);
         m_lastShipHitTick = m_gameTicks;
 
         var pushDirection = WrapDelta(Ship.Position - asteroid.Position);
-        if (pushDirection.LengthSquared() <= 0.0001f)
-            pushDirection = Ship.Theta.ToDirection();
-        else
-            pushDirection = Vector2.Normalize(pushDirection);
+        pushDirection = pushDirection.LengthSquared() <= 0.0001f ? Ship.Theta.ToDirection() : Vector2.Normalize(pushDirection);
 
         var overlap = Math.Max(0.0f, asteroid.Radius + shipRadius - distance);
         Ship.ApplyImpact(pushDirection, impulse: 0.12f, separationDistance: overlap + 3.5f);
