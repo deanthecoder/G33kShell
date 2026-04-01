@@ -13,6 +13,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Diagnostics;
 using DTC.Core;
 using DTC.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
@@ -53,6 +54,9 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     private List<AiBrainBase> m_nextGenBrains;
     private Random m_breedingRandom;
     private readonly ParallelOptions m_parallelOptions = new ParallelOptions();
+    private readonly object m_bestObservedMetricLock = new object();
+    private (string Name, double Value, string Format)? m_bestObservedMetric;
+    private long m_lastGoatImprovementTimestamp;
 
     protected int ArenaWidth { get; }
     protected int ArenaHeight { get; }
@@ -82,6 +86,17 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         var trainingStatus = GetTrainingStatusText(m_generation);
         if (!string.IsNullOrWhiteSpace(trainingStatus))
             screen.PrintAt(0, 2, trainingStatus);
+        var bestObservedMetric = GetBestObservedMetricHudText();
+        var nextHudLine = string.IsNullOrWhiteSpace(trainingStatus) ? 2 : 3;
+        if (!string.IsNullOrWhiteSpace(bestObservedMetric))
+        {
+            screen.PrintAt(0, nextHudLine, bestObservedMetric);
+            nextHudLine++;
+        }
+
+        var goatAge = GetGoatAgeHudText();
+        if (!string.IsNullOrWhiteSpace(goatAge))
+            screen.PrintAt(0, nextHudLine, goatAge);
         
         if (m_trainingTask != null)
         {
@@ -102,6 +117,8 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         m_currentPopSize = GetInitialPopulationSize();
         var breedingSeed = GetBreedingRandomSeed();
         m_breedingRandom = breedingSeed.HasValue ? new Random(breedingSeed.Value) : null;
+        m_bestObservedMetric = null;
+        m_lastGoatImprovementTimestamp = Stopwatch.GetTimestamp();
         
         m_stopTraining = false;
         m_trainingTask = Task.Run(() =>
@@ -114,6 +131,10 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             System.Console.WriteLine($"  Brain layers: {brain.InputSize} : {brain.HiddenLayers.ToCsv(' ')} : {brain.OutputSize}");
             System.Console.WriteLine($"   Generations: {m_generation}");
             System.Console.WriteLine($"        Rating: {m_savedRating:F1}");
+            System.Console.WriteLine($"  Since GOAT: {GetGoatAgeSeconds()}s");
+            var bestObservedMetric = GetBestObservedMetricSummaryText();
+            if (!string.IsNullOrEmpty(bestObservedMetric))
+                System.Console.WriteLine(bestObservedMetric);
         });
     }
 
@@ -151,12 +172,13 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             var gameIndex = trainingJobIndex % gamesPerBrain;
             try
             {
-                var brain = m_nextGenBrains[brainIndex];
                 var seed = GetTrainingSeed(m_generation, brainIndex, gameIndex);
-                var game = CreateGameWithSeed(seed, brain, m_generation, false, brainIndex, gameIndex);
+                var evaluationBrain = m_nextGenBrains[brainIndex].Clone();
+                var game = CreateGameWithSeed(seed, evaluationBrain, m_generation, false, brainIndex, gameIndex);
                 while (!game.IsGameOver && !m_stopTraining)
                     game.Tick();
 
+                UpdateBestObservedMetric(game.BestObservedMetric);
                 var gameStats = game.ExtraGameStats().Select(o => $"{o.Name} {o.Value}").ToCsv('|');
                 lock (trainingLocks[brainIndex])
                 {
@@ -214,12 +236,13 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             var gameIndex = validationJobIndex % validationGamesPerBrain;
             try
             {
-                var brain = orderedGames[candidateIndex].Brain;
                 var seed = GetValidationSeed(candidateIndex, gameIndex);
-                var game = CreateGameWithSeed(seed, brain, m_generation, true, candidateIndex, gameIndex);
+                var evaluationBrain = orderedGames[candidateIndex].Brain.Clone();
+                var game = CreateGameWithSeed(seed, evaluationBrain, m_generation, true, candidateIndex, gameIndex);
                 while (!game.IsGameOver && !m_stopTraining)
                     game.Tick();
 
+                UpdateBestObservedMetric(game.BestObservedMetric);
                 var gameStats = game.ExtraGameStats().Select(o => $"{o.Name} {o.Value}").ToCsv('|');
                 lock (validationLocks[candidateIndex])
                 {
@@ -258,7 +281,8 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         var bestEvalFitness = GetSelectionFitness(bestValidation);
 
         // Report summary of results.
-        var stats = $"Gen {m_generation}|Pop {m_currentPopSize}|GOAT {m_savedRating:F1}|Train {theBest.AverageRating:F1}|Eval {bestValidation.AverageRating:F1}|Fit {bestEvalFitness:F1}|Mut {mutationRate:F3}|Rnd {randomFraction:F2}|Deg {bestValidation.AverageDegeneracy:F2}|Seed {theBest.GameSeed}";
+        var stats = $"Gen {m_generation}|Pop {m_currentPopSize}|GOAT {m_savedRating:F1}|SinceGOAT {GetGoatAgeSeconds()}s|Train {theBest.AverageRating:F1}|Eval {bestValidation.AverageRating:F1}|Fit {bestEvalFitness:F1}|Mut {mutationRate:F3}|Rnd {randomFraction:F2}|Deg {bestValidation.AverageDegeneracy:F2}|Seed {theBest.GameSeed}";
+        stats += GetBestObservedMetricInlineText();
         if (!string.IsNullOrEmpty(theBest.GameStats))
             stats += $"|{theBest.GameStats}";
         if (m_explorationBoostGenerationsRemaining > 0)
@@ -297,6 +321,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         if (effectiveFitness > m_savedRating)
         {
             m_savedRating = effectiveFitness;
+            m_lastGoatImprovementTimestamp = Stopwatch.GetTimestamp();
             System.Console.WriteLine("Saved.");
             saveBrainBytes(theBest.Brain.Save());
 
@@ -457,6 +482,67 @@ public abstract class AiGameCanvasBase : ScreensaverBase
 
     private bool IsFreshTraining() =>
         ActivationName.Contains("_trainfresh", StringComparison.OrdinalIgnoreCase);
+
+    private void UpdateBestObservedMetric((string Name, double Value, string Format)? metric)
+    {
+        if (!metric.HasValue)
+            return;
+
+        lock (m_bestObservedMetricLock)
+        {
+            if (!m_bestObservedMetric.HasValue || metric.Value.Value > m_bestObservedMetric.Value.Value)
+                m_bestObservedMetric = metric;
+        }
+    }
+
+    private string GetBestObservedMetricInlineText()
+    {
+        lock (m_bestObservedMetricLock)
+        {
+            if (!m_bestObservedMetric.HasValue)
+                return string.Empty;
+
+            var metric = m_bestObservedMetric.Value;
+            return $"|Best{metric.Name} {metric.Value.ToString(metric.Format)}";
+        }
+    }
+
+    private string GetBestObservedMetricSummaryText()
+    {
+        lock (m_bestObservedMetricLock)
+        {
+            if (!m_bestObservedMetric.HasValue)
+                return string.Empty;
+
+            var metric = m_bestObservedMetric.Value;
+            return $"   Best {metric.Name}: {metric.Value.ToString(metric.Format)}";
+        }
+    }
+
+    private string GetBestObservedMetricHudText()
+    {
+        lock (m_bestObservedMetricLock)
+        {
+            if (!m_bestObservedMetric.HasValue)
+                return string.Empty;
+
+            var metric = m_bestObservedMetric.Value;
+            return $"Best {metric.Name}: {metric.Value.ToString(metric.Format)}";
+        }
+    }
+
+    private int GetGoatAgeSeconds()
+    {
+        var timestamp = Interlocked.Read(ref m_lastGoatImprovementTimestamp);
+        if (timestamp <= 0)
+            return 0;
+
+        var elapsedSeconds = (Stopwatch.GetTimestamp() - timestamp) / (double)Stopwatch.Frequency;
+        return Math.Max(0, (int)elapsedSeconds);
+    }
+
+    private string GetGoatAgeHudText() =>
+        $"Since GOAT: {GetGoatAgeSeconds()}s";
 
     protected virtual IEnumerable<AiBrainBase> CreateInitialPopulation()
     {

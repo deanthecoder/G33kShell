@@ -153,6 +153,9 @@ public class Game : AiGameBase
         yield return ("SpinPeak", m_sameTurnStreakPeak.ToString());
     }
 
+    public override (string Name, double Value, string Format)? BestObservedMetric =>
+        ("Score", Score, "0");
+
     private double TurnEquality =>
         m_leftTurns + m_rightTurns == 0
             ? 0.0

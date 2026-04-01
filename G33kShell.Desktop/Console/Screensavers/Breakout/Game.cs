@@ -101,6 +101,9 @@ public class Game : AiGameBase
         Lives <= 0 ||
         (m_useTrainingTimeouts && (m_ticks >= MaxTicksPerGame || m_ticksSinceBrick >= MaxTicksWithoutBrick));
 
+    public override (string Name, double Value, string Format)? BestObservedMetric =>
+        ("Score", Score, "0");
+
     public Game(int arenaWidth, int arenaHeight, Brain brain, bool useTrainingTimeouts = false) : base(arenaWidth, arenaHeight, brain)
     {
         m_useTrainingTimeouts = useTrainingTimeouts;
@@ -350,7 +353,7 @@ public class Game : AiGameBase
                 var paddleCenter = paddleLeft + (PaddleWidth - 1) / 2.0;
                 var hitOffset = ((nextX - paddleCenter) / Math.Max(1.0, PaddleWidth / 2.0)).Clamp(-1.0, 1.0);
                 var curvedHitOffset = Math.Sign(hitOffset) * Math.Pow(Math.Abs(hitOffset), PaddleDeflectionCurve);
-                BallDx = curvedHitOffset.Lerp(-PaddleDeflectionScale, PaddleDeflectionScale);
+                BallDx = curvedHitOffset * PaddleDeflectionScale;
                 BallDy = -Math.Abs(BallDy) - 0.05;
                 NormalizeBallSpeed();
                 nextY = PaddleY - 1.05;

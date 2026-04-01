@@ -42,6 +42,16 @@ public abstract class AiGameBase
     /// </summary>
     public virtual string DegeneracyReason => string.Empty;
 
+    /// <summary>
+    /// Optional headline metric worth tracking across the whole training run.
+    /// </summary>
+    /// <remarks>
+    /// This lets game-specific trainers surface a simple "best so far" number such as Snake's
+    /// peak high score or Breakout's best score without teaching the shared trainer about each
+    /// game's individual stat names.
+    /// </remarks>
+    public virtual (string Name, double Value, string Format)? BestObservedMetric => null;
+
     public abstract bool IsGameOver { get; }
     
     /// <summary>

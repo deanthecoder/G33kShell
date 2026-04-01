@@ -54,6 +54,9 @@ public class Game : AiGameBase
     public override bool IsGameOver =>
         m_lives== 0 && Snake.IsDead;
 
+    public override (string Name, double Value, string Format)? BestObservedMetric =>
+        ("HighScore", HighScore, "0");
+
     public override IEnumerable<(string Name, string Value)> ExtraGameStats()
     {
         yield return ("HighScore", HighScore.ToString());
