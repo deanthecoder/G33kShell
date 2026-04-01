@@ -72,7 +72,16 @@ public class BreakoutCanvas : AiGameCanvasBase
         var title = $"Score {game.Score,5}  Lives {new string(BallChar, game.Lives)}  Level {game.Level}";
         screen.PrintAt(Math.Max(0, (screen.Width - title.Length) / 2), 0, title, Foreground);
 
-        screen.DrawBox(0, 1, screen.Width - 1, screen.Height - 1, "┌┐└┘──││");
+        screen.PrintAt(0, 1, '┌', Foreground);
+        screen.PrintAt(screen.Width - 1, 1, '┐', Foreground);
+        for (var x = 1; x < screen.Width - 1; x++)
+            screen.PrintAt(x, 1, '─', Foreground);
+
+        for (var y = 2; y < screen.Height - 1; y++)
+        {
+            screen.PrintAt(0, y, '│', Foreground);
+            screen.PrintAt(screen.Width - 1, y, '│', Foreground);
+        }
 
         for (var row = 0; row < game.BrickRows; row++)
         {

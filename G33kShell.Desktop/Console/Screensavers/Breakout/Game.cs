@@ -29,6 +29,9 @@ public class Game : AiGameBase
     private const int MaxTicksWithoutBrick = 1400;
     private const int MaxTicksPerGame = 5000;
     private const double PaddleSpeed = 1.05;
+    private const double LiveBounceJitterDegrees = 2.0;
+    private const double PaddleDeflectionScale = 1.18;
+    private const double PaddleDeflectionCurve = 0.7;
 
     private readonly bool m_useTrainingTimeouts;
     private GameState m_gameState;
@@ -311,17 +314,20 @@ public class Game : AiGameBase
             {
                 nextX = 1.0 + (1.0 - nextX);
                 BallDx = -BallDx;
+                ApplyLiveBounceJitter();
             }
             else if (nextX > ArenaWidth - 2.0)
             {
                 nextX = ArenaWidth - 2.0 - (nextX - (ArenaWidth - 2.0));
                 BallDx = -BallDx;
+                ApplyLiveBounceJitter();
             }
 
             if (nextY < 2.0)
             {
                 nextY = 2.0 + (2.0 - nextY);
                 BallDy = -BallDy;
+                ApplyLiveBounceJitter();
             }
 
             if (TryHitBrick(nextX, nextY, out var bounceX))
@@ -330,6 +336,7 @@ public class Game : AiGameBase
                     BallDx = -BallDx;
                 else
                     BallDy = -BallDy;
+                ApplyLiveBounceJitter();
                 nextX = BallX + BallDx * 0.5;
                 nextY = BallY + BallDy * 0.5;
             }
@@ -341,8 +348,9 @@ public class Game : AiGameBase
             {
                 var paddleCenter = paddleLeft + (PaddleWidth - 1) / 2.0;
                 var hitOffset = ((nextX - paddleCenter) / Math.Max(1.0, PaddleWidth / 2.0)).Clamp(-1.0, 1.0);
-                BallDx = hitOffset.Lerp(-1.0, 1.0);
-                BallDy = -Math.Abs(BallDy) - 0.04;
+                var curvedHitOffset = Math.Sign(hitOffset) * Math.Pow(Math.Abs(hitOffset), PaddleDeflectionCurve);
+                BallDx = curvedHitOffset.Lerp(-PaddleDeflectionScale, PaddleDeflectionScale);
+                BallDy = -Math.Abs(BallDy) - 0.05;
                 NormalizeBallSpeed();
                 nextY = PaddleY - 1.05;
                 m_paddleHits++;
@@ -456,6 +464,21 @@ public class Game : AiGameBase
         BallDy = BallDy / length * speed;
         if (Math.Abs(BallDy) < 0.38)
             BallDy = Math.Sign(BallDy == 0 ? -1 : BallDy) * 0.38;
+    }
+
+    private void ApplyLiveBounceJitter()
+    {
+        if (m_useTrainingTimeouts)
+            return;
+
+        var angle = GameRand.NextDouble().Lerp(-LiveBounceJitterDegrees, LiveBounceJitterDegrees) * Math.PI / 180.0;
+        var cos = Math.Cos(angle);
+        var sin = Math.Sin(angle);
+        var rotatedDx = BallDx * cos - BallDy * sin;
+        var rotatedDy = BallDx * sin + BallDy * cos;
+        BallDx = rotatedDx;
+        BallDy = rotatedDy;
+        NormalizeBallSpeed();
     }
 
     private void SetMessage(string text, int frames)
