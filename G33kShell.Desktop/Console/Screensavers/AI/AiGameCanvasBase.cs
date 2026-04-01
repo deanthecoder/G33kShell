@@ -25,7 +25,8 @@ namespace G33kShell.Desktop.Console.Screensavers.AI;
 /// <remarks>
 /// Training does not use gradient descent against a replay buffer. Instead, each generation
 /// evaluates a population of brains by letting them play several seeded games, ranking them
-/// by the game's <see cref="AiGameBase.Rating"/>, then building the next generation from:
+/// by the game's <see cref="AiGameBase.Rating"/>, then validating the strongest candidates
+/// on a separate fixed seed set before building the next generation from:
 /// cloned elite "GOAT" brains, a small slice of fresh random brains, and crossover/mutation
 /// children sampled from the best performers. The best serialized brain is persisted so a
 /// screensaver can resume from the strongest known policy on the next run.
@@ -36,6 +37,8 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     private const int DefaultMinPopSize = 80;
     private const int MaxGoatBrains = 5;
     private const int DefaultGamesPerBrain = 4;
+    private const int DefaultValidationGamesPerBrain = 4;
+    private const int DefaultValidationCandidateCount = 3;
     
     private readonly List<(double Rating, AiBrainBase Brain)> m_goatBrains = new List<(double Rating, AiBrainBase Brain)>(MaxGoatBrains);
     private int m_generation;
@@ -111,6 +114,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         m_nextGenBrains ??= CreateInitialPopulation().ToList();
         m_generation++;
         var gamesPerBrain = GetGamesPerBrain();
+        var validationGamesPerBrain = GetValidationGamesPerBrain();
         
         var gameResults = new (double AverageRating, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats)[m_nextGenBrains.Count];
         Parallel.For(0, gameResults.Length, i =>
@@ -152,9 +156,46 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         // Select the breeders.
         var orderedGames = gameResults.OrderByDescending(o => o.AverageRating).ToArray();
         var theBest = orderedGames[0];
+        var validationCandidateCount = Math.Min(GetValidationCandidateCount(), orderedGames.Length);
+        var validationResults = new (double AverageRating, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats)[validationCandidateCount];
+        Parallel.For(0, validationCandidateCount, i =>
+        {
+            try
+            {
+                var brain = orderedGames[i].Brain;
+                var totalRating = 0.0;
+                var bestRating = double.MinValue;
+                var bestGameSeed = 0;
+                var bestGameStats = string.Empty;
+
+                for (var gameIndex = 0; gameIndex < validationGamesPerBrain; gameIndex++)
+                {
+                    var seed = GetValidationSeed(i, gameIndex);
+                    var game = CreateGameWithSeed(seed, brain);
+                    while (!game.IsGameOver && !m_stopTraining)
+                        game.Tick();
+
+                    totalRating += game.Rating;
+                    if (game.Rating <= bestRating)
+                        continue;
+
+                    bestRating = game.Rating;
+                    bestGameSeed = seed;
+                    bestGameStats = game.ExtraGameStats().Select(o => $"{o.Name} {o.Value}").ToCsv('|');
+                }
+
+                validationResults[i] = (totalRating / validationGamesPerBrain, bestRating, bestGameSeed, brain, bestGameStats);
+            }
+            catch (Exception e)
+            {
+                Logger.Instance.Exception("Validation failed.", e);
+            }
+        });
+        var bestValidation = validationResults.OrderByDescending(o => o.AverageRating).First();
+        var mutationRate = GetEffectiveMutationRate();
 
         // Report summary of results.
-        var stats = $"Gen {m_generation}|Pop {m_currentPopSize}|GOAT {m_savedRating:F1}|Rating {theBest.AverageRating:F1}|Seed {theBest.GameSeed}";
+        var stats = $"Gen {m_generation}|Pop {m_currentPopSize}|GOAT {m_savedRating:F1}|Train {theBest.AverageRating:F1}|Eval {bestValidation.AverageRating:F1}|Mut {mutationRate:F3}|Seed {theBest.GameSeed}";
         if (!string.IsNullOrEmpty(theBest.GameStats))
             stats += $"|{theBest.GameStats}";
         System.Console.WriteLine(stats);
@@ -173,12 +214,12 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             m_goatBrains.Remove(toRemove);
         }
 
-        PersistBrainImprovement(theBest, saveBrainBytes);
+        PersistBrainImprovement(bestValidation, saveBrainBytes);
 
         // Build the brains for the next generation.
         m_nextGenBrains = UseHarnessStyleEvolution()
-            ? BuildHarnessStyleNextGeneration(orderedGames)
-            : BuildLegacyNextGeneration(orderedGames);
+            ? BuildHarnessStyleNextGeneration(orderedGames, mutationRate)
+            : BuildLegacyNextGeneration(orderedGames, mutationRate);
     }
 
     private void PersistBrainImprovement((double AverageRating, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats) theBest, Action<byte[]> saveBrainBytes)
@@ -196,7 +237,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         m_generationsSinceImprovement++;
     }
 
-    private List<AiBrainBase> BuildLegacyNextGeneration((double AverageRating, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats)[] orderedGames)
+    private List<AiBrainBase> BuildLegacyNextGeneration((double AverageRating, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats)[] orderedGames, double mutationRate)
     {
         m_currentPopSize = Math.Max(m_currentPopSize - 1, GetMinPopulationSize());
         if (m_generationsSinceImprovement >= 100)
@@ -219,14 +260,14 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         {
             var mumBrain = Random.Shared.RouletteSelection(breeders, o => o.AverageRating).Brain;
             var dadBrain = Random.Shared.RouletteSelection(breeders, o => o.AverageRating).Brain;
-            var childBrain = mumBrain.Clone().CrossWith(dadBrain, GetCrossoverRate()).Mutate(GetMutationRate());
+            var childBrain = mumBrain.Clone().CrossWith(dadBrain, GetCrossoverRate(), m_breedingRandom).Mutate(mutationRate, m_breedingRandom);
             nextBrains.Add(childBrain);
         }
 
         return nextBrains;
     }
 
-    private List<AiBrainBase> BuildHarnessStyleNextGeneration((double AverageRating, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats)[] orderedGames)
+    private List<AiBrainBase> BuildHarnessStyleNextGeneration((double AverageRating, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats)[] orderedGames, double mutationRate)
     {
         var nextBrains = new List<AiBrainBase>(m_currentPopSize);
         var eliteCount = Math.Min(GetEliteCount(), orderedGames.Length);
@@ -241,7 +282,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         {
             var mumBrain = SelectParent(orderedGames);
             var dadBrain = SelectParent(orderedGames);
-            var childBrain = mumBrain.Clone().CrossWith(dadBrain, GetCrossoverRate()).Mutate(GetMutationRate());
+            var childBrain = mumBrain.Clone().CrossWith(dadBrain, GetCrossoverRate(), m_breedingRandom).Mutate(mutationRate, m_breedingRandom);
             nextBrains.Add(childBrain);
         }
 
@@ -275,6 +316,34 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         return game;
     }
 
+    private double GetEffectiveMutationRate()
+    {
+        var baseRate = GetMutationRate();
+        var floorRate = Math.Max(0.01, baseRate * 0.35);
+        var decay = Math.Min(1.0, Math.Max(0, m_generation - 1) / 400.0);
+        var rate = baseRate + (floorRate - baseRate) * decay;
+        if (m_generationsSinceImprovement >= 40)
+            rate = Math.Min(baseRate, rate * 1.35);
+
+        return rate;
+    }
+
+    private int GetDefaultSeedBase()
+    {
+        var text = GetType().FullName ?? GetType().Name;
+        unchecked
+        {
+            var hash = (int)2166136261;
+            for (var i = 0; i < text.Length; i++)
+            {
+                hash ^= text[i];
+                hash *= 16777619;
+            }
+
+            return hash & 0x7FFFFFFF;
+        }
+    }
+
     protected virtual IEnumerable<AiBrainBase> CreateInitialPopulation()
     {
         var initialPopulationSize = GetInitialPopulationSize();
@@ -302,20 +371,25 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     /// Returns the seed for one candidate game during training.
     /// </summary>
     /// <remarks>
-    /// The default remains stochastic. Games can override this to make training runs easier to
-    /// compare from one code change to the next.
+    /// The default is deterministic so repeated runs are easier to compare.
+    /// Games can override this if they want a custom seed schedule.
     /// </remarks>
-    protected virtual int GetTrainingSeed(int generation, int brainIndex, int gameIndex) => Random.Shared.Next(10000);
+    protected virtual int GetTrainingSeed(int generation, int brainIndex, int gameIndex) =>
+        unchecked(GetDefaultSeedBase() + generation * 10_000 + brainIndex * 101 + gameIndex * 17);
+    protected virtual int GetValidationSeed(int candidateIndex, int gameIndex) =>
+        unchecked(GetDefaultSeedBase() + 1_000_000 + candidateIndex * 1009 + gameIndex * 37);
 
     protected virtual int GetInitialPopulationSize() => DefaultInitialPopSize;
     protected virtual int GetMinPopulationSize() => DefaultMinPopSize;
     protected virtual int GetGamesPerBrain() => DefaultGamesPerBrain;
+    protected virtual int GetValidationGamesPerBrain() => DefaultValidationGamesPerBrain;
+    protected virtual int GetValidationCandidateCount() => DefaultValidationCandidateCount;
     protected virtual int GetEliteCount() => MaxGoatBrains;
     protected virtual double GetRandomFraction() => 0.05;
     protected virtual double GetCrossoverRate() => 0.5;
     protected virtual double GetMutationRate() => 0.05;
-    protected virtual bool UseHarnessStyleEvolution() => false;
-    protected virtual int? GetBreedingRandomSeed() => null;
+    protected virtual bool UseHarnessStyleEvolution() => true;
+    protected virtual int? GetBreedingRandomSeed() => GetDefaultSeedBase();
     protected virtual byte[] GetSavedBrainBytes() => null;
     protected abstract AiGameBase CreateGame(AiBrainBase brain);
     protected abstract AiBrainBase CreateBrain();

@@ -25,6 +25,7 @@ namespace G33kShell.Desktop.Console.Screensavers.Asteroids;
 [UsedImplicitly]
 public class AsteroidsCanvas : AiGameCanvasBase
 {
+    private const int TrainingSeedBase = 7331;
     private Game m_game;
 
     public AsteroidsCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight, 60)
@@ -107,5 +108,13 @@ public class AsteroidsCanvas : AiGameCanvasBase
     }
 
     protected override AiGameBase CreateGame(AiBrainBase brain) => new Game(ArenaWidth, ArenaHeight * 2, (Brain)brain);
+    protected override int GetGamesPerBrain() => 6;
+    protected override bool UseHarnessStyleEvolution() => true;
+    protected override int? GetBreedingRandomSeed() => TrainingSeedBase;
+    protected override byte[] GetSavedBrainBytes() => Settings.Instance.AsteroidsBrain;
+    protected override int GetTrainingSeed(int generation, int brainIndex, int gameIndex) =>
+        unchecked(TrainingSeedBase + generation * 10_000 + brainIndex * 101 + gameIndex * 17);
+    protected override int GetValidationSeed(int candidateIndex, int gameIndex) =>
+        unchecked(TrainingSeedBase + 1_000_000 + candidateIndex * 1009 + gameIndex * 37);
     protected override AiBrainBase CreateBrain() => new Brain();
 }

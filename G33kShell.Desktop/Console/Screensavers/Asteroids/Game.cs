@@ -40,6 +40,8 @@ public class Game : AiGameBase
     private bool m_previousShootIntent;
     private int m_rightTurns;
     private GameState m_gameState;
+    private int m_stationaryStreak;
+    private int m_stationaryStreakPeak;
     private int m_stationaryTicks;
     private int m_thrustTicks;
     private int m_ticksSinceScore;
@@ -70,11 +72,12 @@ public class Game : AiGameBase
             var mobilityScore = Math.Min(averageSpeed / 0.04, 1.0) * 250.0;
             var shotWastePenalty = Math.Max(0, m_bulletsFired - Score * 3) * 1.0;
             var campingPenalty = stationaryRatio * 200.0;
+            var sustainedCampingPenalty = Math.Max(0.0, m_stationaryStreakPeak - 90) * 0.35;
             var excessiveTurningPenalty = Math.Max(0.0, turnRatio - 0.55) * 500.0;
             var imbalancePenalty = totalTurns < 100 ? 0.0 : (1.0 - TurnEquality) * 180.0;
             var earlyDeathPenalty = Ship.Shield <= 0.02 ? 80.0 : 0.0;
 
-            return Math.Max(0.0, survivalScore + combatScore + shieldScore + hitRatioScore + mobilityScore - shotWastePenalty - campingPenalty - excessiveTurningPenalty - imbalancePenalty - earlyDeathPenalty);
+            return Math.Max(0.0, survivalScore + combatScore + shieldScore + hitRatioScore + mobilityScore - shotWastePenalty - campingPenalty - sustainedCampingPenalty - excessiveTurningPenalty - imbalancePenalty - earlyDeathPenalty);
         }
     }
     
@@ -88,6 +91,7 @@ public class Game : AiGameBase
         yield return ("Thrusts", m_thrustTicks.ToString());
         yield return ("AvgSpeed", (m_gameTicks == 0 ? 0.0 : m_cumulativeSpeed / m_gameTicks).ToString("F3"));
         yield return ("Stationary", (m_gameTicks == 0 ? 0.0 : (double)m_stationaryTicks / m_gameTicks).ToString("P1"));
+        yield return ("CampPeak", m_stationaryStreakPeak.ToString());
         yield return ("Aim", m_cumulativeAimQuality.ToString("F1"));
     }
 
@@ -122,6 +126,8 @@ public class Game : AiGameBase
         m_leftTurns = 0;
         m_previousShootIntent = false;
         m_rightTurns = 0;
+        m_stationaryStreak = 0;
+        m_stationaryStreakPeak = 0;
         m_stationaryTicks = 0;
         m_thrustTicks = 0;
         m_ticksSinceScore = 0;
@@ -176,7 +182,16 @@ public class Game : AiGameBase
         var shipSpeed = Ship.Velocity.Length();
         m_cumulativeSpeed += shipSpeed;
         if (shipSpeed < 0.015f)
+        {
             m_stationaryTicks++;
+            m_stationaryStreak++;
+            if (m_stationaryStreak > m_stationaryStreakPeak)
+                m_stationaryStreakPeak = m_stationaryStreak;
+        }
+        else
+        {
+            m_stationaryStreak = 0;
+        }
         if (Ship.IsThrusting)
             m_thrustTicks++;
 

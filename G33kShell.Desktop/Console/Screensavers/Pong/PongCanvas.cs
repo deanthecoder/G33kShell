@@ -112,5 +112,6 @@ public class PongCanvas : AiGameCanvasBase
     }
 
     protected override AiGameBase CreateGame(AiBrainBase brain) => new Game(ArenaWidth, ArenaHeight, (Brain)brain);
+    protected override byte[] GetSavedBrainBytes() => Settings.Instance.PongBrain;
     protected override AiBrainBase CreateBrain() => new Brain();
 }

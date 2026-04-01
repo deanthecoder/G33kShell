@@ -126,15 +126,15 @@ public abstract class AiBrainBase
         return this;
     }
 
-    public AiBrainBase CrossWith(AiBrainBase second, double crossoverRate)
+    public AiBrainBase CrossWith(AiBrainBase second, double crossoverRate, Random random = null)
     {
-        m_qNet.CrossWith(second.m_qNet, crossoverRate);
+        m_qNet.CrossWith(second.m_qNet, crossoverRate, random);
         return this;
     }
 
-    public AiBrainBase Mutate(double mutationRate)
+    public AiBrainBase Mutate(double mutationRate, Random random = null)
     {
-        m_qNet.Mutate(mutationRate);
+        m_qNet.Mutate(mutationRate, random);
         return this;
     }
 
