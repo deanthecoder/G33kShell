@@ -37,12 +37,15 @@ public class ScreensaverCommand : CommandBase
     protected override Task<bool> Run(ITerminalState state)
     {
         var availableNames = ScreensaverControl.GetAvailableNames();
+        var availableScreensavers = ScreensaverControl.GetAvailableScreensaverInfo();
 
         if (List)
         {
             WriteLine("Available options:");
-            foreach (var name in availableNames)
-                WriteLine($"  {name}");
+            WriteLine(string.Empty);
+            WriteTwoColumnTable(
+                availableScreensavers.Where(o => !o.IsAi).Select(o => o.Name).ToArray(),
+                availableScreensavers.Where(o => o.IsAi).Select(o => o.Name).ToArray());
         }
 
         if (!string.IsNullOrEmpty(Name))
@@ -63,5 +66,24 @@ public class ScreensaverCommand : CommandBase
             WriteLine($"Last seen: {state.LastRunScreensaverName ?? "None yet"}");
 
         return Task.FromResult(true);
+    }
+
+    private void WriteTwoColumnTable(string[] classicNames, string[] aiNames)
+    {
+        var leftHeader = "Classic";
+        var rightHeader = "AI";
+        var leftWidth = Math.Max(leftHeader.Length, classicNames.DefaultIfEmpty(string.Empty).Max(o => o.Length));
+        var rightWidth = Math.Max(rightHeader.Length, aiNames.DefaultIfEmpty(string.Empty).Max(o => o.Length));
+        var rowCount = Math.Max(classicNames.Length, aiNames.Length);
+
+        WriteLine($"  {leftHeader.PadRight(leftWidth)}   {rightHeader.PadRight(rightWidth)}");
+        WriteLine($"  {new string('─', leftWidth)}   {new string('─', rightWidth)}");
+
+        for (var i = 0; i < rowCount; i++)
+        {
+            var left = i < classicNames.Length ? classicNames[i] : string.Empty;
+            var right = i < aiNames.Length ? aiNames[i] : string.Empty;
+            WriteLine($"  {left.PadRight(leftWidth)}   {right.PadRight(rightWidth)}");
+        }
     }
 }

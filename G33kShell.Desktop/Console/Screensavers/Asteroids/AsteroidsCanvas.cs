@@ -138,7 +138,7 @@ public class AsteroidsCanvas : AiGameCanvasBase
     protected override byte[] GetSavedBrainBytes() => Settings.Instance.AsteroidsBrain;
     protected override int GetTrainingSeed(int generation, int brainIndex, int gameIndex) =>
         unchecked(TrainingSeedBase + generation * 10_000 + brainIndex * 101 + gameIndex * 17);
-    protected override int GetValidationSeed(int candidateIndex, int gameIndex) =>
+    protected override int GetValidationSeed(int generation, int candidateIndex, int gameIndex) =>
         unchecked(TrainingSeedBase + 1_000_000 + candidateIndex * 1009 + gameIndex * 37);
     protected override AiBrainBase CreateBrain() => new Brain();
 

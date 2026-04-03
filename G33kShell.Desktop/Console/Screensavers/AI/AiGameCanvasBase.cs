@@ -215,76 +215,107 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         // Select the breeders.
         var orderedGames = gameResults.OrderByDescending(GetSelectionFitness).ToArray();
         var theBest = orderedGames[0];
-        var validationCandidateCount = Math.Min(GetValidationCandidateCount(), orderedGames.Length);
-        var validationResults = new (double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats)[validationCandidateCount];
-        var validationTotals = new double[validationCandidateCount];
-        var validationDegeneracyTotals = new double[validationCandidateCount];
-        var validationBestRatings = new double[validationCandidateCount];
-        var validationBestSeeds = new int[validationCandidateCount];
-        var validationBestStats = new string[validationCandidateCount];
-        var validationReasons = new string[validationCandidateCount];
-        var validationLocks = new object[validationCandidateCount];
-        for (var i = 0; i < validationCandidateCount; i++)
+        var bestTrainingFitness = GetSelectionFitness(theBest);
+        var useTrainingScoreForGoat = UseTrainingScoreForGoat();
+        var skippedValidation = useTrainingScoreForGoat || ShouldSkipValidation(bestTrainingFitness);
+        var bestValidation = theBest;
+        if (!useTrainingScoreForGoat && !skippedValidation)
         {
-            validationBestRatings[i] = double.MinValue;
-            validationLocks[i] = new object();
-        }
-
-        Parallel.For(0, validationCandidateCount * validationGamesPerBrain, m_parallelOptions, validationJobIndex =>
-        {
-            var candidateIndex = validationJobIndex / validationGamesPerBrain;
-            var gameIndex = validationJobIndex % validationGamesPerBrain;
-            try
+            var validationCandidateCount = Math.Min(GetValidationCandidateCount(), orderedGames.Length);
+            var validationResults = new (double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats)[validationCandidateCount];
+            var validationTotals = new double[validationCandidateCount];
+            var validationDegeneracyTotals = new double[validationCandidateCount];
+            var validationBestRatings = new double[validationCandidateCount];
+            var validationBestSeeds = new int[validationCandidateCount];
+            var validationBestStats = new string[validationCandidateCount];
+            var validationReasons = new string[validationCandidateCount];
+            var validationLocks = new object[validationCandidateCount];
+            for (var i = 0; i < validationCandidateCount; i++)
             {
-                var seed = GetValidationSeed(candidateIndex, gameIndex);
-                var evaluationBrain = orderedGames[candidateIndex].Brain.Clone();
-                var game = CreateGameWithSeed(seed, evaluationBrain, m_generation, true, candidateIndex, gameIndex);
-                while (!game.IsGameOver && !m_stopTraining)
-                    game.Tick();
+                validationBestRatings[i] = double.MinValue;
+                validationLocks[i] = new object();
+            }
 
-                UpdateBestObservedMetric(game.BestObservedMetric);
-                var gameStats = game.ExtraGameStats().Select(o => $"{o.Name} {o.Value}").ToCsv('|');
-                lock (validationLocks[candidateIndex])
+            Parallel.For(0, validationCandidateCount * validationGamesPerBrain, m_parallelOptions, validationJobIndex =>
+            {
+                var candidateIndex = validationJobIndex / validationGamesPerBrain;
+                var gameIndex = validationJobIndex % validationGamesPerBrain;
+                try
                 {
-                    validationTotals[candidateIndex] += game.Rating;
-                    validationDegeneracyTotals[candidateIndex] += game.DegeneracyScore;
-                    if (string.IsNullOrEmpty(validationReasons[candidateIndex]) && !string.IsNullOrEmpty(game.DegeneracyReason))
-                        validationReasons[candidateIndex] = game.DegeneracyReason;
-                    if (game.Rating > validationBestRatings[candidateIndex])
+                    var seed = GetValidationSeed(m_generation, candidateIndex, gameIndex);
+                    var evaluationBrain = orderedGames[candidateIndex].Brain.Clone();
+                    var game = CreateGameWithSeed(seed, evaluationBrain, m_generation, true, candidateIndex, gameIndex);
+                    while (!game.IsGameOver && !m_stopTraining)
+                        game.Tick();
+
+                    UpdateBestObservedMetric(game.BestObservedMetric);
+                    var gameStats = game.ExtraGameStats().Select(o => $"{o.Name} {o.Value}").ToCsv('|');
+                    lock (validationLocks[candidateIndex])
                     {
-                        validationBestRatings[candidateIndex] = game.Rating;
-                        validationBestSeeds[candidateIndex] = seed;
-                        validationBestStats[candidateIndex] = gameStats;
+                        validationTotals[candidateIndex] += game.Rating;
+                        validationDegeneracyTotals[candidateIndex] += game.DegeneracyScore;
+                        if (string.IsNullOrEmpty(validationReasons[candidateIndex]) && !string.IsNullOrEmpty(game.DegeneracyReason))
+                            validationReasons[candidateIndex] = game.DegeneracyReason;
+                        if (game.Rating > validationBestRatings[candidateIndex])
+                        {
+                            validationBestRatings[candidateIndex] = game.Rating;
+                            validationBestSeeds[candidateIndex] = seed;
+                            validationBestStats[candidateIndex] = gameStats;
+                        }
                     }
                 }
-            }
-            catch (Exception e)
+                catch (Exception e)
+                {
+                    Logger.Instance.Exception("Validation failed.", e);
+                }
+            });
+            for (var i = 0; i < validationCandidateCount; i++)
             {
-                Logger.Instance.Exception("Validation failed.", e);
+                validationResults[i] = (
+                    validationTotals[i] / validationGamesPerBrain,
+                    validationDegeneracyTotals[i] / validationGamesPerBrain,
+                    validationReasons[i],
+                    validationBestRatings[i],
+                    validationBestSeeds[i],
+                    orderedGames[i].Brain,
+                    validationBestStats[i] ?? string.Empty);
             }
-        });
-        for (var i = 0; i < validationCandidateCount; i++)
-        {
-            validationResults[i] = (
-                validationTotals[i] / validationGamesPerBrain,
-                validationDegeneracyTotals[i] / validationGamesPerBrain,
-                validationReasons[i],
-                validationBestRatings[i],
-                validationBestSeeds[i],
-                orderedGames[i].Brain,
-                validationBestStats[i] ?? string.Empty);
+
+            bestValidation = validationResults.OrderByDescending(GetSelectionFitness).First();
         }
-        var bestValidation = validationResults.OrderByDescending(GetSelectionFitness).First();
         UpdateExplorationBoost(bestValidation);
         var mutationRate = GetEffectiveMutationRate();
         var randomFraction = GetEffectiveRandomFraction();
-        var bestEvalFitness = GetSelectionFitness(bestValidation);
+        var bestEvalFitness = useTrainingScoreForGoat
+            ? bestTrainingFitness
+            : skippedValidation
+                ? 0.0
+                : GetSelectionFitness(bestValidation);
 
         // Report summary of results.
-        var stats = $"Gen {m_generation}|Pop {m_currentPopSize}|GOAT {m_savedRating:F1}|SinceGOAT {GetGoatAgeSeconds()}s|Train {theBest.AverageRating:F1}|Eval {bestValidation.AverageRating:F1}|Fit {bestEvalFitness:F1}|Mut {mutationRate:F3}|Rnd {randomFraction:F2}|Deg {bestValidation.AverageDegeneracy:F2}|Seed {theBest.GameSeed}";
+        var evalText = useTrainingScoreForGoat
+            ? "train"
+            : skippedValidation
+                ? "skip"
+                : bestValidation.AverageRating.ToString("F1");
+        var fitText = useTrainingScoreForGoat
+            ? bestEvalFitness.ToString("F1")
+            : skippedValidation
+                ? "skip"
+                : bestEvalFitness.ToString("F1");
+        var degText = useTrainingScoreForGoat
+            ? theBest.AverageDegeneracy.ToString("F2")
+            : skippedValidation
+                ? "skip"
+                : bestValidation.AverageDegeneracy.ToString("F2");
+        var stats = $"Gen {m_generation}|Pop {m_currentPopSize}|GOAT {m_savedRating:F1}|SinceGOAT {GetGoatAgeSeconds()}s|Train {theBest.AverageRating:F1}|Eval {evalText}|Fit {fitText}|Mut {mutationRate:F3}|Rnd {randomFraction:F2}|Deg {degText}|Seed {theBest.GameSeed}";
         stats += GetBestObservedMetricInlineText();
         if (!string.IsNullOrEmpty(theBest.GameStats))
             stats += $"|{theBest.GameStats}";
+        if (useTrainingScoreForGoat)
+            stats += "|TrainGOAT";
+        else if (skippedValidation)
+            stats += "|EvalSkip";
         if (m_explorationBoostGenerationsRemaining > 0)
             stats += $"|Boost {m_lastExplorationReason}";
         System.Console.WriteLine(stats);
@@ -304,7 +335,12 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             m_goatBrains.Remove(toRemove);
         }
 
-        PersistBrainImprovement(bestValidation, saveBrainBytes);
+        if (useTrainingScoreForGoat)
+            PersistBrainImprovement(theBest, saveBrainBytes);
+        else if (!skippedValidation)
+            PersistBrainImprovement(bestValidation, saveBrainBytes);
+        else
+            m_generationsSinceImprovement++;
 
         // Build the brains for the next generation.
         m_nextGenBrains = UseHarnessStyleEvolution()
@@ -544,6 +580,20 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     private string GetGoatAgeHudText() =>
         $"Since GOAT: {GetGoatAgeSeconds()}s";
 
+    private bool ShouldSkipValidation(double bestTrainingFitness)
+    {
+        if (m_savedRating <= 0.0)
+            return false;
+        if (m_generation < GetValidationSkipWarmupGenerations())
+            return false;
+
+        var interval = GetForcedValidationInterval();
+        if (interval > 0 && m_generation % interval == 0)
+            return false;
+
+        return bestTrainingFitness < m_savedRating * GetValidationSkipThresholdRatio();
+    }
+
     protected virtual IEnumerable<AiBrainBase> CreateInitialPopulation()
     {
         var initialPopulationSize = GetInitialPopulationSize();
@@ -587,7 +637,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     /// </remarks>
     protected virtual int GetTrainingSeed(int generation, int brainIndex, int gameIndex) =>
         unchecked(GetDefaultSeedBase() + generation * 10_000 + brainIndex * 101 + gameIndex * 17);
-    protected virtual int GetValidationSeed(int candidateIndex, int gameIndex) =>
+    protected virtual int GetValidationSeed(int generation, int candidateIndex, int gameIndex) =>
         unchecked(GetDefaultSeedBase() + 1_000_000 + candidateIndex * 1009 + gameIndex * 37);
 
     protected virtual int GetInitialPopulationSize() => DefaultInitialPopSize;
@@ -599,6 +649,10 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     protected virtual double GetRandomFraction() => 0.05;
     protected virtual double GetCrossoverRate() => 0.5;
     protected virtual double GetMutationRate() => 0.05;
+    protected virtual bool UseTrainingScoreForGoat() => false;
+    protected virtual double GetValidationSkipThresholdRatio() => 0.75;
+    protected virtual int GetValidationSkipWarmupGenerations() => 30;
+    protected virtual int GetForcedValidationInterval() => 10;
     protected virtual string GetTrainingStatusText(int generation) => string.Empty;
     protected virtual bool UseHarnessStyleEvolution() => true;
     protected virtual int? GetBreedingRandomSeed() => GetDefaultSeedBase();

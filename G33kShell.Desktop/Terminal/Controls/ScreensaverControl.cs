@@ -42,10 +42,33 @@ public class ScreensaverControl : Visual
         try
         {
             return
-                GetAllScreensavers(10, 10)
+                GetAvailableScreensaverInfo()
                     .Select(o => o.Name)
                     .OrderBy(o => o)
                     .ToArray();
+        }
+        catch (Exception ex)
+        {
+            Logger.Instance.Exception("Failed to enumerate screensavers.", ex);
+            throw;
+        }
+    }
+
+    public static (string Name, bool IsAi)[] GetAvailableScreensaverInfo()
+    {
+        try
+        {
+            return typeof(IScreensaver).Assembly.GetTypes()
+                .Where(t => !t.IsAbstract && typeof(IScreensaver).IsAssignableFrom(t))
+                .Select(type =>
+                {
+                    var screensaver = (IScreensaver)Activator.CreateInstance(type, args: [10, 10]);
+                    return (screensaver?.Name, IsAi: typeof(Console.Screensavers.AI.AiGameCanvasBase).IsAssignableFrom(type));
+                })
+                .Where(o => !string.IsNullOrWhiteSpace(o.Name))
+                .Select(o => (o.Name, o.IsAi))
+                .OrderBy(o => o.Name)
+                .ToArray();
         }
         catch (Exception ex)
         {
