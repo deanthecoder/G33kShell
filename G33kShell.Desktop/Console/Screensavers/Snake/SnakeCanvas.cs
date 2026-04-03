@@ -59,6 +59,9 @@ public class SnakeCanvas : AiGameCanvasBase
         DrawGame(screen, m_game);
 
         m_game.Tick();
+
+        if (m_game.IsGameOver)
+            m_game.ResetGame();
     }
 
     private static void DrawGame(ScreenData screen, AiGameBase aiGame)
@@ -72,7 +75,7 @@ public class SnakeCanvas : AiGameCanvasBase
         screen.PrintAt(0, 0, $"Score: {game.Score}, High Score: {game.HighScore}");
     }
 
-    protected override AiGameBase CreateGame(AiBrainBase brain) => new Game(ArenaWidth, ArenaHeight, brain);
+    protected override AiGameBase CreateGame(AiBrainBase brain) => new Game(ArenaWidth, ArenaHeight, brain, limitLives: false);
     protected override AiGameBase CreateTrainingGame(AiBrainBase brain) => new Game(TrainingArenaWidth, TrainingArenaHeight, brain);
     protected override bool UseHarnessStyleEvolution() => true;
     protected override int? GetBreedingRandomSeed() => TrainingSeedBase;
