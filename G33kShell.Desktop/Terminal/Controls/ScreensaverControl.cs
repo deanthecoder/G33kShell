@@ -9,7 +9,6 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
@@ -75,13 +74,6 @@ public class ScreensaverControl : Visual
             Logger.Instance.Exception("Failed to enumerate screensavers.", ex);
             throw;
         }
-    }
-
-    private static IEnumerable<IScreensaver> GetAllScreensavers(int width, int height)
-    {
-        return typeof(IScreensaver).Assembly.GetTypes().Where(t => !t.IsAbstract && typeof(IScreensaver).IsAssignableFrom(t))
-            .Select(o => (IScreensaver)Activator.CreateInstance(o, args: [width, height]))
-            .Where(o => o != null);
     }
 
     public override void OnLoaded(WindowManager windowManager)

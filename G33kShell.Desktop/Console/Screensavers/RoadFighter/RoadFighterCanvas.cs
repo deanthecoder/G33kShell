@@ -121,7 +121,7 @@ public class RoadFighterCanvas : AiGameCanvasBase
         DrawCar(screen, playerDrawX, game.PlayerY - 2, playerRgb, shoulder.WithBrightness(1.05));
     }
 
-    private void DrawRoadsideScenery(ScreenData screen, Game game, int y, int roadLeft, int roadRight, Rgb building, Rgb window, Rgb water, Rgb treeTrunk, Rgb treeLeaves)
+    private static void DrawRoadsideScenery(ScreenData screen, Game game, int y, int roadLeft, int roadRight, Rgb building, Rgb window, Rgb water, Rgb treeTrunk, Rgb treeLeaves)
     {
         var worldY = game.Distance + (screen.Height - y);
         var segment = worldY / 10;
@@ -130,7 +130,7 @@ public class RoadFighterCanvas : AiGameCanvasBase
         DrawSceneryForSide(screen, y, roadLeft, roadRight, worldY, segment, isLeft: false, building, window, water, treeTrunk, treeLeaves);
     }
 
-    private void DrawSceneryForSide(ScreenData screen, int y, int roadLeft, int roadRight, int worldY, int segment, bool isLeft, Rgb building, Rgb window, Rgb water, Rgb treeTrunk, Rgb treeLeaves)
+    private static void DrawSceneryForSide(ScreenData screen, int y, int roadLeft, int roadRight, int worldY, int segment, bool isLeft, Rgb building, Rgb window, Rgb water, Rgb treeTrunk, Rgb treeLeaves)
     {
         var seed = Hash(segment * 2 + (isLeft ? 0 : 1));
         if (seed % 10 > 2)
@@ -152,14 +152,14 @@ public class RoadFighterCanvas : AiGameCanvasBase
         }
     }
 
-    private void DrawBuilding(ScreenData screen, int y, int roadLeft, int roadRight, int worldY, int seed, bool isLeft, Rgb building, Rgb window)
+    private static void DrawBuilding(ScreenData screen, int y, int roadLeft, int roadRight, int worldY, int seed, bool isLeft, Rgb building, Rgb window)
     {
         var width = 5 + seed % 5;
         var localY = ((worldY % 8) + 8) % 8;
         var facadeChar = localY == 7 ? '▀' : '█';
         var x = GetSceneryX(screen.Width, roadLeft, roadRight, width, seed, isLeft);
         var limit = isLeft ? roadLeft : screen.Width;
-        var drawableWidth = isLeft ? Math.Min(width, Math.Max(0, limit - x)) : Math.Min(width, Math.Max(0, limit - x));
+        var drawableWidth = Math.Min(width, Math.Max(0, limit - x));
         if (drawableWidth <= 0)
             return;
 
@@ -171,7 +171,7 @@ public class RoadFighterCanvas : AiGameCanvasBase
         }
     }
 
-    private void DrawLake(ScreenData screen, int y, int roadLeft, int roadRight, int worldY, int seed, bool isLeft, Rgb water)
+    private static void DrawLake(ScreenData screen, int y, int roadLeft, int roadRight, int worldY, int seed, bool isLeft, Rgb water)
     {
         var width = 5 + seed % 6;
         var localY = ((worldY % 6) + 6) % 6;
@@ -187,7 +187,7 @@ public class RoadFighterCanvas : AiGameCanvasBase
             screen.PrintAt(x, y, text, water);
     }
 
-    private void DrawPalmTree(ScreenData screen, int y, int roadLeft, int roadRight, int worldY, int seed, bool isLeft, Rgb trunk, Rgb leaves)
+    private static void DrawPalmTree(ScreenData screen, int y, int roadLeft, int roadRight, int worldY, int seed, bool isLeft, Rgb trunk, Rgb leaves)
     {
         var localY = ((worldY % 8) + 8) % 8;
         var x = GetSceneryX(screen.Width, roadLeft, roadRight, 3, seed, isLeft) + 1;
@@ -221,13 +221,10 @@ public class RoadFighterCanvas : AiGameCanvasBase
 
     private static int Hash(int value)
     {
-        unchecked
-        {
-            value ^= value << 13;
-            value ^= value >> 17;
-            value ^= value << 5;
-            return Math.Abs(value);
-        }
+        value ^= value << 13;
+        value ^= value >> 17;
+        value ^= value << 5;
+        return Math.Abs(value);
     }
 
     private static int GetSceneryX(int screenWidth, int roadLeft, int roadRight, int width, int seed, bool isLeft)

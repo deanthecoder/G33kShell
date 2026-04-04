@@ -404,7 +404,7 @@ public class Game : AiGameBase
             if (car.Lane != lane)
                 continue;
 
-            var threat = 1.0 - ahead / (double)Math.Max(1, maxAhead);
+            var threat = 1.0 - ahead / Math.Max(1, maxAhead);
             strongest = Math.Max(strongest, threat);
         }
 

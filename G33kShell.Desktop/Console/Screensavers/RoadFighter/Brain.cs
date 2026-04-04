@@ -15,11 +15,9 @@ namespace G33kShell.Desktop.Console.Screensavers.RoadFighter;
 
 public class Brain : AiBrainBase
 {
-    private const int FrameHistory = 1;
-
     protected override int BrainVersion => 8;
 
-    public Brain() : base(30, [24, 12], 3, FrameHistory)
+    public Brain() : base(30, [24, 12], 3)
     {
     }
 
