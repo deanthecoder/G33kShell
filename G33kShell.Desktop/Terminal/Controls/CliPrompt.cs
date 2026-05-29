@@ -12,6 +12,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 using Avalonia.Input;
 using DTC.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
@@ -50,7 +51,46 @@ public class CliPrompt : TextBox
     /// <summary>
     /// The first line of the CLI prompt text.
     /// </summary>
-    public string CommandLine => TextWithoutPrefix[..TextWithoutPrefix.IndexOfAny(['\r', '\n'])];
+    public string CommandLine
+    {
+        get
+        {
+            lock (Content)
+            {
+                var lineEnd = IndexOfLineBreak(Content, 0);
+                return lineEnd < 0 ? Content.ToString() : Content.ToString(0, lineEnd);
+            }
+        }
+    }
+
+    public string GetOutputTail(int maxLength)
+    {
+        lock (Content)
+        {
+            var firstLineBreak = IndexOfLineBreak(Content, 0);
+            if (firstLineBreak < 0 || firstLineBreak == Content.Length - 1)
+                return string.Empty;
+
+            var outputStart = firstLineBreak + 1;
+            if (outputStart < Content.Length && Content[firstLineBreak] == '\r' && Content[outputStart] == '\n')
+                outputStart++;
+
+            var outputLength = Content.Length - outputStart;
+            var tailStart = outputLength > maxLength ? Content.Length - maxLength : outputStart;
+            return Content.ToString(tailStart, Content.Length - tailStart).Trim();
+        }
+    }
+
+    private static int IndexOfLineBreak(StringBuilder content, int startIndex)
+    {
+        for (var i = startIndex; i < content.Length; i++)
+        {
+            if (content[i] is '\r' or '\n')
+                return i;
+        }
+
+        return -1;
+    }
 
     public override void OnEvent(ConsoleEvent consoleEvent, ref bool handled)
     {

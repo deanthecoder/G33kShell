@@ -16,6 +16,7 @@ using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using DTC.Core;
 using G33kShell.Desktop.Console.Events;
@@ -33,6 +34,7 @@ public partial class ConsoleView : Control
     private FontFamily m_fontFamily;
     private Thickness m_padding;
     private ScreenData m_lastFrame;
+    private TopLevel m_topLevel;
 
     public static readonly DirectProperty<ConsoleView, WindowManager> WindowManagerProperty = AvaloniaProperty.RegisterDirect<ConsoleView, WindowManager>(nameof(WindowManager), o => o.WindowManager, (o, v) => o.WindowManager = v);
     public static readonly DirectProperty<ConsoleView, FontFamily> FontFamilyProperty = AvaloniaProperty.RegisterDirect<ConsoleView, FontFamily>(nameof(FontFamily), o => o.FontFamily, (o, v) => o.FontFamily = v);
@@ -42,15 +44,16 @@ public partial class ConsoleView : Control
     {
         InitializeComponent();
 
-        Loaded += (_, _) =>
-        {
-            var topLevel = TopLevel.GetTopLevel(this)!;
-            topLevel.KeyDown += (_, e) => m_windowManager.QueueEvent(new KeyConsoleEvent(e.Key, e.KeyModifiers, KeyConsoleEvent.KeyDirection.Down));
-            topLevel.KeyUp += (_, e) => m_windowManager.QueueEvent(new KeyConsoleEvent(e.Key, e.KeyModifiers, KeyConsoleEvent.KeyDirection.Up));
-        };
+        Loaded += OnLoaded;
 
         AddHandler(DragDrop.DropEvent, OnDrop);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        DetachTopLevelHandlers();
+        base.OnDetachedFromVisualTree(e);
     }
 
     public WindowManager WindowManager
@@ -193,6 +196,40 @@ public partial class ConsoleView : Control
             formattedText.SetFontFamily(m_fontFamily);
         formattedText.SetFontSize(CharHeight);
         return formattedText.BuildGeometry(m_zeroPoint);
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel == null || topLevel == m_topLevel)
+            return;
+
+        DetachTopLevelHandlers();
+        m_topLevel = topLevel;
+        m_topLevel.KeyDown += OnTopLevelKeyDown;
+        m_topLevel.KeyUp += OnTopLevelKeyUp;
+    }
+
+    private void DetachTopLevelHandlers()
+    {
+        if (m_topLevel == null)
+            return;
+
+        m_topLevel.KeyDown -= OnTopLevelKeyDown;
+        m_topLevel.KeyUp -= OnTopLevelKeyUp;
+        m_topLevel = null;
+    }
+
+    private void OnTopLevelKeyDown(object sender, KeyEventArgs e)
+    {
+        m_windowManager?.QueueEvent(new KeyConsoleEvent(e.Key, e.KeyModifiers, KeyConsoleEvent.KeyDirection.Down));
+        InvalidateVisual();
+    }
+
+    private void OnTopLevelKeyUp(object sender, KeyEventArgs e)
+    {
+        m_windowManager?.QueueEvent(new KeyConsoleEvent(e.Key, e.KeyModifiers, KeyConsoleEvent.KeyDirection.Up));
+        InvalidateVisual();
     }
 
     private void DrawTextRun(DrawingContext context, StringBuilder s, int xStart, int y, Rgb foreground, Rgb background)

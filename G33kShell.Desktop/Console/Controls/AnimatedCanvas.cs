@@ -10,6 +10,8 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
 using System.Diagnostics;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using DTC.Core;
 
@@ -27,8 +29,8 @@ public abstract class AnimatedCanvas : Visual
 {
     private readonly Stopwatch m_stopwatch = new Stopwatch();
     private int m_frameTimeMs;
-    private bool m_running;
     private Task m_animationTask;
+    private CancellationTokenSource m_animationTokenSource;
     private int m_targetFps;
 
     public int FrameNumber { get; set; }
@@ -76,15 +78,16 @@ public abstract class AnimatedCanvas : Visual
 
     private async Task UpdateFrameBase()
     {
+        var cancellationToken = m_animationTokenSource.Token;
         try
         {
             m_stopwatch.Restart();
             var frameStopwatch = new Stopwatch();
-            while (m_running)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 if (!IsVisible)
                 {
-                    await Task.Delay(100);
+                    await Task.Delay(100, cancellationToken);
                     continue;
                 }
             
@@ -94,7 +97,7 @@ public abstract class AnimatedCanvas : Visual
                 if (timeToWaitMs > 0 || !IsVisible)
                 {
                     // Skip this frame, too soon to render again.
-                    await Task.Delay((int)timeToWaitMs);
+                    await Task.Delay((int)Math.Max(1, timeToWaitMs), cancellationToken);
                     continue;
                 }
 
@@ -108,6 +111,10 @@ public abstract class AnimatedCanvas : Visual
                 FrameNumber++;
             }
         }
+        catch (OperationCanceledException)
+        {
+            // Expected when the visual is unloaded.
+        }
         catch (Exception e)
         {
             Logger.Instance.Exception("Failed to update render frame.", e);
@@ -118,8 +125,8 @@ public abstract class AnimatedCanvas : Visual
     {
         base.OnLoaded(windowManager);
         
-        // Start the animation asynchronously.
-        m_running = true;
+        Stop();
+        m_animationTokenSource = new CancellationTokenSource();
         m_animationTask = Task.Run(UpdateFrameBase);
     }
 
@@ -131,8 +138,19 @@ public abstract class AnimatedCanvas : Visual
 
     public void Stop()
     {
-        m_running = false;
-        m_animationTask?.Wait();
+        m_animationTokenSource?.Cancel();
+        try
+        {
+            if (m_animationTask != null && m_animationTask.Id != Task.CurrentId)
+                m_animationTask.Wait();
+        }
+        catch (AggregateException e) when (e.InnerExceptions.All(o => o is OperationCanceledException or TaskCanceledException))
+        {
+            // Expected when the visual is unloaded.
+        }
+
         m_animationTask = null;
+        m_animationTokenSource?.Dispose();
+        m_animationTokenSource = null;
     }
 }

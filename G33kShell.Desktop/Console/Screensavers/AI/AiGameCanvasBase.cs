@@ -50,7 +50,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     private int m_currentPopSize;
     private string m_lastExplorationReason;
     private Task m_trainingTask;
-    private bool m_stopTraining;
+    private volatile bool m_stopTraining;
     private List<AiBrainBase> m_nextGenBrains;
     private Random m_breedingRandom;
     private readonly ParallelOptions m_parallelOptions = new ParallelOptions();
@@ -123,18 +123,27 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         m_stopTraining = false;
         m_trainingTask = Task.Run(() =>
         {
-            while (!m_stopTraining)
-                TrainAiImpl(saveBrainBytes);
-            
-            System.Console.WriteLine("Training complete.");
-            System.Console.WriteLine("Summary:");
-            System.Console.WriteLine($"  Brain layers: {brain.InputSize} : {brain.HiddenLayers.ToCsv(' ')} : {brain.OutputSize}");
-            System.Console.WriteLine($"   Generations: {m_generation}");
-            System.Console.WriteLine($"        Rating: {m_savedRating:F1}");
-            System.Console.WriteLine($"  Since GOAT: {GetGoatAgeSeconds()}s");
-            var bestObservedMetric = GetBestObservedMetricSummaryText();
-            if (!string.IsNullOrEmpty(bestObservedMetric))
-                System.Console.WriteLine(bestObservedMetric);
+            try
+            {
+                while (!m_stopTraining)
+                    TrainAiImpl(saveBrainBytes);
+
+                System.Console.WriteLine("Training complete.");
+                System.Console.WriteLine("Summary:");
+                System.Console.WriteLine($"  Brain layers: {brain.InputSize} : {brain.HiddenLayers.ToCsv(' ')} : {brain.OutputSize}");
+                System.Console.WriteLine($"   Generations: {m_generation}");
+                System.Console.WriteLine($"        Rating: {m_savedRating:F1}");
+                System.Console.WriteLine($"  Since GOAT: {GetGoatAgeSeconds()}s");
+                var bestObservedMetric = GetBestObservedMetricSummaryText();
+                if (!string.IsNullOrEmpty(bestObservedMetric))
+                    System.Console.WriteLine(bestObservedMetric);
+            }
+            finally
+            {
+                m_nextGenBrains = null;
+                m_goatBrains.Clear();
+                m_trainingTask = null;
+            }
         });
     }
 

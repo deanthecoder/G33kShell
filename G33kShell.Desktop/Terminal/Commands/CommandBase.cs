@@ -27,6 +27,7 @@ namespace G33kShell.Desktop.Terminal.Commands;
 
 public abstract class CommandBase : Command
 {
+    private const int MaxHistoryOutputLength = 128 * 1024;
     private ITerminalState m_state;
 
     private CliPrompt CliPrompt => m_state.CliPrompt;
@@ -69,9 +70,8 @@ public abstract class CommandBase : Command
             m_state.CliPrompt.CancelActionRequested += OnCancelActionRequested;
 
             using var _ = new BusyCursor(m_state.CliPrompt.Cursor);
-            var commandSuccess = await Run(m_state);
-            var lines = CliPrompt.TextWithoutPrefix.Split('\n');
-            var result = new CommandResult(CliPrompt.CommandLine, m_state.CurrentDirectory.Clone(), string.Join('\n', lines.Skip(1)).Trim(), commandSuccess);
+            var commandSuccess = await Run(m_state).ConfigureAwait(false);
+            var result = new CommandResult(CliPrompt.CommandLine, m_state.CurrentDirectory.Clone(), CliPrompt.GetOutputTail(MaxHistoryOutputLength), commandSuccess);
             m_state.CommandHistory.AddCommand(result);
         }
         catch
@@ -118,7 +118,7 @@ public abstract class CommandBase : Command
         CliPrompt.AppendLine(s ?? string.Empty);
 
         // ...and expand the control height.
-        var lineCount = CliPrompt.Text.Length;
+        var lineCount = CliPrompt.LineCount;
         CliPrompt.SetHeight(lineCount);
         
         // If the control now pokes off the bottom of the screen, scroll the controls up.

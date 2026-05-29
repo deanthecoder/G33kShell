@@ -9,22 +9,19 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace G33kShell.Desktop.Terminal.Commands;
 
 /// <summary>
 /// Represents a single index record for fast bigram-based grep prefiltering.
-/// Each record stores a 65,536-bit presence bitset (8,192 bytes) of all byte-pair bigrams found in a file.
+/// Each record stores only the byte-pair bigrams found in a file.
 /// </summary>
 internal sealed class BigramIndexRecord
 {
-    // Record layout: PathHashMd5 (16) + FileSize (8) + LastWriteTimeUtcTicks (8) + BigramBitset (8192) = 8224 bytes
-    public const int RecordSize = 8224;
-    private const int BigramBitsetSize = 8192; // 65536 bits / 8 = 8192 bytes
-
-    /// <summary>Bitset of all bigrams present in the file (65,536 bits).</summary>
-    private readonly byte[] m_bigramBitset;
+    private ushort[] m_bigrams = [];
 
     /// <summary>MD5 hash of the normalized file path.</summary>
     public byte[] PathHashMd5 { get; }
@@ -41,37 +38,24 @@ internal sealed class BigramIndexRecord
             throw new ArgumentException("Path hash must be 16 bytes (MD5).", nameof(pathHashMd5));
         
         PathHashMd5 = pathHashMd5;
-        m_bigramBitset = new byte[BigramBitsetSize];
     }
 
-    /// <summary>
-    /// Checks if a specific bigram bit is set.
-    /// </summary>
-    public bool IsBigramPresent(int bigramKey)
-    {
-        var byteIndex = bigramKey >> 3;
-        var bitMask = 1 << (bigramKey & 7);
-        return (m_bigramBitset[byteIndex] & bitMask) != 0;
-    }
+    public int SerializedSize => 16 + sizeof(long) + sizeof(long) + sizeof(int) + m_bigrams.Length * sizeof(ushort);
 
     /// <summary>
-    /// Sets a specific bigram bit.
+    /// Checks if a specific bigram is present.
     /// </summary>
-    private void SetBigram(int bigramKey)
-    {
-        var byteIndex = bigramKey >> 3;
-        var bitMask = 1 << (bigramKey & 7);
-        m_bigramBitset[byteIndex] |= (byte)bitMask;
-    }
+    public bool IsBigramPresent(int bigramKey) =>
+        Array.BinarySearch(m_bigrams, unchecked((ushort)bigramKey)) >= 0;
 
     /// <summary>
     /// Rebuilds the bigram bitset by scanning file content.
     /// </summary>
     public void RebuildFromFile(FileInfo file)
     {
-        Array.Clear(m_bigramBitset, 0, m_bigramBitset.Length);
         m_fileSize = file.Length;
         m_lastWriteTimeUtcTicks = file.LastWriteTimeUtc.Ticks;
+        var bigrams = new HashSet<ushort>();
 
         // Stream file content and build bigram bitset
         using var stream = file.OpenRead();
@@ -82,9 +66,11 @@ internal sealed class BigramIndexRecord
         while ((currByte = stream.ReadByte()) != -1)
         {
             var bigramKey = (prevByte << 8) | currByte;
-            SetBigram(bigramKey);
+            bigrams.Add(unchecked((ushort)bigramKey));
             prevByte = currByte;
         }
+
+        m_bigrams = bigrams.OrderBy(o => o).ToArray();
     }
 
     /// <summary>
@@ -101,7 +87,9 @@ internal sealed class BigramIndexRecord
         writer.Write(PathHashMd5);
         writer.Write(m_fileSize);
         writer.Write(m_lastWriteTimeUtcTicks);
-        writer.Write(m_bigramBitset);
+        writer.Write(m_bigrams.Length);
+        foreach (var bigram in m_bigrams)
+            writer.Write(bigram);
     }
 
     /// <summary>
@@ -115,7 +103,10 @@ internal sealed class BigramIndexRecord
             m_fileSize = reader.ReadInt64(),
             m_lastWriteTimeUtcTicks = reader.ReadInt64()
         };
-        reader.Read(record.m_bigramBitset, 0, BigramBitsetSize);
+        var count = reader.ReadInt32();
+        record.m_bigrams = new ushort[count];
+        for (var i = 0; i < count; i++)
+            record.m_bigrams[i] = reader.ReadUInt16();
         return record;
     }
 }

@@ -80,20 +80,6 @@ public class GrepCommand : CommandBase
                 return idx;
             });
 
-            // Find all the files while index loads in background
-            var searchStart = DateTime.UtcNow;
-            var results = new List<FileSystemInfo>();
-            await foreach (var fileSystemInfo in SearchDirectory(state.CurrentDirectory, FileMask))
-                results.Add(fileSystemInfo);
-            var searchElapsed = DateTime.UtcNow - searchStart;
-            System.Console.WriteLine($"[SearchDirectory took {searchElapsed.TotalSeconds:F2}s, found {results.Count} items]");
-
-            if (results.Count == 0)
-            {
-                WriteLine("No matching files found.");
-                return true;
-            }
-
             if (string.IsNullOrEmpty(Text))
             {
                 WriteLine("No text to search for.");
@@ -101,129 +87,120 @@ public class GrepCommand : CommandBase
             }
 
             // Wait for index to finish loading
-            var index = await indexLoadTask;
+            var index = await indexLoadTask.ConfigureAwait(false);
 
-            // Filter to get text-only files (skip IsTextFile check for already-indexed files)
-            int matchCount;
-            var textFiles = await Task.Run(() =>
-                results.OfType<FileInfo>()
-                    .Where(f => index?.IsIndexed(f) == true || IsTextFile(f))
-                    .ToArray());
+            int matchCount = 0;
+            var foundMatchingFiles = false;
+            var totalFilesBeforeFilter = 0;
+            var scannedFileCount = 0;
 
-            var totalFilesBeforeFilter = textFiles.Length;
-
-            // Apply bigram prefilter
-            if (index != null)
-                textFiles = index.FilterCandidates(textFiles, Text, CaseSensitive).ToArray();
-
-            List<string> output;
             if (Replace == null)
             {
                 // Text search only.
                 if (FilenamesOnly)
                 {
                     // Only report filenames - stop at first match per file.
-                    var matchingFiles = textFiles
-                        .AsParallel()
-                        .Where(file =>
+                    await foreach (var file in SearchDirectory(state.CurrentDirectory, FileMask).ConfigureAwait(false))
+                    {
+                        if (!ShouldScanFile(file, index, ref totalFilesBeforeFilter, ref scannedFileCount))
+                            continue;
+
+                        try
                         {
-                            try
-                            {
-                                return file.ReadAllLines().Any(line => line.Contains(Text, CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase) && !IsCancelRequested);
-                            }
-                            catch (Exception)
-                            {
-                                return false;
-                            }
-                        })
-                        .Select(file => file.FullName);
-                    output = await Task.Run(() => matchingFiles.ToList());
-                    matchCount = output.Count;
+                            if (!File.ReadLines(file.FullName).Any(line => line.Contains(Text, CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase)))
+                                continue;
+
+                            foundMatchingFiles = true;
+                            WriteLine(file.FullName);
+                            matchCount++;
+                        }
+                        catch (Exception)
+                        {
+                        }
+                    }
                 }
                 else
                 {
                     // Report all matching lines.
-                    var matches =
-                        textFiles
-                            .AsParallel()
-                            .SelectMany(file =>
-                            {
-                                try
-                                {
-                                    return file.ReadAllLines()
-                                        .Select((s, lineIndex) => (file, lineIndex, s))
-                                        .Where(o => o.s.Contains(Text, CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase) && !IsCancelRequested);
-                                }
-                                catch (Exception)
-                                {
-                                    return [];
-                                }
-                            });
-                    var allMatches = await Task.Run(() => matches.GroupBy(o => o.file).ToList());
-                    matchCount = allMatches.Count;
-                    output = [];
-                    foreach (var match in allMatches)
+                    var comparison = CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+                    await foreach (var file in SearchDirectory(state.CurrentDirectory, FileMask).ConfigureAwait(false))
                     {
-                        output.Add(match.Key.FullName);
-                        output.AddRange(match.Select(o => GetFormattedFindResult(state, o)));
-                        output.Add(string.Empty);
+                        if (!ShouldScanFile(file, index, ref totalFilesBeforeFilter, ref scannedFileCount))
+                            continue;
+
+                        try
+                        {
+                            var lineIndex = 0;
+                            var hasMatches = false;
+                            foreach (var line in File.ReadLines(file.FullName))
+                            {
+                                if (IsCancelRequested)
+                                    break;
+
+                                if (line.Contains(Text, comparison))
+                                {
+                                    if (!hasMatches)
+                                        WriteLine(file.FullName);
+                                    hasMatches = true;
+                                    WriteLine(GetFormattedFindResult(state, (file, lineIndex, line)));
+                                }
+
+                                lineIndex++;
+                            }
+
+                            if (hasMatches)
+                            {
+                                foundMatchingFiles = true;
+                                matchCount++;
+                                WriteLine(string.Empty);
+                            }
+                        }
+                        catch (Exception)
+                        {
+                        }
                     }
                 }
             }
             else
             {
                 // Search and replace.
-                var modified = textFiles
-                    .AsParallel()
-                    .Select(FileSystemInfo (o) =>
-                    {
-                        try
-                        {
-                            var text = o.ReadAllText();
-                            var comparison = CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
-                            if (!text.Contains(Text, comparison))
-                                return null;
-                            o.WriteAllText(text.Replace(Text, Replace, comparison));
-                            return o;
-                        }
-                        catch (Exception)
-                        {
-                            return null;
-                        }
-                    })
-                    .Where(o => o != null && !IsCancelRequested)
-                    .Select(o => o.FullName);
-                output = await Task.Run(() => modified.ToList());
-                matchCount = output.Count;
-            }
-
-            // Write out the results.
-            await Task.Run(() =>
-            {
-                const int chunkSize = 5;
-                var sb = new StringBuilder();
-                for (var i = 0; i < output.Count && !IsCancelRequested; i += chunkSize)
+                await foreach (var file in SearchDirectory(state.CurrentDirectory, FileMask).ConfigureAwait(false))
                 {
-                    sb.Clear();
-                    foreach (var match in output.Skip(i).Take(chunkSize))
-                        sb.AppendLine(match);
-                    WriteLine(sb.ToString().TrimEnd());
-                    
-                    if (IsCancelRequested)
-                        break;
+                    if (!ShouldScanFile(file, index, ref totalFilesBeforeFilter, ref scannedFileCount))
+                        continue;
+
+                    try
+                    {
+                        var text = file.ReadAllText();
+                        var comparison = CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+                        if (!text.Contains(Text, comparison))
+                            continue;
+                        file.WriteAllText(text.Replace(Text, Replace, comparison));
+                        foundMatchingFiles = true;
+                        WriteLine(file.FullName);
+                        matchCount++;
+                    }
+                    catch (Exception)
+                    {
+                    }
                 }
-            });
+            }
 
             // Save index if modified (before displaying stats so file size is accurate)
             index?.Save();
 
             var elapsed = DateTime.UtcNow - startTime;
+            if (totalFilesBeforeFilter == 0 && !foundMatchingFiles)
+            {
+                WriteLine("No matching files found.");
+                return true;
+            }
 
             // Better message when prefilter eliminated everything
-            if (textFiles.Length == 0 && index != null && index.FilesSkippedByPrefilter > 0)
+            if (scannedFileCount == 0 && index != null && index.FilesSkippedByPrefilter > 0)
                 WriteLine($"{totalFilesBeforeFilter} file(s) checked via index, 0 actually scanned, {matchCount} match(es) found. ({elapsed.TotalSeconds:F2}s)");
             else
-                WriteLine($"{textFiles.Length} file(s) scanned, {matchCount} match(es) found. ({elapsed.TotalSeconds:F2}s)");
+                WriteLine($"{scannedFileCount} file(s) scanned, {matchCount} match(es) found. ({elapsed.TotalSeconds:F2}s)");
 
             // Display index stats if requested
             if (IndexInfo && index != null)
@@ -235,7 +212,7 @@ public class GrepCommand : CommandBase
                 WriteLine($"  Text files on disk   : {totalFilesBeforeFilter:N0}");
                 WriteLine($"  Newly indexed        : {index.NewFilesIndexed:N0}");
                 WriteLine($"  Skipped by prefilter : {index.FilesSkippedByPrefilter:N0} (avoided disk read)");
-                WriteLine($"  Scanned from disk    : {textFiles.Length:N0}");
+                WriteLine($"  Scanned from disk    : {scannedFileCount:N0}");
 
                 var filterEfficiency = totalFilesBeforeFilter > 0 ? index.FilesSkippedByPrefilter * 100.0 / totalFilesBeforeFilter : 0;
                 WriteLine($"  Filter efficiency    : {filterEfficiency:F1}%");
@@ -250,6 +227,24 @@ public class GrepCommand : CommandBase
         }
 
         return false;
+    }
+
+    private bool ShouldScanFile(FileInfo file, BigramIndex index, ref int totalTextFiles, ref int scannedFiles)
+    {
+        if (IsCancelRequested)
+            return false;
+
+        var isTextFile = index?.IsIndexed(file) == true || IsTextFile(file);
+        if (!isTextFile)
+            return false;
+
+        totalTextFiles++;
+
+        if (index?.CanContain(file, Text, CaseSensitive) == false)
+            return false;
+
+        scannedFiles++;
+        return true;
     }
 
     private static bool IsTextFile(FileInfo o)
@@ -277,7 +272,7 @@ public class GrepCommand : CommandBase
         return sb.ToString().Trim();
     }
 
-    private async IAsyncEnumerable<FileSystemInfo> SearchDirectory(DirectoryInfo directory, string fileMask)
+    private async IAsyncEnumerable<FileInfo> SearchDirectory(DirectoryInfo directory, string fileMask)
     {
         var components = fileMask.Split(';').Distinct();
         foreach (var mask in components)
@@ -288,12 +283,30 @@ public class GrepCommand : CommandBase
             if (fileMask == null)
                 throw new ArgumentException("Invalid/missing file mask.");
 
-            await foreach (var fileSystemInfo in dir.TryGetContentAsync(newMask, SearchOption.AllDirectories, () => IsCancelRequested))
+            var options = new EnumerationOptions
             {
-                // Skip hidden folders.
-                var isHidden = fileSystemInfo is DirectoryInfo dirInfo && dirInfo.Attributes.HasFlag(FileAttributes.Hidden);
-                if (!isHidden)
-                    yield return fileSystemInfo;
+                RecurseSubdirectories = true,
+                IgnoreInaccessible = true,
+                AttributesToSkip = FileAttributes.Hidden | FileAttributes.System
+            };
+
+            IEnumerable<FileInfo> files;
+            try
+            {
+                files = dir.EnumerateFiles(newMask, options);
+            }
+            catch
+            {
+                continue;
+            }
+
+            foreach (var file in files)
+            {
+                if (IsCancelRequested)
+                    yield break;
+
+                yield return file;
+                await Task.Yield();
             }
         }
     }

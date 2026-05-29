@@ -26,6 +26,8 @@ namespace G33kShell.Desktop.Terminal.Commands;
 /// </summary>
 internal sealed class BigramIndex
 {
+    private const int FileMagic = 0x47424932; // GBI2
+    private const int FileVersion = 1;
     private static BigramIndex s_instance;
     private static readonly object s_lock = new object();
 
@@ -52,7 +54,7 @@ internal sealed class BigramIndex
     private BigramIndex()
     {
         var settingsDir = Assembly.GetEntryAssembly().GetAppSettingsPath();
-        m_indexFile = settingsDir.GetFile("index.dat");
+        m_indexFile = settingsDir.GetFile("index-v2.dat");
         Load();
     }
 
@@ -88,7 +90,7 @@ internal sealed class BigramIndex
     /// <summary>
     /// Gets the uncompressed size of the index in memory.
     /// </summary>
-    public long UncompressedSize => m_records.Count * (long)BigramIndexRecord.RecordSize;
+    public long UncompressedSize => m_records.Values.Sum(o => (long)o.SerializedSize);
 
     /// <summary>
     /// Loads the index from disk (LZ4 compressed).
@@ -108,8 +110,14 @@ internal sealed class BigramIndex
 
             using var stream = new MemoryStream(decompressedData);
             using var reader = new BinaryReader(stream);
+            if (reader.ReadInt32() != FileMagic || reader.ReadInt32() != FileVersion)
+            {
+                m_records.Clear();
+                return;
+            }
 
-            while (stream.Position < stream.Length)
+            var count = reader.ReadInt32();
+            for (var i = 0; i < count && stream.Position < stream.Length; i++)
             {
                 var record = BigramIndexRecord.ReadFrom(reader);
                 var hashKey = Convert.ToHexString(record.PathHashMd5);
@@ -139,6 +147,9 @@ internal sealed class BigramIndex
             using var memStream = new MemoryStream();
             using (var writer = new BinaryWriter(memStream, Encoding.UTF8, leaveOpen: true))
             {
+                writer.Write(FileMagic);
+                writer.Write(FileVersion);
+                writer.Write(m_records.Count);
                 foreach (var record in m_records.Values)
                     record.WriteTo(writer);
             }
@@ -228,7 +239,7 @@ internal sealed class BigramIndex
     /// Checks if a file can possibly contain the search string using bigram prefilter.
     /// Returns true if file should be scanned, false if it definitely cannot match.
     /// </summary>
-    private bool CanContain(FileInfo file, string searchText, bool caseSensitive)
+    public bool CanContain(FileInfo file, string searchText, bool caseSensitive)
     {
         if (searchText.Length < 2)
             return true; // Cannot prefilter short strings

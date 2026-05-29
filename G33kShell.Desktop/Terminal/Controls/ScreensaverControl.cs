@@ -10,9 +10,11 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using DTC.Core;
 using DTC.Core.Extensions;
 using G33kShell.Desktop.Console;
@@ -25,9 +27,10 @@ public class ScreensaverControl : Visual
 {
     private readonly int m_timeToSleepSecs;
     private WindowManager m_windowManager;
+    private TopLevel m_topLevel;
     private int m_secondsUntilDisplay;
     private Task m_periodicTask;
-    private bool m_taskCancellationRequested;
+    private CancellationTokenSource m_periodicTokenSource;
 
     public event EventHandler<string> ScreensaverStarted;
 
@@ -81,12 +84,15 @@ public class ScreensaverControl : Visual
         m_windowManager = windowManager;
         base.OnLoaded(windowManager);
 
-        m_taskCancellationRequested = false;
+        StopPeriodicTask();
+
+        m_periodicTokenSource = new CancellationTokenSource();
+        var cancellationToken = m_periodicTokenSource.Token;
         m_periodicTask = Task.Run(async () =>
         {
-            while (!m_taskCancellationRequested)
+            while (!cancellationToken.IsCancellationRequested)
             {
-                await Task.Delay(TimeSpan.FromSeconds(1)); 
+                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken); 
 
                 if (m_secondsUntilDisplay == 0)
                     continue; // Screensaver is active.
@@ -115,20 +121,44 @@ public class ScreensaverControl : Visual
                 ScreensaverStarted?.Invoke(this, screensaver.ActivationName);
                 screensaver.StartScreensaver(shellScreen);
             }
-        });
+        }, cancellationToken);
 
-        var topLevel = TopLevel.GetTopLevel(Application.Current.GetMainWindow());
-        if (topLevel != null)
-            topLevel.KeyDown += (_, _) => ResetTimer();
+        if (m_topLevel != null)
+            m_topLevel.KeyDown -= OnTopLevelKeyDown;
+
+        m_topLevel = TopLevel.GetTopLevel(Application.Current.GetMainWindow());
+        if (m_topLevel != null)
+            m_topLevel.KeyDown += OnTopLevelKeyDown;
         
         ResetTimer();
     }
 
     protected override void OnUnloaded()
     {
-        m_taskCancellationRequested = true;
-        m_periodicTask?.Wait();
+        if (m_topLevel != null)
+        {
+            m_topLevel.KeyDown -= OnTopLevelKeyDown;
+            m_topLevel = null;
+        }
+
+        StopPeriodicTask();
         base.OnUnloaded();
+    }
+
+    private void StopPeriodicTask()
+    {
+        m_periodicTokenSource?.Cancel();
+        try
+        {
+            m_periodicTask?.Wait();
+        }
+        catch (AggregateException e) when (e.InnerExceptions.All(o => o is OperationCanceledException or TaskCanceledException))
+        {
+            // Expected when the visual is unloaded.
+        }
+        m_periodicTask = null;
+        m_periodicTokenSource?.Dispose();
+        m_periodicTokenSource = null;
     }
 
     /// <summary>
@@ -142,6 +172,9 @@ public class ScreensaverControl : Visual
         m_windowManager.Cursor.IsVisible = true;
         m_secondsUntilDisplay = m_timeToSleepSecs;
     }
+
+    private void OnTopLevelKeyDown(object sender, KeyEventArgs e) =>
+        ResetTimer();
 
     public override void Render(ScreenData screen)
     {

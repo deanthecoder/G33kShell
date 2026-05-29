@@ -45,6 +45,8 @@ public class TextBox : TextBlock, ICursorHost
 
     public override string[] Text => WrapText(Prefix, m_s, Width).ToArray();
     public string TextWithoutPrefix => m_s.ToString();
+    public int LineCount => CountWrappedLines(Prefix?.Length ?? 0, m_s, Width);
+    protected StringBuilder Content => m_s;
     public int CursorIndex { get; private set; }
     public ConsoleCursor Cursor { get; private set; }
     public bool IsReadOnly { get; set; }
@@ -119,6 +121,70 @@ public class TextBox : TextBlock, ICursorHost
         }
     }
 
+    private static int CountWrappedLines(int prefixLength, StringBuilder content, int maxLength)
+    {
+        lock (content)
+        {
+            if (content.Length == 0)
+                return 1;
+
+            var lineCount = 0;
+            var lineLength = prefixLength;
+            for (var i = 0; i < content.Length; i++)
+            {
+                if (content[i] == '\n')
+                {
+                    lineCount++;
+                    lineLength = 0;
+                    continue;
+                }
+
+                if (lineLength == maxLength)
+                {
+                    lineCount++;
+                    lineLength = 0;
+                }
+
+                lineLength++;
+            }
+
+            return lineCount + 1;
+        }
+    }
+
+    private static IEnumerable<(int lineStart, int lineLength)> EnumerateWrappedLineRanges(string prefix, StringBuilder content, int maxLength)
+    {
+        prefix ??= string.Empty;
+        content.Insert(0, prefix);
+        try
+        {
+            if (content.Length == 0)
+                yield return (0, 0);
+            else
+            {
+                foreach (var line in SplitIntoLines(content, maxLength))
+                    yield return line;
+            }
+        }
+        finally
+        {
+            content.Remove(0, prefix.Length);
+        }
+    }
+
+    private void PrintWrappedLine(ScreenData screen, int lineIndex, int lineStart, int lineLength)
+    {
+        var x = 0;
+        while (x < lineLength && x < Width)
+        {
+            screen.PrintAt(x, lineIndex, Content[lineStart + x]);
+            x++;
+        }
+
+        while (x < Width)
+            screen.PrintAt(x++, lineIndex, ' ');
+    }
+
     public string Prefix
     {
         get => m_prefix;
@@ -141,6 +207,23 @@ public class TextBox : TextBlock, ICursorHost
         base.OnLoaded(windowManager);
         Cursor = windowManager.Cursor;
         SetCursor(0);
+    }
+
+    public override void Render(ScreenData screen)
+    {
+        lock (m_s)
+        {
+            var lineIndex = 0;
+            foreach (var (lineStart, lineLength) in EnumerateWrappedLineRanges(Prefix, m_s, Width))
+            {
+                PrintWrappedLine(screen, lineIndex++, lineStart, lineLength);
+                if (lineIndex >= screen.Height)
+                    break;
+            }
+
+            for (var i = lineIndex; i < screen.Height; i++)
+                screen.PrintAt(0, i, new string(' ', Width));
+        }
     }
 
     public override void OnEvent(ConsoleEvent consoleEvent, ref bool handled)
@@ -388,7 +471,7 @@ public class TextBox : TextBlock, ICursorHost
             Cursor?.SetPos(x, y);
         }
 
-        var lineCount = WrapText(Prefix, m_s, Width).Count();
+        var lineCount = LineCount;
         if (lineCount > Height)
         {
             SetHeight(lineCount);
