@@ -222,13 +222,13 @@ public partial class ConsoleView : Control
 
     private void OnTopLevelKeyDown(object sender, KeyEventArgs e)
     {
-        m_windowManager?.QueueEvent(new KeyConsoleEvent(e.Key, e.KeyModifiers, KeyConsoleEvent.KeyDirection.Down));
+        m_windowManager?.QueueEvent(new KeyConsoleEvent(e.Key, e.KeyModifiers, KeyConsoleEvent.KeyDirection.Down, e.KeySymbol));
         InvalidateVisual();
     }
 
     private void OnTopLevelKeyUp(object sender, KeyEventArgs e)
     {
-        m_windowManager?.QueueEvent(new KeyConsoleEvent(e.Key, e.KeyModifiers, KeyConsoleEvent.KeyDirection.Up));
+        m_windowManager?.QueueEvent(new KeyConsoleEvent(e.Key, e.KeyModifiers, KeyConsoleEvent.KeyDirection.Up, e.KeySymbol));
         InvalidateVisual();
     }
 

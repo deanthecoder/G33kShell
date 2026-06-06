@@ -19,6 +19,7 @@ namespace G33kShell.Desktop.Console.Events;
 public class KeyConsoleEvent : ConsoleEvent
 {
     public Key Key { get; }
+    public string KeySymbol { get; }
     public KeyModifiers Modifiers { get; }
     public KeyDirection Direction { get; }
 
@@ -28,9 +29,10 @@ public class KeyConsoleEvent : ConsoleEvent
         Down
     }
 
-    public KeyConsoleEvent(Key key, KeyModifiers modifiers, KeyDirection direction)
+    public KeyConsoleEvent(Key key, KeyModifiers modifiers, KeyDirection direction, string keySymbol = null)
     {
         Key = key;
+        KeySymbol = keySymbol;
         Modifiers = modifiers;
         Direction = direction;
     }
@@ -40,8 +42,11 @@ public class KeyConsoleEvent : ConsoleEvent
 
     public char GetChar()
     {
-        var s = Key.ToString();
         var shiftPressed = Modifiers.HasFlag(KeyModifiers.Shift);
+        if (TryGetCharFromKeySymbol(out var keySymbolChar))
+            return keySymbolChar;
+        
+        var s = Key.ToString();
 
         // Support keypad numbers.
         s = s.Replace("NumPad", "D");
@@ -63,7 +68,7 @@ public class KeyConsoleEvent : ConsoleEvent
 
         // Single character.
         if (s.Length == 1)
-            return s[0];
+            return shiftPressed ? s[0] : char.ToLower(s[0]);
 
         return Key switch
         {
@@ -83,5 +88,20 @@ public class KeyConsoleEvent : ConsoleEvent
             Key.Oem8 =>  shiftPressed ? '¬' : '`',
             _ => '\0'
         };
+    }
+    
+    private bool TryGetCharFromKeySymbol(out char ch)
+    {
+        ch = '\0';
+        if (string.IsNullOrEmpty(KeySymbol))
+            return false;
+        
+        // KeySymbol is layout-aware, so it correctly accounts for UK/US punctuation,
+        // dead keys, and non-QWERTY layouts where Avalonia can resolve them.
+        if (KeySymbol.Length != 1 || char.IsControl(KeySymbol[0]))
+            return false;
+        
+        ch = KeySymbol[0];
+        return true;
     }
 }

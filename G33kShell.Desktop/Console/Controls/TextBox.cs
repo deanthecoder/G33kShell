@@ -307,8 +307,6 @@ public class TextBox : TextBlock, ICursorHost
             var ch = keyEvent.GetChar();
             if (IsPrintableChar(ch))
             {
-                if (!keyEvent.Modifiers.HasFlag(KeyModifiers.Shift))
-                    ch = char.ToLower(ch);
                 m_s.Insert(CursorIndex++, ch);
                 actionPerformed = true;
             }
