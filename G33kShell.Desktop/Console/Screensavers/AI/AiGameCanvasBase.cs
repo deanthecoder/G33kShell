@@ -134,9 +134,9 @@ public abstract class AiGameCanvasBase : ScreensaverBase
                 System.Console.WriteLine($"   Generations: {m_generation}");
                 System.Console.WriteLine($"        Rating: {m_savedRating:F1}");
                 System.Console.WriteLine($"  Since GOAT: {GetGoatAgeSeconds()}s");
-                var bestObservedMetric = GetBestObservedMetricSummaryText();
-                if (!string.IsNullOrEmpty(bestObservedMetric))
-                    System.Console.WriteLine(bestObservedMetric);
+                var localBestObservedMetric = GetBestObservedMetricSummaryText();
+                if (!string.IsNullOrEmpty(localBestObservedMetric))
+                    System.Console.WriteLine(localBestObservedMetric);
             }
             finally
             {

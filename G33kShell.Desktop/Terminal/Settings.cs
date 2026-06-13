@@ -88,6 +88,12 @@ public class Settings : UserSettingsBase
         set => Set(value);
     }
 
+    public byte[] TetrisBrain
+    {
+        get => Get<byte[]>();
+        set => Set(value);
+    }
+
     protected override void ApplyDefaults()
     {
         UsedCommands = new List<string>();
