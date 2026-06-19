@@ -105,6 +105,7 @@ public class TerminalState : ITerminalState, IDisposable
         }
 
         await command.SetState(this).ExecuteAsync(CancellationToken.None);
+        UpdateSavedCommandHistory();
         
         // Prepare the next prompt for input.
         PrepareNextInputPrompt();
@@ -197,8 +198,11 @@ public class TerminalState : ITerminalState, IDisposable
     public void Dispose()
     {
         // Save state for the next session.
-        Settings.Instance.UsedCommands = CommandHistory.Commands.Select(o => o.Command).Reverse().Distinct().Reverse().ToList();
+        UpdateSavedCommandHistory();
     }
+
+    private void UpdateSavedCommandHistory() =>
+        Settings.Instance.UsedCommands = CommandHistory.Commands.Select(o => o.Command).Reverse().Distinct().Reverse().ToList();
 
     private string[] ExpandOutputLineReferences(string[] args)
     {

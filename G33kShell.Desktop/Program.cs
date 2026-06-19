@@ -10,11 +10,14 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
 using System;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using Avalonia;
 using DTC.Core;
 using G33kShell.Desktop.Terminal;
 using G33kShell.Desktop.Views;
+using Microsoft.Win32;
 
 namespace G33kShell.Desktop;
 
@@ -28,6 +31,7 @@ static class Program
     {
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+        RegisterSessionEndingHandler();
 
         try
         {
@@ -55,6 +59,19 @@ static class Program
     {
         e.SetObserved();
         Logger.Instance.Exception("Unobserved task exception.", e.Exception);
+    }
+
+    private static void RegisterSessionEndingHandler()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            SystemEvents.SessionEnding += OnSessionEnding;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static void OnSessionEnding(object sender, SessionEndingEventArgs e)
+    {
+        Logger.Instance.Info($"Windows session ending: {e.Reason}.");
+        Settings.Instance.Save();
     }
 
     private static void HandleFatalException(Exception ex) =>
