@@ -18,7 +18,7 @@ public class ExitCommand : CommandBase
 {
     protected override Task<bool> Run(ITerminalState state)
     {
-        Application.Current.GetMainWindow().Close();
+        Application.Current.GetMainWindow().CloseDeferred();
         return Task.FromResult(true);
     }
 }

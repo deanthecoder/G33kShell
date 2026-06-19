@@ -32,7 +32,7 @@ public class ShutdownCommand : CommandBase
             FileName = "shutdown", Arguments = $"/s /f /t {delayInSeconds}", CreateNoWindow = true, UseShellExecute = false
         }) != null;
         if (success)
-            Application.Current.GetMainWindow().Close();
+            Application.Current.GetMainWindow().CloseDeferred();
         return Task.FromResult(success);
     }
 }
