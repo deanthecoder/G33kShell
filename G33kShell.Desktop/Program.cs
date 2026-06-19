@@ -29,6 +29,10 @@ static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        using var singleInstance = SingleInstanceGuard.TryAcquire("G33kShell");
+        if (singleInstance == null)
+            return;
+
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
         RegisterSessionEndingHandler();
