@@ -88,6 +88,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             screen.PrintAt(0, 2, trainingStatus);
         var bestObservedMetric = GetBestObservedMetricHudText();
         var nextHudLine = string.IsNullOrWhiteSpace(trainingStatus) ? 2 : 3;
+
         if (!string.IsNullOrWhiteSpace(bestObservedMetric))
         {
             screen.PrintAt(0, nextHudLine, bestObservedMetric);
@@ -104,9 +105,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             return;
         }
         
-        System.Console.WriteLine(IsFreshTraining()
-            ? "Starting training from a fresh brain..."
-            : "Starting training...");
+        System.Console.WriteLine("Starting training from random brains...");
         var brain = CreateBrain();
         System.Console.WriteLine($"Brain layers: {brain.InputSize} : {brain.HiddenLayers.ToCsv(' ')} : {brain.OutputSize}");
         ThreadPool.GetMinThreads(out var currentMinWorkers, out var currentMinIo);
@@ -153,6 +152,12 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         
         m_stopTraining = true;
     }
+
+    protected bool ShouldTrainAi() =>
+        HasSwitch("train") || !HasSavedBrainData();
+
+    private bool HasSavedBrainData() =>
+        GetSavedBrainBytes()?.Length > 0;
 
     private void TrainAiImpl(Action<byte[]> saveBrainBytes)
     {
@@ -525,9 +530,6 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         }
     }
 
-    private bool IsFreshTraining() =>
-        ActivationName.Contains("_trainfresh", StringComparison.OrdinalIgnoreCase);
-
     private void UpdateBestObservedMetric((string Name, double Value, string Format)? metric)
     {
         if (!metric.HasValue)
@@ -607,10 +609,6 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     {
         var initialPopulationSize = GetInitialPopulationSize();
         var brains = new List<AiBrainBase>(initialPopulationSize);
-        var savedBrainBytes = IsFreshTraining() ? null : GetSavedBrainBytes();
-        if (savedBrainBytes != null && savedBrainBytes.Length > 0)
-            brains.Add(CreateBrain().Load(savedBrainBytes));
-
         while (brains.Count < initialPopulationSize)
             brains.Add(CreateBrain());
 

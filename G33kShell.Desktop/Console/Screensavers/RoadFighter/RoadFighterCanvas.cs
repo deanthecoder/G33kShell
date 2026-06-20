@@ -46,7 +46,7 @@ public class RoadFighterCanvas : AiGameCanvasBase
     {
         screen.ClearChars();
 
-        if (ActivationName.Contains("_train"))
+        if (ShouldTrainAi())
             TrainAi(screen, brainBytes => Settings.Instance.RoadFighterBrain = brainBytes);
         else
             PlayGame(screen);

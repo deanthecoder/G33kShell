@@ -8,6 +8,8 @@
 // about your modifications. Your contributions are valued!
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+using System;
+using System.Collections.Generic;
 using G33kShell.Desktop.Console.Screensavers;
 using G33kShell.Desktop.Skins;
 
@@ -18,13 +20,20 @@ namespace G33kShell.Desktop.Console.Controls;
 /// </summary>
 public abstract class ScreensaverBase : AnimatedCanvas, IScreensaver
 {
+    private readonly HashSet<string> m_activationSwitches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     private string m_activationName;
 
     public string ActivationName
     {
         get => m_activationName ?? Name;
-        set => m_activationName = value;
+        set
+        {
+            m_activationName = value;
+            ParseActivationSwitches();
+        }
     }
+
+    protected IReadOnlyCollection<string> ActivationSwitches => m_activationSwitches;
 
     protected ScreensaverBase(int width, int height, int targetFps = 30) : base(width, height, targetFps)
     {
@@ -54,4 +63,40 @@ public abstract class ScreensaverBase : AnimatedCanvas, IScreensaver
     public virtual void StopScreensaver()
     {
     }
+
+    protected bool HasSwitch(string name) =>
+        !string.IsNullOrWhiteSpace(name) && m_activationSwitches.Contains(NormalizeSwitchName(name));
+
+    private void ParseActivationSwitches()
+    {
+        m_activationSwitches.Clear();
+
+        var activationName = ActivationName;
+        if (string.IsNullOrWhiteSpace(activationName))
+            return;
+
+        var suffixStart = -1;
+        if (!string.IsNullOrWhiteSpace(Name) && activationName.StartsWith(Name, StringComparison.OrdinalIgnoreCase))
+        {
+            if (activationName.Length <= Name.Length || activationName[Name.Length] != '_')
+                return;
+
+            suffixStart = Name.Length + 1;
+        }
+        else
+        {
+            var separatorIndex = activationName.IndexOf('_');
+            if (separatorIndex >= 0)
+                suffixStart = separatorIndex + 1;
+        }
+
+        if (suffixStart < 0 || suffixStart >= activationName.Length)
+            return;
+
+        foreach (var switchName in activationName[suffixStart..].Split('_', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            m_activationSwitches.Add(NormalizeSwitchName(switchName));
+    }
+
+    private static string NormalizeSwitchName(string name) =>
+        name.Trim().TrimStart('_', '-');
 }

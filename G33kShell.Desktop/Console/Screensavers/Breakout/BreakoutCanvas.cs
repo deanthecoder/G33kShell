@@ -41,7 +41,7 @@ public class BreakoutCanvas : AiGameCanvasBase
     {
         screen.ClearChars();
 
-        if (ActivationName.Contains("_train"))
+        if (ShouldTrainAi())
             TrainAi(screen, brainBytes => Settings.Instance.BreakoutBrain = brainBytes);
         else
             PlayGame(screen);

@@ -47,7 +47,7 @@ public class TetrisCanvas : AiGameCanvasBase
     {
         screen.ClearChars();
 
-        if (ActivationName.Contains("_train", StringComparison.OrdinalIgnoreCase))
+        if (ShouldTrainAi())
             TrainAi(screen, brainBytes => Settings.Instance.TetrisBrain = brainBytes);
         else
             PlayGame(screen);

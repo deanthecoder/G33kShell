@@ -21,11 +21,13 @@ namespace G33kShell.Desktop.Terminal.Commands;
 [CommandDescription(
     "Select and activate the screensaver.",
     "The screensaver can be activated by name, or by using the -l option to list available options.",
-    "The name can have an optional suffix, which will be passed into the screensaver.",
+    "The name can include optional underscore switches, which will be passed into the screensaver.",
     "",
     "Examples:",
     "  screensaver snake",
-    "  screensaver snake_train")]
+    "  screensaver snake_train",
+    "  screensaver mario_color",
+    "  screensaver mario_train_color")]
 public class ScreensaverCommand : CommandBase
 {
     [NamedArgument(Description = "List the available options.", ShortName = "l")]
