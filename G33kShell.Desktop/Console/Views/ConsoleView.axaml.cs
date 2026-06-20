@@ -12,12 +12,15 @@
 using System;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using DTC.Core;
 using G33kShell.Desktop.Console.Events;
 
@@ -35,6 +38,8 @@ public partial class ConsoleView : Control
     private Thickness m_padding;
     private ScreenData m_lastFrame;
     private TopLevel m_topLevel;
+    private WriteableBitmap m_pixelBitmap;
+    private int[] m_pixelBuffer;
 
     public static readonly DirectProperty<ConsoleView, WindowManager> WindowManagerProperty = AvaloniaProperty.RegisterDirect<ConsoleView, WindowManager>(nameof(WindowManager), o => o.WindowManager, (o, v) => o.WindowManager = v);
     public static readonly DirectProperty<ConsoleView, FontFamily> FontFamilyProperty = AvaloniaProperty.RegisterDirect<ConsoleView, FontFamily>(nameof(FontFamily), o => o.FontFamily, (o, v) => o.FontFamily = v);
@@ -95,6 +100,8 @@ public partial class ConsoleView : Control
         
         // Draw the border (in the padding area).
         context.FillRectangle(GetBrush(m_windowManager.Skin.BackgroundColor), Bounds);
+
+        DrawPixelScreen(context);
         
         // Draw the screen content.
         var currentText = new StringBuilder();
@@ -185,6 +192,69 @@ public partial class ConsoleView : Control
 
     private IImmutableBrush GetBrush(Rgb color) =>
         m_brushCache.GetOrAdd(color, o => new SolidColorBrush(o).ToImmutable());
+
+    private void DrawPixelScreen(DrawingContext context)
+    {
+        var pixelScreenLock = m_windowManager.PixelScreen;
+        if (pixelScreenLock == null)
+        {
+            m_pixelBitmap?.Dispose();
+            m_pixelBitmap = null;
+            m_pixelBuffer = null;
+            return;
+        }
+
+        using (pixelScreenLock.Lock(out var pixelScreen))
+        {
+            if (m_pixelBitmap == null ||
+                m_pixelBitmap.PixelSize.Width != pixelScreen.Width ||
+                m_pixelBitmap.PixelSize.Height != pixelScreen.Height)
+            {
+                m_pixelBitmap?.Dispose();
+                m_pixelBitmap = new WriteableBitmap(
+                    new PixelSize(pixelScreen.Width, pixelScreen.Height),
+                    new Vector(96, 96),
+                    PixelFormats.Bgra8888,
+                    AlphaFormat.Opaque);
+                m_pixelBuffer = new int[pixelScreen.Width * pixelScreen.Height];
+            }
+
+            for (var i = 0; i < pixelScreen.Pixels.Length; i++)
+            {
+                var color = pixelScreen.Palette[pixelScreen.Pixels[i]];
+                m_pixelBuffer[i] = color.B | (color.G << 8) | (color.R << 16) | unchecked((int)0xff000000);
+            }
+
+            using (var frameBuffer = m_pixelBitmap.Lock())
+            {
+                var width = pixelScreen.Width;
+                var height = pixelScreen.Height;
+                var expectedRowBytes = width * 4;
+                if (frameBuffer.RowBytes == expectedRowBytes)
+                {
+                    Marshal.Copy(m_pixelBuffer, 0, frameBuffer.Address, m_pixelBuffer.Length);
+                }
+                else
+                {
+                    for (var y = 0; y < height; y++)
+                    {
+                        var rowAddress = frameBuffer.Address + y * frameBuffer.RowBytes;
+                        Marshal.Copy(m_pixelBuffer, y * width, rowAddress, width);
+                    }
+                }
+            }
+
+            var sourceRect = new Rect(0, 0, pixelScreen.Width, pixelScreen.Height);
+            var targetRect = new Rect(
+                Padding.Left,
+                Padding.Top,
+                m_windowManager.Screen.Width * CharWidth,
+                m_windowManager.Screen.Height * CharHeight);
+
+            using (context.PushRenderOptions(new RenderOptions { BitmapInterpolationMode = BitmapInterpolationMode.None }))
+                context.DrawImage(m_pixelBitmap, sourceRect, targetRect);
+        }
+    }
 
     private Geometry GetTextGeometry(string text) =>
         m_geometryCache.GetOrAdd(text, BuildTextGeometry);

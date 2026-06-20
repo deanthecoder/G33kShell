@@ -34,6 +34,8 @@ public class WindowManager
 
     public ScreenDataLock Screen => Root.Screen;
 
+    public PixelScreenDataLock PixelScreen { get; private set; }
+
     public SkinBase Skin
     {
         get => m_skin;
@@ -63,6 +65,21 @@ public class WindowManager
         Skin = skin ?? throw new ArgumentNullException(nameof(skin));
     }
 
+    public PixelScreenDataLock SetPixelScreen(int width, int height, Rgb[] palette)
+    {
+        PixelScreen = new PixelScreenDataLock(width, height, palette);
+        Root.InvalidateVisual();
+        return PixelScreen;
+    }
+
+    public void ClearPixelScreen()
+    {
+        if (PixelScreen == null)
+            return;
+        PixelScreen = null;
+        Root.InvalidateVisual();
+    }
+
     /// <summary>
     /// Recurse through all visual children, ask them to update their screen data,
     /// then composite onto the root Screen.
@@ -81,7 +98,7 @@ public class WindowManager
             using (Screen.Lock(out var targetScreen))
             {
                 targetScreen.ClearChars('\0');
-                targetScreen.ClearColor(Root.Foreground, Root.Background);
+                targetScreen.ClearColor(Root.Foreground, PixelScreen == null ? Root.Background : null);
                 foreach (var visual in GetVisualTree(Root).Skip(1).Where(o => o.IsVisible))
                 {
                     var pos = GetAbsolutePos(visual);
