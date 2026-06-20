@@ -1,0 +1,1 @@
+{"name":"enemy","sheet":"enemy_sprites.png","cellSize":16,"transparentColor":"#9290ff","palette":["#9c4a00","#000000","#ffcec5"],"frames":[{"name":"walk_1","x":0,"y":0,"width":16,"height":16},{"name":"walk_2","x":16,"y":0,"width":16,"height":16}]}

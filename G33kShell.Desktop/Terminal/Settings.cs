@@ -94,6 +94,12 @@ public class Settings : UserSettingsBase
         set => Set(value);
     }
 
+    public byte[] MarioBrain
+    {
+        get => Get<byte[]>();
+        set => Set(value);
+    }
+
     protected override void ApplyDefaults()
     {
         UsedCommands = new List<string>();
