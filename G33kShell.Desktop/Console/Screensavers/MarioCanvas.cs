@@ -33,6 +33,14 @@ namespace G33kShell.Desktop.Console.Screensavers;
 [UsedImplicitly]
 public class MarioCanvas : AiGameCanvasBase
 {
+    private enum TrainingPhase
+    {
+        Route,
+        BlockHunt,
+        EnemyPractice,
+        ShowRun
+    }
+
     private const int ViewWidth = 256;
     private const int ViewHeight = 240;
     private const int MarioCollisionWidth = 12;
@@ -724,7 +732,19 @@ public class MarioCanvas : AiGameCanvasBase
         new MarioGame(ArenaWidth, ArenaHeight, (MarioBrain)brain, useTrainingTimeouts: false, enableEnemies: true);
 
     protected override AiGameBase CreateTrainingGame(AiBrainBase brain) =>
-        new MarioGame(ArenaWidth, ArenaHeight, (MarioBrain)brain, useTrainingTimeouts: true, enableEnemies: false);
+        new MarioGame(ArenaWidth, ArenaHeight, (MarioBrain)brain, useTrainingTimeouts: true, enableEnemies: true);
+
+    protected override AiGameBase CreateTrainingGame(AiBrainBase brain, int generation, bool isValidation, int candidateIndex, int gameIndex)
+    {
+        var phase = isValidation ? TrainingPhase.ShowRun : GetTrainingPhase(generation);
+        return new MarioGame(
+            ArenaWidth,
+            ArenaHeight,
+            (MarioBrain)brain,
+            useTrainingTimeouts: true,
+            enableEnemies: phase >= TrainingPhase.EnemyPractice,
+            showRewardMultiplier: GetShowRewardMultiplier(phase));
+    }
 
     protected override int GetGamesPerBrain() => 6;
     protected override int GetValidationGamesPerBrain() => 8;
@@ -732,10 +752,56 @@ public class MarioCanvas : AiGameCanvasBase
     protected override int GetMinPopulationSize() => 60;
     protected override double GetMutationRate() => 0.08;
     protected override bool UseTrainingScoreForGoat() => true;
-    protected override string GetTrainingStatusText(int generation) =>
-        "Mario jump timing";
+    protected override string GetTrainingStatusText(int generation)
+    {
+        var phase = GetTrainingPhase(generation);
+        var phaseNumber = (int)phase + 1;
+        var phaseName = GetTrainingPhaseName(phase);
+        var phaseEndGeneration = GetTrainingPhaseEndGeneration(phase);
+        return phaseEndGeneration.HasValue
+            ? $"Phase {phaseNumber}/4: {phaseName} (until gen {phaseEndGeneration.Value})"
+            : $"Phase {phaseNumber}/4: {phaseName}";
+    }
+
+    private static string GetTrainingPhaseName(TrainingPhase phase) =>
+        phase switch
+        {
+            TrainingPhase.Route => "route finding",
+            TrainingPhase.BlockHunt => "block hunting",
+            TrainingPhase.EnemyPractice => "enemy practice",
+            _ => "show run"
+        };
 
     protected override byte[] GetSavedBrainBytes() => Settings.Instance.MarioBrain;
 
     protected override AiBrainBase CreateBrain() => new MarioBrain();
+
+    private static TrainingPhase GetTrainingPhase(int generation)
+    {
+        if (generation < 20)
+            return TrainingPhase.Route;
+        if (generation < 45)
+            return TrainingPhase.BlockHunt;
+        if (generation < 75)
+            return TrainingPhase.EnemyPractice;
+        return TrainingPhase.ShowRun;
+    }
+
+    private static int? GetTrainingPhaseEndGeneration(TrainingPhase phase) =>
+        phase switch
+        {
+            TrainingPhase.Route => 20,
+            TrainingPhase.BlockHunt => 45,
+            TrainingPhase.EnemyPractice => 75,
+            _ => null
+        };
+
+    private static double GetShowRewardMultiplier(TrainingPhase phase) =>
+        phase switch
+        {
+            TrainingPhase.Route => 0.45,
+            TrainingPhase.BlockHunt => 1.25,
+            TrainingPhase.EnemyPractice => 1.0,
+            _ => 1.45
+        };
 }

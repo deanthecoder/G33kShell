@@ -157,7 +157,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         HasSwitch("train") || !HasSavedBrainData();
 
     private bool HasSavedBrainData() =>
-        GetSavedBrainBytes()?.Length > 0;
+        CreateBrain().CanLoad(GetSavedBrainBytes());
 
     private void TrainAiImpl(Action<byte[]> saveBrainBytes)
     {

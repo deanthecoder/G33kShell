@@ -144,6 +144,19 @@ public abstract class AiBrainBase
         return this;
     }
 
+    public bool CanLoad(byte[] brainBytes)
+    {
+        if (brainBytes == null || brainBytes.Length == 0)
+            return false;
+
+        var json = brainBytes.DecompressToString();
+        var envelope = JsonConvert.DeserializeObject<BrainSaveEnvelope>(json);
+        if (!string.IsNullOrWhiteSpace(envelope?.Payload))
+            return string.Equals(envelope.BrainType, GetType().FullName, StringComparison.Ordinal) && envelope.Version == BrainVersion;
+
+        return BrainVersion == 1;
+    }
+
     public AiBrainBase CrossWith(AiBrainBase second, double crossoverRate, Random random = null)
     {
         m_qNet.CrossWith(second.m_qNet, crossoverRate, random);
