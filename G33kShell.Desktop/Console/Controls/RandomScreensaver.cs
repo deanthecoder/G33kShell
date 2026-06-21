@@ -80,7 +80,7 @@ public class RandomScreensaver : ScreensaverBase
         m_active.UpdateFrame(screen);
 
         var timeSecs = m_frameNumber / TargetFps;
-        if (timeSecs <= 120)
+        if (timeSecs <= 300)
             return; // Not ready to switch screensavers.
         
         // Cycle through the screensavers.

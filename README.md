@@ -33,6 +33,7 @@ Cycle anything you like with `screensaver -l` and `screensaver <name>` - add `_t
 | Screensaver | Description |
 | --- | --- |
 | `asciiroids` | AI Asteroids in ASCII; add `_train` to teach it. |
+| `badapple` | Mono pixel-art silhouette animation in the Bad Apple style. |
 | `boids` | Flocking boids orbit a wandering sphere. |
 | `bounce` | Breakout-style brick field with ricocheting faces. |
 | `clock` | Big retro clock for the night shift. |
@@ -67,6 +68,22 @@ Cycle anything you like with `screensaver -l` and `screensaver <name>` - add `_t
 | `xenon` | Xenon 2 shopkeeper cameo. |
 
 AI-enabled screensavers (`asciiroids`, `pong`, `snake`) store their trained neural weights between runs so you can pick up right where your last session left off.
+
+### Bad Apple compression notes
+
+The `badapple` screensaver uses a tiny custom 1bpp movie format rather than shipping thousands of source frames. The source animation started as 6,572 480x360 JPEG frames at 30 fps. We reduce those to 128x120 mono frames, sample the movie down to 5,258 frames at 24 fps, then store the pixels rotated by 270 degrees because those scanlines produce far fewer RLE runs. Playback rotates the pixels back while decoding into the pixel screen.
+
+The frame stream is encoded as one continuous alternating run-length stream across frame boundaries. A single initial colour is stored, then each run byte either draws that many pixels and toggles colour (`1..255`), or extends the current colour by 255 pixels without toggling (`0`). The resulting blob is wrapped with the existing `ByteExtensions.Compress()` LZ4 helper.
+
+Final asset numbers:
+
+| Stage | Size |
+| --- | ---: |
+| Raw 128x120 1bpp frames at 24 fps | ~9.6 MiB |
+| Rotated continuous RLE stream | 1,358,933 bytes |
+| LZ4-packed `.bar` asset | 987,617 bytes |
+
+Several tempting alternatives were tested and lost to this simpler format: row dictionaries, duplicate-frame references, cropped frame bounds, XOR deltas, bit-packed run tokens, previous-row reuse, and 16-bit run lengths. Rotation and 24 fps sampling were the only tricks that delivered worthwhile savings without complicating playback.
 
 ## Quick Start
 - Install the [.NET 8 SDK](https://dotnet.microsoft.com/download).
