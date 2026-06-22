@@ -33,20 +33,20 @@ public class Game : AiGameBase
     private int m_tetrises;
     private int m_triples;
     private int m_doubles;
-    private int m_doubleOrBetterClears;
     private int m_lineClearEvents;
     private int m_singleClears;
     private PlacementStats m_lastStats;
+    private readonly GameState m_lookaheadState = new GameState();
+    private readonly Queue<Tetromino> m_pieceBag = new Queue<Tetromino>();
+    private Tetromino m_currentPiece;
 
     public int[,] Board { get; } = new int[BoardWidth, BoardHeight];
     public double[,] CellAges { get; } = new double[BoardWidth, BoardHeight];
-    public Tetromino CurrentPiece { get; private set; }
     public Tetromino NextPiece { get; private set; }
-    public CandidateMove? LastMove { get; private set; }
     public int Score { get; private set; }
     public int HighScore { get; private set; }
     public int Lines { get; private set; }
-    public int Level => Math.Min(15, Lines / 10 + 1);
+    public int Level => Math.Min(28, Lines / 10 + 1);
 
     public override bool IsGameOver => m_isGameOver;
     private bool m_isGameOver;
@@ -138,12 +138,11 @@ public class Game : AiGameBase
         m_tetrises = 0;
         m_triples = 0;
         m_doubles = 0;
-        m_doubleOrBetterClears = 0;
         m_lineClearEvents = 0;
         m_singleClears = 0;
         m_lastStats = default;
-        LastMove = null;
-        CurrentPiece = RandomPiece();
+        m_pieceBag.Clear();
+        m_currentPiece = RandomPiece();
         NextPiece = RandomPiece();
         return this;
     }
@@ -166,17 +165,43 @@ public class Game : AiGameBase
     public CandidateMove? ChooseBestMove()
     {
         CandidateMove? bestMove = null;
-        foreach (var candidate in EnumerateCandidateMoves(CurrentPiece, Board))
+        foreach (var candidate in EnumerateCandidateMoves(m_currentPiece, Board))
         {
-            m_gameState.Reset(candidate.Stats, CurrentPiece, NextPiece);
-            var neuralScore = ((Brain)Brain).ScorePlacement(m_gameState);
-            var score = neuralScore + GetTrainingBias(candidate.Stats);
+            var neuralScore = ScorePlacement(candidate.Stats, m_currentPiece, NextPiece, m_gameState);
+            var score = neuralScore + GetTrainingBias(candidate.Stats) + GetNextPieceLookaheadScore(candidate);
             var scored = candidate with { NeuralScore = neuralScore, Score = score };
             if (!bestMove.HasValue || scored.Score > bestMove.Value.Score)
                 bestMove = scored;
         }
 
         return bestMove;
+    }
+
+    private double GetNextPieceLookaheadScore(CandidateMove candidate)
+    {
+        var board = GetBoardAfterMove(Board, candidate);
+        var viableMoves = 0;
+        var bestScore = double.NegativeInfinity;
+        foreach (var nextCandidate in EnumerateCandidateMoves(NextPiece, board))
+        {
+            viableMoves++;
+            var neuralScore = ScorePlacement(nextCandidate.Stats, NextPiece, NextPiece, m_lookaheadState);
+            var score = neuralScore + GetTrainingBias(nextCandidate.Stats);
+            if (score > bestScore)
+                bestScore = score;
+        }
+
+        if (viableMoves == 0)
+            return -80.0;
+
+        var flexibilityBonus = Math.Min(18, viableMoves) * 0.08;
+        return bestScore * 0.42 + flexibilityBonus;
+    }
+
+    private double ScorePlacement(PlacementStats stats, Tetromino piece, Tetromino nextPiece, GameState state)
+    {
+        state.Reset(stats, piece, nextPiece);
+        return ((Brain)Brain).ScorePlacement(state);
     }
 
     private static double GetTrainingBias(PlacementStats stats)
@@ -233,8 +258,6 @@ public class Game : AiGameBase
             m_doubles++;
         if (cleared == 3)
             m_triples++;
-        if (cleared >= 2)
-            m_doubleOrBetterClears++;
         if (cleared == 4)
             m_tetrises++;
 
@@ -242,11 +265,10 @@ public class Game : AiGameBase
         if (IsCollision(NextPiece, 0, 3, -1, Board))
             m_isGameOver = true;
 
-        LastMove = move;
         HighScore = Math.Max(HighScore, Score);
         m_piecesPlaced++;
 
-        CurrentPiece = NextPiece;
+        m_currentPiece = NextPiece;
         NextPiece = RandomPiece();
 
         if (m_useTrainingTimeouts && m_piecesPlaced >= MaxPiecesPerTrainingGame)
@@ -265,7 +287,26 @@ public class Game : AiGameBase
         }
     }
 
-    private Tetromino RandomPiece() => (Tetromino)GameRand.Next(0, 7);
+    private Tetromino RandomPiece()
+    {
+        if (m_pieceBag.Count == 0)
+            RefillPieceBag();
+
+        return m_pieceBag.Dequeue();
+    }
+
+    private void RefillPieceBag()
+    {
+        var pieces = Enum.GetValues<Tetromino>();
+        for (var i = pieces.Length - 1; i > 0; i--)
+        {
+            var j = GameRand.Next(i + 1);
+            (pieces[i], pieces[j]) = (pieces[j], pieces[i]);
+        }
+
+        foreach (var piece in pieces)
+            m_pieceBag.Enqueue(piece);
+    }
 
     private static int GetLineScore(int lines) =>
         lines switch
@@ -356,6 +397,19 @@ public class Game : AiGameBase
         var clone = new int[BoardWidth, BoardHeight];
         Array.Copy(source, clone, source.Length);
         return clone;
+    }
+
+    private static int[,] GetBoardAfterMove(int[,] sourceBoard, CandidateMove move)
+    {
+        var board = CloneBoard(sourceBoard);
+        foreach (var cell in GetCells(move.Piece, move.Rotation, move.X, move.Y))
+        {
+            if (cell.Y >= 0)
+                board[cell.X, cell.Y] = (int)move.Piece + 1;
+        }
+
+        ClearCompletedLines(board);
+        return board;
     }
 
     private static PlacementStats AnalyzeBoard(int[,] board, int linesCleared, int landingHeight)

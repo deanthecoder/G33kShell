@@ -100,7 +100,7 @@ public class TetrisCanvas : AiGameCanvasBase
         }
 
         var move = m_activeMove.Value;
-        var fallSpeed = Math.Clamp(0.42 + m_game.Level * 0.045, 0.42, 1.2) * 1.15;
+        var fallSpeed = Math.Clamp(0.42 + m_game.Level * 0.045, 0.42, 1.64) * 1.15;
         m_activeFrames++;
         if (m_activeFrames <= 1)
         {
