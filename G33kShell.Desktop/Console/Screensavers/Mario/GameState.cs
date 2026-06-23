@@ -16,7 +16,7 @@ namespace G33kShell.Desktop.Console.Screensavers.Mario;
 
 public class GameState : IAiGameState
 {
-    public const int InputCount = 32;
+    public const int InputCount = 42;
     private readonly Game m_game;
 
     public GameState(Game game)
@@ -41,12 +41,22 @@ public class GameState : IAiGameState
         inputVector[i++] = m_game.IsBlockedAhead ? 1.0 : -1.0;
         inputVector[i++] = m_game.IsGapAhead ? 1.0 : -1.0;
         inputVector[i++] = m_game.HasCeilingAbove ? 1.0 : -1.0;
+        inputVector[i++] = m_game.DistanceToNextQuestionBlock / 192.0;
+        inputVector[i++] = (m_game.NextQuestionBlockDeltaY / 128.0).Clamp(-1.0, 1.0);
+        inputVector[i++] = m_game.HasQuestionBlockAhead ? 1.0 : -1.0;
+        inputVector[i++] = m_game.HasQuestionBlockInJumpZone ? 1.0 : -1.0;
         inputVector[i++] = m_game.RunMood;
         inputVector[i++] = m_game.NearestEnemyDeltaX / 192.0;
         inputVector[i++] = (m_game.NearestEnemyDeltaY / 96.0).Clamp(-1.0, 1.0);
         inputVector[i++] = m_game.HasEnemyAhead ? 1.0 : -1.0;
         inputVector[i++] = m_game.HasEnemyThreat ? 1.0 : -1.0;
         inputVector[i++] = m_game.HasStompableEnemyAhead ? 1.0 : -1.0;
+        inputVector[i++] = m_game.DistanceToEnemyAhead / 160.0;
+        inputVector[i++] = m_game.DistanceToEnemyThreat / 80.0;
+        inputVector[i++] = m_game.EnemyClosingSpeed;
+        inputVector[i++] = m_game.HasEnemyBeside ? 1.0 : -1.0;
+        inputVector[i++] = m_game.HasEnemyLandingTarget ? 1.0 : -1.0;
+        inputVector[i++] = m_game.HasEnemyOverhead ? 1.0 : -1.0;
 
         foreach (var sample in Game.SensorSamples)
             inputVector[i++] = m_game.IsSolidAtOffset(sample.X, sample.Y) ? 1.0 : -1.0;

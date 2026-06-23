@@ -45,6 +45,8 @@ public class MarioCanvas : AiGameCanvasBase
     private const int ViewHeight = 240;
     private const int MarioCollisionWidth = 12;
     private const int MarioCollisionHeight = 16;
+    private const int MasteryPassesRequired = 3;
+    private const int MasteryWindowSize = 5;
 
     private WindowManager m_windowManager;
     private PixelScreenDataLock m_pixelScreen;
@@ -66,6 +68,9 @@ public class MarioCanvas : AiGameCanvasBase
     private MarioGame m_aiGame;
     private int m_gameOverHoldFrames;
     private int m_lastSeenBlockHitTick;
+    private TrainingPhase m_trainingPhase = TrainingPhase.Route;
+    private readonly Queue<bool> m_masteryWindow = [];
+    private string m_lastMasteryStatus = "route finding: waiting for first generation";
     private readonly List<BlockParticle> m_blockParticles = [];
 
     public MarioCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight)
@@ -751,16 +756,19 @@ public class MarioCanvas : AiGameCanvasBase
     protected override int GetInitialPopulationSize() => 120;
     protected override int GetMinPopulationSize() => 60;
     protected override double GetMutationRate() => 0.08;
-    protected override bool UseTrainingScoreForGoat() => true;
+    protected override bool UseTrainingScoreForGoat() => false;
     protected override string GetTrainingStatusText(int generation)
     {
         var phase = GetTrainingPhase(generation);
         var phaseNumber = (int)phase + 1;
         var phaseName = GetTrainingPhaseName(phase);
-        var phaseEndGeneration = GetTrainingPhaseEndGeneration(phase);
-        return phaseEndGeneration.HasValue
-            ? $"Phase {phaseNumber}/4: {phaseName} (until gen {phaseEndGeneration.Value})"
-            : $"Phase {phaseNumber}/4: {phaseName}";
+        var text = $"Phase {phaseNumber}/4: {phaseName}";
+        if (phase != TrainingPhase.ShowRun)
+            text += $" - mastery {GetMasteryPassCount()}/{MasteryPassesRequired} in last {m_masteryWindow.Count}/{MasteryWindowSize}";
+        if (!string.IsNullOrWhiteSpace(m_lastMasteryStatus))
+            text += $" - {m_lastMasteryStatus}";
+
+        return text;
     }
 
     private static string GetTrainingPhaseName(TrainingPhase phase) =>
@@ -776,25 +784,98 @@ public class MarioCanvas : AiGameCanvasBase
 
     protected override AiBrainBase CreateBrain() => new MarioBrain();
 
-    private static TrainingPhase GetTrainingPhase(int generation)
+    private TrainingPhase GetTrainingPhase(int generation)
     {
-        if (generation < 20)
-            return TrainingPhase.Route;
-        if (generation < 45)
-            return TrainingPhase.BlockHunt;
-        if (generation < 75)
-            return TrainingPhase.EnemyPractice;
-        return TrainingPhase.ShowRun;
+        _ = generation;
+        return m_trainingPhase;
     }
 
-    private static int? GetTrainingPhaseEndGeneration(TrainingPhase phase) =>
-        phase switch
+    protected override void OnTrainingGenerationComplete(TrainingGenerationResult result)
+    {
+        if (m_trainingPhase == TrainingPhase.ShowRun)
+            return;
+
+        var stats = ParseGameStats(result.BestStats);
+        var mastered = IsPhaseMastered(m_trainingPhase, stats, out var status);
+        RecordMasteryResult(mastered);
+        m_lastMasteryStatus = status;
+        if (m_masteryWindow.Count < MasteryWindowSize || GetMasteryPassCount() < MasteryPassesRequired)
+            return;
+
+        var completedPhase = m_trainingPhase;
+        m_trainingPhase++;
+        m_masteryWindow.Clear();
+        m_lastMasteryStatus = $"mastered {GetTrainingPhaseName(completedPhase)} at gen {result.Generation}";
+        System.Console.WriteLine($"Mario curriculum advanced to {GetTrainingPhaseName(m_trainingPhase)} after mastering {GetTrainingPhaseName(completedPhase)}.");
+    }
+
+    private void RecordMasteryResult(bool mastered)
+    {
+        m_masteryWindow.Enqueue(mastered);
+        while (m_masteryWindow.Count > MasteryWindowSize)
+            m_masteryWindow.Dequeue();
+    }
+
+    private int GetMasteryPassCount()
+    {
+        var count = 0;
+        foreach (var mastered in m_masteryWindow)
         {
-            TrainingPhase.Route => 20,
-            TrainingPhase.BlockHunt => 45,
-            TrainingPhase.EnemyPractice => 75,
-            _ => null
+            if (mastered)
+                count++;
+        }
+
+        return count;
+    }
+
+    private static bool IsPhaseMastered(TrainingPhase phase, Dictionary<string, double> stats, out string status)
+    {
+        var x = GetStat(stats, "X");
+        var questions = GetStat(stats, "Questions");
+        var stomps = GetStat(stats, "Stomps");
+        var jumps = GetStat(stats, "Jumps");
+        var pogo = GetStat(stats, "Pogo");
+        var finished = GetStat(stats, "Finished") >= 1.0;
+        var fell = GetStat(stats, "Fell") >= 1.0;
+
+        var mastered = phase switch
+        {
+            TrainingPhase.Route => x >= 944.0 && jumps <= 28.0 && pogo <= 5.0 && !fell,
+            TrainingPhase.BlockHunt => x >= 944.0 && questions >= 2.0 && jumps <= 36.0 && pogo <= 7.0 && !fell,
+            TrainingPhase.EnemyPractice => x >= 1400.0 && stomps >= 1.0 && jumps <= 44.0 && pogo <= 8.0 && !fell,
+            _ => finished
         };
+
+        status = phase switch
+        {
+            TrainingPhase.Route => $"need X>=944,J<=28,Pogo<=5; got X={x:0},J={jumps:0},Pogo={pogo:0}",
+            TrainingPhase.BlockHunt => $"need X>=944,Q>=2,J<=36; got X={x:0},Q={questions:0},J={jumps:0}",
+            TrainingPhase.EnemyPractice => $"need X>=1400,Stomp>=1,J<=44; got X={x:0},Stomp={stomps:0},J={jumps:0}",
+            _ => $"finished={finished}"
+        };
+
+        return mastered;
+    }
+
+    private static Dictionary<string, double> ParseGameStats(string stats)
+    {
+        var result = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(stats))
+            return result;
+
+        var pairs = stats.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var pair in pairs)
+        {
+            var parts = pair.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (parts.Length == 2 && double.TryParse(parts[1], out var value))
+                result[parts[0]] = value;
+        }
+
+        return result;
+    }
+
+    private static double GetStat(Dictionary<string, double> stats, string name) =>
+        stats.TryGetValue(name, out var value) ? value : 0.0;
 
     private static double GetShowRewardMultiplier(TrainingPhase phase) =>
         phase switch

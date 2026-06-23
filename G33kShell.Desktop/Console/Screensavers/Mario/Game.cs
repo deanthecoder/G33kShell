@@ -76,6 +76,7 @@ public class Game : AiGameBase
     private int m_styleJumpCount;
     private int m_unneededEarlyJumpCount;
     private double m_lastStyleJumpX;
+    private bool m_isJumpHeld;
     private readonly HashSet<(int X, int Y)> m_scoredBlockHitTiles = [];
     private readonly HashSet<(int X, int Y)> m_brokenBlockTiles = [];
     private readonly HashSet<(int X, int Y)> m_usedQuestionBlocks = [];
@@ -113,11 +114,23 @@ public class Game : AiGameBase
     public bool IsBlockedAhead => DistanceToNextObstacle < 24;
     public bool IsGapAhead => DistanceToNextGap < 24;
     public bool HasCeilingAbove => DistanceToNextOverheadBlock < 24;
+    public double DistanceToNextQuestionBlock => TryGetNextQuestionBlock(out var dx, out _) ? Math.Clamp(dx, 0.0, 192.0) : 192.0;
+    public double NextQuestionBlockDeltaY => TryGetNextQuestionBlock(out _, out var dy) ? Math.Clamp(dy, -128.0, 128.0) : -128.0;
+    public bool HasQuestionBlockAhead => TryGetNextQuestionBlock(out var dx, out var dy) && dx is >= -16.0 and <= 160.0 && dy is >= -128.0 and <= 16.0;
+    public bool HasQuestionBlockInJumpZone => TryGetNextQuestionBlock(out var dx, out var dy) && dx is >= -8.0 and <= 64.0 && dy is >= -112.0 and <= -16.0;
     public double NearestEnemyDeltaX => TryGetNearestEnemy(out var dx, out _) ? Math.Clamp(dx, -192.0, 192.0) : 192.0;
     public double NearestEnemyDeltaY => TryGetNearestEnemy(out _, out var dy) ? Math.Clamp(dy, -96.0, 96.0) : 96.0;
     public bool HasEnemyAhead => TryGetNearestEnemy(out var dx, out var dy) && dx is >= -8.0 and <= 128.0 && Math.Abs(dy) < 48.0;
     public bool HasEnemyThreat => TryGetNearestEnemy(out var dx, out var dy) && dx is >= -12.0 and <= 56.0 && Math.Abs(dy) < 28.0;
     public bool HasStompableEnemyAhead => TryGetNearestEnemy(out var dx, out var dy) && dx is >= -4.0 and <= 72.0 && dy is >= -4.0 and <= 36.0;
+    public double DistanceToEnemyAhead => FindDistanceToEnemyAhead(160);
+    public double DistanceToEnemyThreat => FindDistanceToEnemyThreat(80);
+    public double EnemyClosingSpeed => TryGetNearestEnemyAhead(out var enemy)
+        ? Math.Clamp((MarioVelocityX - enemy.VelocityX) / (MaxRunPixelsPerFrame + Math.Abs(enemy.VelocityX)), -1.0, 1.0)
+        : 0.0;
+    public bool HasEnemyBeside => HasEnemyMatching(dx => dx is >= -10.0 and <= 26.0, dy => Math.Abs(dy) < 14.0);
+    public bool HasEnemyLandingTarget => HasEnemyMatching(dx => dx is >= -12.0 and <= 48.0, dy => dy is >= 6.0 and <= 40.0);
+    public bool HasEnemyOverhead => HasEnemyMatching(dx => dx is >= -8.0 and <= 48.0, dy => dy is >= -48.0 and <= -10.0);
     public double RunMood { get; private set; }
 
     public override bool IsGameOver =>
@@ -253,6 +266,7 @@ public class Game : AiGameBase
         m_styleJumpCount = 0;
         m_unneededEarlyJumpCount = 0;
         m_lastStyleJumpX = MarioX;
+        m_isJumpHeld = false;
         RunMood = GameRand.NextDouble() * 2.0 - 1.0;
         m_scoredBlockHitTiles.Clear();
         m_brokenBlockTiles.Clear();
@@ -303,10 +317,12 @@ public class Game : AiGameBase
         var previousMarioY = MarioY;
         var grounded = IsGrounded;
         var move = ((Brain)Brain).ChooseMove(m_gameState);
-        var isUnneededEarlyJump = move.Jump && IsUnneededEarlyJump();
+        var isJumpPressed = move.Jump && !m_isJumpHeld;
+        m_isJumpHeld = move.Jump;
+        var isUnneededEarlyJump = isJumpPressed && IsUnneededEarlyJump();
         if (grounded && isUnneededEarlyJump)
             m_unneededEarlyJumpCount++;
-        if (grounded && move.Jump && !isUnneededEarlyJump && TicksSinceLastJump >= JumpCooldownTicks)
+        if (grounded && isJumpPressed && !isUnneededEarlyJump && TicksSinceLastJump >= JumpCooldownTicks)
         {
             var ticksSinceLastJump = TicksSinceLastJump;
             MarioVelocityY = MarioVelocityX > MaxWalkPixelsPerFrame
@@ -473,6 +489,7 @@ public class Game : AiGameBase
 
     public override IEnumerable<(string Name, string Value)> ExtraGameStats()
     {
+        yield return ("X", BestX.ToString("F0"));
         yield return ("Ticks", Ticks.ToString());
         yield return ("Jumps", m_jumpCount.ToString());
         yield return ("Pogo", m_pogoJumpCount.ToString());
@@ -533,6 +550,89 @@ public class Game : AiGameBase
         dx = nearest.X - MarioX;
         dy = nearest.Y - MarioY;
         return true;
+    }
+
+    private bool TryGetNextQuestionBlock(out double dx, out double dy)
+    {
+        dx = 0.0;
+        dy = 0.0;
+
+        var marioCenterX = MarioX + MarioCollisionWidth / 2.0;
+        var bestDx = double.MaxValue;
+        var bestDy = 0.0;
+        for (var tileX = Math.Max(0, (int)(MarioX / s_level.TileSize) - 4); tileX < s_level.WidthTiles; tileX++)
+        {
+            var blockLeft = tileX * s_level.TileSize;
+            if (blockLeft - marioCenterX > 192.0)
+                break;
+
+            for (var tileY = 0; tileY < s_level.HeightTiles; tileY++)
+            {
+                var tileId = s_level.Map[tileY][tileX];
+                if (!IsQuestionTile(tileId))
+                    continue;
+
+                var blockX = tileX - tileX % 2;
+                var blockY = tileY - tileY % 2;
+                if (m_usedQuestionBlocks.Contains((blockX, blockY)))
+                    continue;
+
+                var blockCenterX = (blockX + 1) * s_level.TileSize;
+                var candidateDx = blockCenterX - marioCenterX;
+                if (candidateDx < -24.0 || candidateDx > 192.0 || Math.Abs(candidateDx) >= Math.Abs(bestDx))
+                    continue;
+
+                var blockBottomY = (blockY + 2) * s_level.TileSize;
+                var candidateDy = blockBottomY - MarioY;
+                if (candidateDy < -144.0 || candidateDy > 32.0)
+                    continue;
+
+                bestDx = candidateDx;
+                bestDy = candidateDy;
+            }
+        }
+
+        if (bestDx == double.MaxValue)
+            return false;
+
+        dx = bestDx;
+        dy = bestDy;
+        return true;
+    }
+
+    private bool TryGetNearestEnemyAhead(out Enemy nearest)
+    {
+        nearest = null;
+        var nearestDx = double.MaxValue;
+        foreach (var enemy in m_enemies)
+        {
+            if (enemy.IsDead)
+                continue;
+
+            var dx = enemy.X - MarioX;
+            var dy = enemy.Y - MarioY;
+            if (dx < -8.0 || dx > 160.0 || Math.Abs(dy) > 48.0 || dx >= nearestDx)
+                continue;
+
+            nearest = enemy;
+            nearestDx = dx;
+        }
+
+        return nearest != null;
+    }
+
+    private bool HasEnemyMatching(Func<double, bool> dxPredicate, Func<double, bool> dyPredicate)
+    {
+        foreach (var enemy in m_enemies)
+        {
+            if (enemy.IsDead)
+                continue;
+
+            if (dxPredicate(enemy.X - MarioX) && dyPredicate(enemy.Y - MarioY))
+                return true;
+        }
+
+        return false;
     }
 
     private void ResetEnemies()
@@ -804,6 +904,44 @@ public class Game : AiGameBase
         }
 
         return maxDistance;
+    }
+
+    private double FindDistanceToEnemyAhead(int maxDistance)
+    {
+        var nearest = (double)maxDistance;
+        foreach (var enemy in m_enemies)
+        {
+            if (enemy.IsDead)
+                continue;
+
+            var dx = enemy.X - (MarioX + MarioCollisionWidth);
+            var dy = enemy.Y - MarioY;
+            if (dx < 0.0 || dx > maxDistance || Math.Abs(dy) > 48.0)
+                continue;
+
+            nearest = Math.Min(nearest, dx);
+        }
+
+        return nearest;
+    }
+
+    private double FindDistanceToEnemyThreat(int maxDistance)
+    {
+        var nearest = (double)maxDistance;
+        foreach (var enemy in m_enemies)
+        {
+            if (enemy.IsDead)
+                continue;
+
+            var dx = enemy.X - (MarioX + MarioCollisionWidth);
+            var dy = enemy.Y - MarioY;
+            if (dx < -8.0 || dx > maxDistance || Math.Abs(dy) > 24.0)
+                continue;
+
+            nearest = Math.Min(nearest, Math.Max(0.0, dx));
+        }
+
+        return nearest;
     }
 
     private bool Collides(double x, double y, int width, int height)

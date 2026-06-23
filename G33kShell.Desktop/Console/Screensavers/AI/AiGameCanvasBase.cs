@@ -35,6 +35,8 @@ namespace G33kShell.Desktop.Console.Screensavers.AI;
 /// </remarks>
 public abstract class AiGameCanvasBase : ScreensaverBase
 {
+    protected readonly record struct TrainingGenerationResult(int Generation, double AverageRating, double AverageDegeneracy, double BestRating, int BestSeed, string BestStats);
+
     private const int DefaultInitialPopSize = 160;
     private const int DefaultMinPopSize = 80;
     private const int MaxGoatBrains = 5;
@@ -229,6 +231,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         // Select the breeders.
         var orderedGames = gameResults.OrderByDescending(GetSelectionFitness).ToArray();
         var theBest = orderedGames[0];
+        OnTrainingGenerationComplete(new TrainingGenerationResult(m_generation, theBest.AverageRating, theBest.AverageDegeneracy, theBest.BestRating, theBest.GameSeed, theBest.GameStats));
         var bestTrainingFitness = GetSelectionFitness(theBest);
         var useTrainingScoreForGoat = UseTrainingScoreForGoat();
         var skippedValidation = useTrainingScoreForGoat || ShouldSkipValidation(bestTrainingFitness);
@@ -591,6 +594,8 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     private string GetGoatAgeHudText() =>
         $"Since GOAT: {GetGoatAgeSeconds()}s";
 
+    protected int SecondsSinceGoat => GetGoatAgeSeconds();
+
     private bool ShouldSkipValidation(double bestTrainingFitness)
     {
         if (m_savedRating <= 0.0)
@@ -661,6 +666,10 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     protected virtual int GetValidationSkipWarmupGenerations() => 30;
     protected virtual int GetForcedValidationInterval() => 10;
     protected virtual string GetTrainingStatusText(int generation) => string.Empty;
+    protected virtual void OnTrainingGenerationComplete(TrainingGenerationResult result)
+    {
+    }
+
     protected virtual bool UseHarnessStyleEvolution() => true;
     protected virtual int? GetBreedingRandomSeed() => GetDefaultSeedBase();
     protected virtual byte[] GetSavedBrainBytes() => null;
