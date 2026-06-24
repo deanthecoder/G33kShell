@@ -59,6 +59,9 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     private readonly object m_bestObservedMetricLock = new object();
     private (string Name, double Value, string Format)? m_bestObservedMetric;
     private long m_lastGoatImprovementTimestamp;
+    private byte[] m_cachedSavedBrainBytes;
+    private int m_cachedSavedBrainLength = -1;
+    private bool m_cachedHasSavedBrainData;
 
     protected int ArenaWidth { get; }
     protected int ArenaHeight { get; }
@@ -158,8 +161,18 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     protected bool ShouldTrainAi() =>
         HasSwitch("train") || !HasSavedBrainData();
 
-    private bool HasSavedBrainData() =>
-        CreateBrain().CanLoad(GetSavedBrainBytes());
+    private bool HasSavedBrainData()
+    {
+        var savedBrainBytes = GetSavedBrainBytes();
+        var savedBrainLength = savedBrainBytes?.Length ?? 0;
+        if (ReferenceEquals(savedBrainBytes, m_cachedSavedBrainBytes) && savedBrainLength == m_cachedSavedBrainLength)
+            return m_cachedHasSavedBrainData;
+
+        m_cachedSavedBrainBytes = savedBrainBytes;
+        m_cachedSavedBrainLength = savedBrainLength;
+        m_cachedHasSavedBrainData = CreateBrain().CanLoad(savedBrainBytes);
+        return m_cachedHasSavedBrainData;
+    }
 
     private void TrainAiImpl(Action<byte[]> saveBrainBytes)
     {
