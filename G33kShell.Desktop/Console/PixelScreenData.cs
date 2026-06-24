@@ -67,4 +67,33 @@ public class PixelScreenData
             return;
         Pixels[y * Width + x] = colorIndex;
     }
+
+    public void DrawLine(int x0, int y0, int x1, int y1, byte colorIndex)
+    {
+        var dx = Math.Abs(x1 - x0);
+        var sx = x0 < x1 ? 1 : -1;
+        var dy = -Math.Abs(y1 - y0);
+        var sy = y0 < y1 ? 1 : -1;
+        var error = dx + dy;
+
+        while (true)
+        {
+            SetPixel(x0, y0, colorIndex);
+            if (x0 == x1 && y0 == y1)
+                return;
+
+            var e2 = 2 * error;
+            if (e2 >= dy)
+            {
+                error += dy;
+                x0 += sx;
+            }
+
+            if (e2 <= dx)
+            {
+                error += dx;
+                y0 += sy;
+            }
+        }
+    }
 }

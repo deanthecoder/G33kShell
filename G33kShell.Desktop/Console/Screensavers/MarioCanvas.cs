@@ -50,6 +50,10 @@ public class MarioCanvas : AiGameCanvasBase
     private const int RenderFramesPerSimulationTick = RenderFps / SimulationFps;
     private const int MasteryPassesRequired = 3;
     private const int MasteryWindowSize = 5;
+    private const int DebugOverlayWidth = 112;
+    private const int DebugOverlayHeight = 72;
+    private const int DebugOverlayMargin = 4;
+    private const int DebugMaxLinksPerLayer = 48;
 
     private WindowManager m_windowManager;
     private PixelScreenDataLock m_pixelScreen;
@@ -62,6 +66,10 @@ public class MarioCanvas : AiGameCanvasBase
     private string[] m_tileKinds;
     private SpriteFrame[] m_spriteFrames;
     private SpriteFrame[] m_enemySpriteFrames;
+    private byte m_debugPanelColorIndex;
+    private byte m_debugNodeColorIndex;
+    private byte[] m_debugLinkPaletteIndexes;
+    private readonly DebugLink[] m_debugLinkBuffer = new DebugLink[DebugMaxLinksPerLayer];
     private bool m_isActive;
     private double m_marioX;
     private double m_marioY;
@@ -155,6 +163,7 @@ public class MarioCanvas : AiGameCanvasBase
             DrawBlockParticles(pixels, cameraX);
             DrawEnemies(pixels, cameraX);
             DrawMario(pixels, cameraX);
+            DrawBrainDebugOverlay(pixels);
         }
     }
 
@@ -305,6 +314,38 @@ public class MarioCanvas : AiGameCanvasBase
         var assetsDir = Path.Combine(AppContext.BaseDirectory, "Assets", "PixelLevels");
         m_spriteFrames = LoadSpriteFrames(Path.Combine(assetsDir, "mario_sprites.json"), assetsDir);
         m_enemySpriteFrames = LoadSpriteFrames(Path.Combine(assetsDir, "enemy_sprites.json"), assetsDir);
+        AddDebugPalette();
+    }
+
+    private void AddDebugPalette()
+    {
+        var debugColors = new[]
+        {
+            new Rgb(4, 8, 18),
+            new Rgb(13, 23, 34),
+            new Rgb(18, 38, 58),
+            new Rgb(30, 70, 94),
+            new Rgb(48, 112, 130),
+            new Rgb(78, 158, 158),
+            new Rgb(132, 212, 182),
+            new Rgb(204, 244, 204),
+            new Rgb(255, 255, 224),
+            new Rgb(255, 255, 255)
+        };
+        if (m_sourcePalette.Length + debugColors.Length > 256)
+            return;
+
+        var startIndex = m_sourcePalette.Length;
+        var palette = new Rgb[m_sourcePalette.Length + debugColors.Length];
+        Array.Copy(m_sourcePalette, palette, m_sourcePalette.Length);
+        Array.Copy(debugColors, 0, palette, startIndex, debugColors.Length);
+        m_sourcePalette = palette;
+
+        m_debugPanelColorIndex = (byte)startIndex;
+        m_debugLinkPaletteIndexes = new byte[debugColors.Length - 2];
+        for (var i = 0; i < m_debugLinkPaletteIndexes.Length; i++)
+            m_debugLinkPaletteIndexes[i] = (byte)(startIndex + i + 1);
+        m_debugNodeColorIndex = (byte)(startIndex + debugColors.Length - 1);
     }
 
     private SpriteFrame[] LoadSpriteFrames(string jsonPath, string assetsDir)
@@ -621,6 +662,158 @@ public class MarioCanvas : AiGameCanvasBase
         }
     }
 
+    private void DrawBrainDebugOverlay(PixelScreenData screen)
+    {
+        if (!HasSwitch("debug") || m_aiGame?.Brain == null || m_debugLinkPaletteIndexes == null)
+            return;
+
+        var brain = m_aiGame.Brain;
+        var layerCount = brain.DebugLayerCount;
+        if (layerCount < 2)
+            return;
+
+        var overlayX = screen.Width - DebugOverlayWidth - DebugOverlayMargin;
+        var overlayY = DebugOverlayMargin;
+        FillRect(screen, overlayX, overlayY, DebugOverlayWidth, DebugOverlayHeight, m_debugPanelColorIndex);
+
+        for (var sourceLayer = 0; sourceLayer < layerCount - 1; sourceLayer++)
+        {
+            var linkCount = CollectStrongestDebugLinks(brain, sourceLayer);
+            var maxStrength = GetStrongestDebugLinkStrength(linkCount);
+            for (var i = 0; i < linkCount; i++)
+            {
+                var link = m_debugLinkBuffer[i];
+                var x0 = GetDebugLayerX(overlayX, sourceLayer, layerCount);
+                var y0 = GetDebugNeuronY(overlayY, link.SourceNeuron, brain.GetDebugLayerSize(sourceLayer));
+                var x1 = GetDebugLayerX(overlayX, sourceLayer + 1, layerCount);
+                var y1 = GetDebugNeuronY(overlayY, link.TargetNeuron, brain.GetDebugLayerSize(sourceLayer + 1));
+                screen.DrawLine(x0, y0, x1, y1, GetDebugLinkColor(link.Strength / maxStrength));
+            }
+        }
+
+        DrawDebugNodes(screen, brain, overlayX, overlayY, layerCount);
+    }
+
+    private int CollectStrongestDebugLinks(AiBrainBase brain, int sourceLayer)
+    {
+        var sourceSize = brain.GetDebugLayerSize(sourceLayer);
+        var targetSize = brain.GetDebugLayerSize(sourceLayer + 1);
+        var count = 0;
+        var weakestIndex = 0;
+
+        for (var targetNeuron = 0; targetNeuron < targetSize; targetNeuron++)
+        {
+            for (var sourceNeuron = 0; sourceNeuron < sourceSize; sourceNeuron++)
+            {
+                var strength = Math.Abs(brain.GetDebugNeuronValue(sourceLayer, sourceNeuron) * brain.GetDebugWeight(sourceLayer, sourceNeuron, targetNeuron));
+                if (strength <= 0.001)
+                    continue;
+
+                if (count < m_debugLinkBuffer.Length)
+                {
+                    m_debugLinkBuffer[count++] = new DebugLink(sourceNeuron, targetNeuron, strength);
+                    weakestIndex = FindWeakestDebugLink(count);
+                    continue;
+                }
+
+                if (strength <= m_debugLinkBuffer[weakestIndex].Strength)
+                    continue;
+
+                m_debugLinkBuffer[weakestIndex] = new DebugLink(sourceNeuron, targetNeuron, strength);
+                weakestIndex = FindWeakestDebugLink(count);
+            }
+        }
+
+        return count;
+    }
+
+    private double GetStrongestDebugLinkStrength(int count)
+    {
+        var maxStrength = 0.0;
+        for (var i = 0; i < count; i++)
+            maxStrength = Math.Max(maxStrength, m_debugLinkBuffer[i].Strength);
+        return Math.Max(0.001, maxStrength);
+    }
+
+    private int FindWeakestDebugLink(int count)
+    {
+        var weakestIndex = 0;
+        var weakestStrength = m_debugLinkBuffer[0].Strength;
+        for (var i = 1; i < count; i++)
+        {
+            if (m_debugLinkBuffer[i].Strength >= weakestStrength)
+                continue;
+
+            weakestStrength = m_debugLinkBuffer[i].Strength;
+            weakestIndex = i;
+        }
+
+        return weakestIndex;
+    }
+
+    private void DrawDebugNodes(PixelScreenData screen, AiBrainBase brain, int overlayX, int overlayY, int layerCount)
+    {
+        for (var layer = 0; layer < layerCount; layer++)
+        {
+            var layerSize = brain.GetDebugLayerSize(layer);
+            var maxLayerValue = GetDebugLayerMaxValue(brain, layer, layerSize);
+            var visibleNodeCount = Math.Min(layerSize, 16);
+            for (var i = 0; i < visibleNodeCount; i++)
+            {
+                var neuron = visibleNodeCount == 1 ? 0 : (int)Math.Round(i * (layerSize - 1) / (double)(visibleNodeCount - 1));
+                var x = GetDebugLayerX(overlayX, layer, layerCount);
+                var y = GetDebugNeuronY(overlayY, neuron, layerSize);
+                var color = GetDebugLinkColor(Math.Abs(brain.GetDebugNeuronValue(layer, neuron)) / maxLayerValue);
+                screen.SetPixel(x, y, m_debugNodeColorIndex);
+                screen.SetPixel(x - 1, y, color);
+                screen.SetPixel(x + 1, y, color);
+                screen.SetPixel(x, y - 1, color);
+                screen.SetPixel(x, y + 1, color);
+                if (layer == layerCount - 1)
+                {
+                    screen.SetPixel(x + 2, y, color);
+                    screen.SetPixel(x + 3, y, color);
+                }
+            }
+        }
+    }
+
+    private double GetDebugLayerMaxValue(AiBrainBase brain, int layer, int layerSize)
+    {
+        var maxValue = 0.0;
+        for (var neuron = 0; neuron < layerSize; neuron++)
+            maxValue = Math.Max(maxValue, Math.Abs(brain.GetDebugNeuronValue(layer, neuron)));
+        return Math.Max(0.001, maxValue);
+    }
+
+    private byte GetDebugLinkColor(double normalized)
+    {
+        normalized = Math.Sqrt(Math.Clamp(normalized, 0.0, 1.0));
+        var index = Clamp((int)Math.Round(normalized * (m_debugLinkPaletteIndexes.Length - 1)), 0, m_debugLinkPaletteIndexes.Length - 1);
+        return m_debugLinkPaletteIndexes[index];
+    }
+
+    private static int GetDebugLayerX(int overlayX, int layer, int layerCount) =>
+        overlayX + 5 + layer * (DebugOverlayWidth - 10) / Math.Max(1, layerCount - 1);
+
+    private static int GetDebugNeuronY(int overlayY, int neuron, int layerSize) =>
+        overlayY + 5 + (layerSize <= 1 ? (DebugOverlayHeight - 10) / 2 : neuron * (DebugOverlayHeight - 10) / (layerSize - 1));
+
+    private static void FillRect(PixelScreenData screen, int x, int y, int width, int height, byte colorIndex)
+    {
+        for (var yy = y; yy < y + height; yy++)
+        {
+            if (yy < 0 || yy >= screen.Height)
+                continue;
+
+            for (var xx = x; xx < x + width; xx++)
+            {
+                if (xx >= 0 && xx < screen.Width)
+                    screen.Pixels[yy * screen.Width + xx] = colorIndex;
+            }
+        }
+    }
+
     private SpriteFrame GetMarioFrame()
     {
         if (m_aiGame?.IsMarioDead == true)
@@ -726,6 +919,8 @@ public class MarioCanvas : AiGameCanvasBase
     }
 
     private record SpriteFrame(string Name, int Width, int Height, byte?[] Pixels);
+
+    private readonly record struct DebugLink(int SourceNeuron, int TargetNeuron, double Strength);
 
     private sealed class BlockParticle(double x, double y, double velocityX, double velocityY, byte[] pixels, int size)
     {

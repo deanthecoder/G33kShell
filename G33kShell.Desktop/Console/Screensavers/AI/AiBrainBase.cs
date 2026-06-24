@@ -105,6 +105,29 @@ public abstract class AiBrainBase
             Payload = JsonConvert.SerializeObject(this)
         }).Compress();
 
+    public int DebugLayerCount => m_qNet.LayerCount;
+
+    public int GetDebugLayerSize(int layer) =>
+        m_qNet.GetLayerSize(layer);
+
+    public double GetDebugNeuronValue(int layer, int neuron)
+    {
+        if (layer != 0 || FrameStackCount == 1)
+            return m_qNet.GetNeuronValue(layer, neuron);
+
+        var segmentIndex = neuron / BaseInputSize;
+        var segmentOffset = neuron % BaseInputSize;
+        if (segmentIndex < 0 || segmentIndex >= m_segmentedInputVectors.Length)
+            return 0.0;
+        var segment = m_segmentedInputVectors[segmentIndex];
+        if (segment == null || segmentOffset < 0 || segmentOffset >= segment.Length)
+            return 0.0;
+        return segment[segmentOffset];
+    }
+
+    public double GetDebugWeight(int sourceLayer, int sourceNeuron, int targetNeuron) =>
+        m_qNet.GetWeight(sourceLayer, sourceNeuron, targetNeuron);
+
     public AiBrainBase Load(byte[] brainBytes)
     {
         if (brainBytes == null || brainBytes.Length == 0)
