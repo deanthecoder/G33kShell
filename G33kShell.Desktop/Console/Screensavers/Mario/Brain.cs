@@ -15,9 +15,9 @@ namespace G33kShell.Desktop.Console.Screensavers.Mario;
 
 public class Brain : AiBrainBase
 {
-    protected override int BrainVersion => 7;
+    protected override int BrainVersion => 12;
 
-    public Brain() : base(GameState.InputCount, [32, 20], 4, frameStackCount: 2)
+    public Brain() : base(GameState.InputCount, [48, 32], 4, frameStackCount: 2)
     {
     }
 
@@ -30,10 +30,10 @@ public class Brain : AiBrainBase
         var outputs = GetOutputs(state);
         var left = outputs[0] > outputs[1] && outputs[0] > 0.0;
         var right = outputs[1] >= outputs[0] && outputs[1] > -0.10;
-        return new Move(left, right, outputs[2] > 0.0, outputs[3] > -0.15);
+        return new Move(left, right, outputs[2], outputs[3] > -0.15);
     }
 
     public override AiBrainBase Clone() => new Brain(this);
 
-    public readonly record struct Move(bool Left, bool Right, bool Jump, bool Run);
+    public readonly record struct Move(bool Left, bool Right, double JumpSignal, bool Run);
 }

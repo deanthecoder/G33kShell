@@ -9,14 +9,17 @@
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
-using DTC.Core.Extensions;
 using G33kShell.Desktop.Console.Screensavers.AI;
+using DTC.Core.Extensions;
 
 namespace G33kShell.Desktop.Console.Screensavers.Mario;
 
 public class GameState : IAiGameState
 {
-    public const int InputCount = 42;
+    private const int SensorGridSize = 8;
+    private const int SensorChannelCount = 3;
+    private const int ScalarInputCount = 35;
+    public const int InputCount = SensorGridSize * SensorGridSize * SensorChannelCount + ScalarInputCount;
     private readonly Game m_game;
 
     public GameState(Game game)
@@ -27,8 +30,21 @@ public class GameState : IAiGameState
     public void FillInputVector(double[] inputVector)
     {
         var i = 0;
-        inputVector[i++] = (m_game.MarioVelocityX / Game.MaxRunPixelsPerFrame).Clamp(0.0, 1.0);
-        inputVector[i++] = (m_game.MarioVelocityY / 8.0).Clamp(-1.0, 1.0);
+        for (var y = 0; y < SensorGridSize; y++)
+        {
+            for (var x = 0; x < SensorGridSize; x++)
+            {
+                m_game.GetTileSensor(x, 2 - y, out var solid, out var question, out var enemy);
+                inputVector[i++] = solid;
+                inputVector[i++] = question;
+                inputVector[i++] = enemy;
+            }
+        }
+
+        inputVector[i++] = 1.0;
+        inputVector[i++] = m_game.MarioTileXOffset;
+        inputVector[i++] = (m_game.MarioVelocityX / Game.MaxRunPixelsPerFrame).Clamp(-1.0, 1.0);
+        inputVector[i++] = (m_game.MarioVelocityY / Game.MaxFallPixelsPerFrame).Clamp(-1.0, 1.0);
         inputVector[i++] = m_game.IsGrounded ? 1.0 : -1.0;
         inputVector[i++] = ((m_game.MarioY + Game.MarioCollisionHeight) / Game.ViewHeight).Clamp(0.0, 1.0);
         inputVector[i++] = (m_game.TicksSinceLastJump / 90.0).Clamp(0.0, 1.0);
@@ -57,8 +73,8 @@ public class GameState : IAiGameState
         inputVector[i++] = m_game.HasEnemyBeside ? 1.0 : -1.0;
         inputVector[i++] = m_game.HasEnemyLandingTarget ? 1.0 : -1.0;
         inputVector[i++] = m_game.HasEnemyOverhead ? 1.0 : -1.0;
-
-        foreach (var sample in Game.SensorSamples)
-            inputVector[i++] = m_game.IsSolidAtOffset(sample.X, sample.Y) ? 1.0 : -1.0;
+        inputVector[i++] = m_game.DistanceToFlagPole / 512.0;
+        inputVector[i++] = m_game.IsNearFlagPole ? 1.0 : -1.0;
+        inputVector[i] = m_game.FlagPoleLaunchReadiness;
     }
 }

@@ -45,6 +45,9 @@ public class MarioCanvas : AiGameCanvasBase
     private const int ViewHeight = 240;
     private const int MarioCollisionWidth = 12;
     private const int MarioCollisionHeight = 16;
+    private const int RenderFps = 60;
+    private const int SimulationFps = 30;
+    private const int RenderFramesPerSimulationTick = RenderFps / SimulationFps;
     private const int MasteryPassesRequired = 3;
     private const int MasteryWindowSize = 5;
 
@@ -73,7 +76,7 @@ public class MarioCanvas : AiGameCanvasBase
     private string m_lastMasteryStatus = "route finding: waiting for first generation";
     private readonly List<BlockParticle> m_blockParticles = [];
 
-    public MarioCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight)
+    public MarioCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight, RenderFps)
     {
         Name = "mario";
     }
@@ -141,18 +144,22 @@ public class MarioCanvas : AiGameCanvasBase
         if (!m_isActive || m_pixelScreen == null || m_level == null || m_tiles == null)
             return;
 
-        PlayAiGame();
+        var shouldAdvanceSimulation = ShouldAdvanceSimulation();
+        PlayAiGame(shouldAdvanceSimulation);
         var cameraX = GetCameraX();
 
         using (m_pixelScreen.Lock(out var pixels))
         {
             DrawLevelViewport(pixels, cameraX);
-            UpdateBlockParticles();
+            UpdateBlockParticles(1.0 / RenderFramesPerSimulationTick);
             DrawBlockParticles(pixels, cameraX);
             DrawEnemies(pixels, cameraX);
             DrawMario(pixels, cameraX);
         }
     }
+
+    private bool ShouldAdvanceSimulation() =>
+        FrameNumber % RenderFramesPerSimulationTick == 0;
 
     private void ClearPixelScreen()
     {
@@ -165,7 +172,7 @@ public class MarioCanvas : AiGameCanvasBase
         m_windowManager?.ClearPixelScreen();
     }
 
-    private void PlayAiGame()
+    private void PlayAiGame(bool shouldAdvanceSimulation)
     {
         if (m_aiGame == null)
         {
@@ -176,7 +183,7 @@ public class MarioCanvas : AiGameCanvasBase
             m_blockParticles.Clear();
         }
 
-        if (m_gameOverHoldFrames > 0)
+        if (shouldAdvanceSimulation && m_gameOverHoldFrames > 0)
         {
             m_gameOverHoldFrames--;
             if (m_gameOverHoldFrames == 0)
@@ -186,7 +193,7 @@ public class MarioCanvas : AiGameCanvasBase
                 m_blockParticles.Clear();
             }
         }
-        else
+        else if (shouldAdvanceSimulation)
         {
             m_aiGame.Tick();
             SpawnBlockParticlesFromGameEvent();
@@ -194,10 +201,11 @@ public class MarioCanvas : AiGameCanvasBase
                 m_gameOverHoldFrames = 45;
         }
 
-        m_marioX = m_aiGame.MarioX;
-        m_marioY = m_aiGame.MarioY;
         m_marioVelocityX = m_aiGame.MarioVelocityX;
         m_marioVelocityY = m_aiGame.MarioVelocityY;
+        var interpolation = (FrameNumber % RenderFramesPerSimulationTick) / (double)RenderFramesPerSimulationTick;
+        m_marioX = m_aiGame.MarioX + m_marioVelocityX * interpolation;
+        m_marioY = m_aiGame.MarioY + m_marioVelocityY * interpolation;
     }
 
     private static void ClearTextOverlay(ScreenData screen)
@@ -575,15 +583,15 @@ public class MarioCanvas : AiGameCanvasBase
         return sourceTile[localY * m_level.TileSize + localX];
     }
 
-    private void UpdateBlockParticles()
+    private void UpdateBlockParticles(double simulationStep)
     {
         for (var i = m_blockParticles.Count - 1; i >= 0; i--)
         {
             var particle = m_blockParticles[i];
-            particle.X += particle.VelocityX;
-            particle.Y += particle.VelocityY;
-            particle.VelocityY += 0.22;
-            particle.Life--;
+            particle.X += particle.VelocityX * simulationStep;
+            particle.Y += particle.VelocityY * simulationStep;
+            particle.VelocityY += 0.22 * simulationStep;
+            particle.Life -= simulationStep;
             if (particle.Life <= 0 || particle.Y > ViewHeight + 16)
                 m_blockParticles.RemoveAt(i);
         }
@@ -727,7 +735,7 @@ public class MarioCanvas : AiGameCanvasBase
         public double VelocityY = velocityY;
         public byte[] Pixels = pixels;
         public int Size = size;
-        public int Life = 38;
+        public double Life = 38;
     }
 
     private static int Clamp(int value, int min, int max) =>
@@ -755,7 +763,10 @@ public class MarioCanvas : AiGameCanvasBase
     protected override int GetValidationGamesPerBrain() => 8;
     protected override int GetInitialPopulationSize() => 120;
     protected override int GetMinPopulationSize() => 60;
-    protected override double GetMutationRate() => 0.08;
+    protected override double GetMutationRate() => SecondsSinceGoat >= 90 ? 0.12 : SecondsSinceGoat >= 45 ? 0.10 : 0.08;
+    protected override double GetRandomFraction() => SecondsSinceGoat >= 90 ? 0.14 : SecondsSinceGoat >= 45 ? 0.10 : 0.06;
+    protected override double GetValidationSkipThresholdRatio() => 0.0;
+    protected override int GetForcedValidationInterval() => 1;
     protected override bool UseTrainingScoreForGoat() => false;
     protected override string GetTrainingStatusText(int generation)
     {
@@ -795,7 +806,7 @@ public class MarioCanvas : AiGameCanvasBase
         if (m_trainingPhase == TrainingPhase.ShowRun)
             return;
 
-        var stats = ParseGameStats(result.BestStats);
+        var stats = ParseGameStats(string.IsNullOrWhiteSpace(result.AverageStats) ? result.BestStats : result.AverageStats);
         var mastered = IsPhaseMastered(m_trainingPhase, stats, out var status);
         RecordMasteryResult(mastered);
         m_lastMasteryStatus = status;
@@ -833,25 +844,24 @@ public class MarioCanvas : AiGameCanvasBase
         var x = GetStat(stats, "X");
         var questions = GetStat(stats, "Questions");
         var stomps = GetStat(stats, "Stomps");
-        var jumps = GetStat(stats, "Jumps");
-        var pogo = GetStat(stats, "Pogo");
-        var finished = GetStat(stats, "Finished") >= 1.0;
-        var fell = GetStat(stats, "Fell") >= 1.0;
+        var finishedRate = GetStat(stats, "Finished");
+        var fallRate = GetStat(stats, "Fell");
+        var routeReady = finishedRate >= 0.67 || x >= 1400.0;
 
         var mastered = phase switch
         {
-            TrainingPhase.Route => x >= 944.0 && jumps <= 28.0 && pogo <= 5.0 && !fell,
-            TrainingPhase.BlockHunt => x >= 944.0 && questions >= 2.0 && jumps <= 36.0 && pogo <= 7.0 && !fell,
-            TrainingPhase.EnemyPractice => x >= 1400.0 && stomps >= 1.0 && jumps <= 44.0 && pogo <= 8.0 && !fell,
-            _ => finished
+            TrainingPhase.Route => routeReady && fallRate <= 0.34,
+            TrainingPhase.BlockHunt => routeReady && questions >= 1.5 && fallRate <= 0.34,
+            TrainingPhase.EnemyPractice => (finishedRate >= 0.5 || x >= 1800.0) && stomps >= 0.5 && fallRate <= 0.34,
+            _ => finishedRate >= 0.67
         };
 
         status = phase switch
         {
-            TrainingPhase.Route => $"need X>=944,J<=28,Pogo<=5; got X={x:0},J={jumps:0},Pogo={pogo:0}",
-            TrainingPhase.BlockHunt => $"need X>=944,Q>=2,J<=36; got X={x:0},Q={questions:0},J={jumps:0}",
-            TrainingPhase.EnemyPractice => $"need X>=1400,Stomp>=1,J<=44; got X={x:0},Stomp={stomps:0},J={jumps:0}",
-            _ => $"finished={finished}"
+            TrainingPhase.Route => $"need avg finish>=67% or X>=1400; got X={x:0},Finish={finishedRate:P0},Fall={fallRate:P0}",
+            TrainingPhase.BlockHunt => $"need avg Q>=1.5 and route; got X={x:0},Q={questions:0.0},Finish={finishedRate:P0},Fall={fallRate:P0}",
+            TrainingPhase.EnemyPractice => $"need avg Stomp>=0.5 and finish>=50% or X>=1800; got X={x:0},Stomp={stomps:0.0},Finish={finishedRate:P0},Fall={fallRate:P0}",
+            _ => $"finish={finishedRate:P0}"
         };
 
         return mastered;
@@ -875,7 +885,7 @@ public class MarioCanvas : AiGameCanvasBase
     }
 
     private static double GetStat(Dictionary<string, double> stats, string name) =>
-        stats.TryGetValue(name, out var value) ? value : 0.0;
+        stats.GetValueOrDefault(name, 0.0);
 
     private static double GetShowRewardMultiplier(TrainingPhase phase) =>
         phase switch

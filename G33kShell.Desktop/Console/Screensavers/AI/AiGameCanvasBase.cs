@@ -35,7 +35,7 @@ namespace G33kShell.Desktop.Console.Screensavers.AI;
 /// </remarks>
 public abstract class AiGameCanvasBase : ScreensaverBase
 {
-    protected readonly record struct TrainingGenerationResult(int Generation, double AverageRating, double AverageDegeneracy, double BestRating, int BestSeed, string BestStats);
+    protected readonly record struct TrainingGenerationResult(int Generation, double AverageRating, double AverageDegeneracy, double BestRating, int BestSeed, string BestStats, string AverageStats);
 
     private const int DefaultInitialPopSize = 160;
     private const int DefaultMinPopSize = 80;
@@ -168,17 +168,19 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         var gamesPerBrain = GetGamesPerBrain();
         var validationGamesPerBrain = GetValidationGamesPerBrain();
         
-        var gameResults = new (double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats)[m_nextGenBrains.Count];
+        var gameResults = new (double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats, string AverageStats)[m_nextGenBrains.Count];
         var trainingTotals = new double[m_nextGenBrains.Count];
         var trainingDegeneracyTotals = new double[m_nextGenBrains.Count];
         var trainingBestRatings = new double[m_nextGenBrains.Count];
         var trainingBestSeeds = new int[m_nextGenBrains.Count];
         var trainingBestStats = new string[m_nextGenBrains.Count];
+        var trainingStatsTotals = new Dictionary<string, double>[m_nextGenBrains.Count];
         var trainingReasons = new string[m_nextGenBrains.Count];
         var trainingLocks = new object[m_nextGenBrains.Count];
         for (var i = 0; i < m_nextGenBrains.Count; i++)
         {
             trainingBestRatings[i] = double.MinValue;
+            trainingStatsTotals[i] = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
             trainingLocks[i] = new object();
         }
 
@@ -195,11 +197,13 @@ public abstract class AiGameCanvasBase : ScreensaverBase
                     game.Tick();
 
                 UpdateBestObservedMetric(game.BestObservedMetric);
-                var gameStats = game.ExtraGameStats().Select(o => $"{o.Name} {o.Value}").ToCsv('|');
+                var extraStats = game.ExtraGameStats().ToArray();
+                var gameStats = extraStats.Select(o => $"{o.Name} {o.Value}").ToCsv('|');
                 lock (trainingLocks[brainIndex])
                 {
                     trainingTotals[brainIndex] += game.Rating;
                     trainingDegeneracyTotals[brainIndex] += game.DegeneracyScore;
+                    AccumulateStats(trainingStatsTotals[brainIndex], extraStats);
                     if (string.IsNullOrEmpty(trainingReasons[brainIndex]) && !string.IsNullOrEmpty(game.DegeneracyReason))
                         trainingReasons[brainIndex] = game.DegeneracyReason;
                     if (game.Rating > trainingBestRatings[brainIndex])
@@ -225,13 +229,14 @@ public abstract class AiGameCanvasBase : ScreensaverBase
                 trainingBestRatings[i],
                 trainingBestSeeds[i],
                 m_nextGenBrains[i],
-                trainingBestStats[i] ?? string.Empty);
+                trainingBestStats[i] ?? string.Empty,
+                FormatAverageStats(trainingStatsTotals[i], gamesPerBrain));
         }
 
         // Select the breeders.
         var orderedGames = gameResults.OrderByDescending(GetSelectionFitness).ToArray();
         var theBest = orderedGames[0];
-        OnTrainingGenerationComplete(new TrainingGenerationResult(m_generation, theBest.AverageRating, theBest.AverageDegeneracy, theBest.BestRating, theBest.GameSeed, theBest.GameStats));
+        OnTrainingGenerationComplete(new TrainingGenerationResult(m_generation, theBest.AverageRating, theBest.AverageDegeneracy, theBest.BestRating, theBest.GameSeed, theBest.GameStats, theBest.AverageStats));
         var bestTrainingFitness = GetSelectionFitness(theBest);
         var useTrainingScoreForGoat = UseTrainingScoreForGoat();
         var skippedValidation = useTrainingScoreForGoat || ShouldSkipValidation(bestTrainingFitness);
@@ -239,7 +244,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         if (!useTrainingScoreForGoat && !skippedValidation)
         {
             var validationCandidateCount = Math.Min(GetValidationCandidateCount(), orderedGames.Length);
-            var validationResults = new (double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats)[validationCandidateCount];
+            var validationResults = new (double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats, string AverageStats)[validationCandidateCount];
             var validationTotals = new double[validationCandidateCount];
             var validationDegeneracyTotals = new double[validationCandidateCount];
             var validationBestRatings = new double[validationCandidateCount];
@@ -295,7 +300,8 @@ public abstract class AiGameCanvasBase : ScreensaverBase
                     validationBestRatings[i],
                     validationBestSeeds[i],
                     orderedGames[i].Brain,
-                    validationBestStats[i] ?? string.Empty);
+                    validationBestStats[i] ?? string.Empty,
+                    string.Empty);
             }
 
             bestValidation = validationResults.OrderByDescending(GetSelectionFitness).First();
@@ -368,7 +374,24 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             m_explorationBoostGenerationsRemaining--;
     }
 
-    private void PersistBrainImprovement((double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats) theBest, Action<byte[]> saveBrainBytes)
+    private static void AccumulateStats(Dictionary<string, double> totals, IEnumerable<(string Name, string Value)> stats)
+    {
+        foreach (var stat in stats)
+        {
+            if (double.TryParse(stat.Value, out var value))
+                totals[stat.Name] = totals.TryGetValue(stat.Name, out var current) ? current + value : value;
+        }
+    }
+
+    private static string FormatAverageStats(Dictionary<string, double> totals, int sampleCount)
+    {
+        if (sampleCount <= 0 || totals.Count == 0)
+            return string.Empty;
+
+        return totals.Select(o => $"{o.Key} {o.Value / sampleCount:0.###}").ToCsv('|');
+    }
+
+    private void PersistBrainImprovement((double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats, string AverageStats) theBest, Action<byte[]> saveBrainBytes)
     {
         var effectiveFitness = GetSelectionFitness(theBest);
         if (effectiveFitness > m_savedRating)
@@ -385,7 +408,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         m_generationsSinceImprovement++;
     }
 
-    private List<AiBrainBase> BuildLegacyNextGeneration((double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats)[] orderedGames, double mutationRate, double randomFraction)
+    private List<AiBrainBase> BuildLegacyNextGeneration((double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats, string AverageStats)[] orderedGames, double mutationRate, double randomFraction)
     {
         m_currentPopSize = Math.Max(m_currentPopSize - 1, GetMinPopulationSize());
         if (m_generationsSinceImprovement >= 100)
@@ -415,7 +438,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         return nextBrains;
     }
 
-    private List<AiBrainBase> BuildHarnessStyleNextGeneration((double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats)[] orderedGames, double mutationRate, double randomFraction)
+    private List<AiBrainBase> BuildHarnessStyleNextGeneration((double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats, string AverageStats)[] orderedGames, double mutationRate, double randomFraction)
     {
         var nextBrains = new List<AiBrainBase>(m_currentPopSize);
         var eliteCount = Math.Min(GetEliteCount(), orderedGames.Length);
@@ -437,7 +460,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         return nextBrains;
     }
 
-    private AiBrainBase SelectParent((double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats)[] orderedGames)
+    private AiBrainBase SelectParent((double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats, string AverageStats)[] orderedGames)
     {
         var totalFitness = 0.0;
         for (var i = 0; i < orderedGames.Length; i++)
@@ -478,7 +501,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         return rate;
     }
 
-    private static double GetSelectionFitness((double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats) result)
+    private static double GetSelectionFitness((double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats, string AverageStats) result)
     {
         var degeneracy = Math.Clamp(result.AverageDegeneracy, 0.0, 1.0);
         if (degeneracy >= 0.95)
@@ -497,7 +520,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         return randomFraction;
     }
 
-    private void UpdateExplorationBoost((double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats) bestValidation)
+    private void UpdateExplorationBoost((double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats, string AverageStats) bestValidation)
     {
         if (m_explorationBoostGenerationsRemaining > 0)
             return;
