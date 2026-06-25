@@ -16,10 +16,11 @@ namespace G33kShell.Desktop.Console.Screensavers.Mario;
 
 public class GameState : IAiGameState
 {
-    private const int SensorGridSize = 8;
-    private const int SensorChannelCount = 3;
+    private const int SensorGridSizeX = 10;
+    private const int SensorGridSizeY = 6;
+    private const int SensorChannelCount = 4;
     private const int ScalarInputCount = 35;
-    public const int InputCount = SensorGridSize * SensorGridSize * SensorChannelCount + ScalarInputCount;
+    public const int InputCount = SensorGridSizeX * SensorGridSizeY * SensorChannelCount + ScalarInputCount;
     private readonly Game m_game;
 
     public GameState(Game game)
@@ -30,14 +31,15 @@ public class GameState : IAiGameState
     public void FillInputVector(double[] inputVector)
     {
         var i = 0;
-        for (var y = 0; y < SensorGridSize; y++)
+        for (var y = 0; y < SensorGridSizeY; y++)
         {
-            for (var x = 0; x < SensorGridSize; x++)
+            for (var x = 0; x < SensorGridSizeX; x++)
             {
-                m_game.GetTileSensor(x, 2 - y, out var solid, out var question, out var enemy);
+                m_game.GetTileSensor(x - 1, 2 - y, out var solid, out var question, out var enemy, out var flag);
                 inputVector[i++] = solid;
                 inputVector[i++] = question;
                 inputVector[i++] = enemy;
+                inputVector[i++] = flag;
             }
         }
 

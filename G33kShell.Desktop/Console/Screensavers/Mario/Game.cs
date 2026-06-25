@@ -46,6 +46,7 @@ public class Game : AiGameBase
 
     private const int MaxTicks = 5400;
     private const int MaxTicksWithoutProgress = 180;
+    private const int DegenerateWallStallTicks = 45;
     private const int MaxTicksSinceJumpBeforePenalty = 120;
     private const int JumpCooldownTicks = 6;
     private const double JumpPressThreshold = 0.35;
@@ -58,9 +59,6 @@ public class Game : AiGameBase
     private readonly List<Enemy> m_enemies = [];
     private int m_ticksWithoutProgress;
     private int m_jumpCount;
-    private int m_airTicks;
-    private int m_slowTicks;
-    private int m_fastTicks;
     private int m_walkSpeedTicks;
     private int m_runSpeedTicks;
     private int m_wallStallTicks;
@@ -80,6 +78,7 @@ public class Game : AiGameBase
     private int m_enemyCount = InitialEnemyCount;
     private bool m_pendingEnemyIncrease;
     private bool m_fell;
+    private bool m_killedByEnemy;
     private EndSequenceState m_endSequenceState;
 
     private static LevelData s_level;
@@ -162,20 +161,54 @@ public class Game : AiGameBase
             var progressTicks = Math.Max(1, Ticks - m_ticksWithoutProgress);
             var distancePerTick = Math.Max(0.0, BestX - 24.0) / progressTicks;
             var score = GetScore();
-            var failedRunPenalty = m_fell || IsMarioDead ? 1500.0 : 0.0;
+            var failedRunPenalty = IsMarioDead ? 35000.0 : m_fell ? 30000.0 : 0.0;
+            var stuckPenalty = m_ticksWithoutProgress >= MaxTicksWithoutProgress ? 12000.0 : 0.0;
+            var wallStallPenalty = m_wallStallTicks >= DegenerateWallStallTicks ? m_wallStallTicks * 90.0 : 0.0;
             return Math.Max(0.0,
                 distance * 10.0 +
                 distancePerTick * 4500.0 +
                 score * m_showRewardMultiplier -
-                failedRunPenalty);
+                failedRunPenalty -
+                stuckPenalty -
+                wallStallPenalty);
         }
     }
 
-    public override double DegeneracyScore =>
-        m_ticksWithoutProgress >= MaxTicksWithoutProgress ? 0.8 : 0.0;
+    public override double DegeneracyScore
+    {
+        get
+        {
+            if (m_killedByEnemy)
+                return 1.0;
+            if (IsMarioDead || m_fell)
+                return 0.98;
+            if (m_ticksWithoutProgress >= MaxTicksWithoutProgress)
+                return 0.98;
+            if (m_wallStallTicks >= DegenerateWallStallTicks)
+                return Math.Min(0.95, 0.65 + (m_wallStallTicks - DegenerateWallStallTicks) / 180.0 * 0.35);
 
-    public override string DegeneracyReason =>
-        DegeneracyScore > 0 ? "stuck" : string.Empty;
+            return 0.0;
+        }
+    }
+
+    public override string DegeneracyReason
+    {
+        get
+        {
+            if (m_killedByEnemy)
+                return "enemy";
+            if (IsMarioDead)
+                return "dead";
+            if (m_fell)
+                return "fell";
+            if (m_ticksWithoutProgress >= MaxTicksWithoutProgress)
+                return "stuck";
+            if (m_wallStallTicks >= DegenerateWallStallTicks)
+                return "wall";
+
+            return string.Empty;
+        }
+    }
 
     public override (string Name, double Value, string Format)? BestObservedMetric =>
         HasReachedFlagPole ? ("Score", GetScore(), "0") : ("X", BestX, "0");
@@ -221,9 +254,6 @@ public class Game : AiGameBase
         TicksSinceLastJump = MaxTicksSinceJumpBeforePenalty;
         m_ticksWithoutProgress = 0;
         m_jumpCount = 0;
-        m_airTicks = 0;
-        m_slowTicks = 0;
-        m_fastTicks = 0;
         m_walkSpeedTicks = 0;
         m_runSpeedTicks = 0;
         m_wallStallTicks = 0;
@@ -242,6 +272,7 @@ public class Game : AiGameBase
         m_brokenBlockTiles.Clear();
         m_usedQuestionBlocks.Clear();
         m_fell = false;
+        m_killedByEnemy = false;
         HasReachedFlagPole = false;
         IsMarioDead = false;
         m_endSequenceState = EndSequenceState.Playing;
@@ -315,12 +346,6 @@ public class Game : AiGameBase
             grounded = false;
         }
 
-        if (!grounded)
-            m_airTicks++;
-        if (Math.Abs(MarioVelocityX) < 0.35)
-            m_slowTicks++;
-        if (MarioVelocityX > 1.8)
-            m_fastTicks++;
         if (MarioVelocityX is >= 0.65 and <= MaxWalkPixelsPerFrame)
             m_walkSpeedTicks++;
         if (MarioVelocityX > MaxWalkPixelsPerFrame)
@@ -371,13 +396,14 @@ public class Game : AiGameBase
             m_fell = true;
     }
 
-    public void GetTileSensor(int tileDx, int tileDy, out double solid, out double question, out double enemy)
+    public void GetTileSensor(int tileDx, int tileDy, out double solid, out double question, out double enemy, out double flag)
     {
         var tileX = (int)Math.Floor(MarioX / s_level.TileSize) + tileDx;
         var tileY = (int)Math.Floor(MarioY / s_level.TileSize) + tileDy;
         solid = IsSolidTile(tileX, tileY) ? 1.0 : 0.0;
         question = IsUnusedQuestionTile(tileX, tileY) ? 1.0 : 0.0;
         enemy = IsEnemyInTile(tileX, tileY) ? 1.0 : 0.0;
+        flag = IsFlagPoleInTile(tileX, tileY) ? 1.0 : 0.0;
     }
 
     public bool IsBlockBroken(int tileX, int tileY) =>
@@ -488,6 +514,10 @@ public class Game : AiGameBase
             yield return ("Wall", m_wallStallTicks.ToString());
         if (m_fell)
             yield return ("Fell", "1");
+        if (IsMarioDead)
+            yield return ("Died", "1");
+        if (m_killedByEnemy)
+            yield return ("EnemyDeath", "1");
     }
 
     private IEnumerable<EnemySnapshot> GetEnemySnapshots()
@@ -510,6 +540,19 @@ public class Game : AiGameBase
         }
 
         return false;
+    }
+
+    private bool IsFlagPoleInTile(int tileX, int tileY)
+    {
+        var tileLeft = tileX * s_level.TileSize;
+        var tileRight = tileLeft + s_level.TileSize - 1;
+        var tileTop = tileY * s_level.TileSize;
+        var tileBottom = tileTop + s_level.TileSize - 1;
+
+        return tileRight >= FlagPoleX &&
+               tileLeft <= FlagPoleRightX &&
+               tileBottom >= FlagPoleTopY &&
+               tileTop <= FlagPoleBottomY;
     }
 
     private bool IsUnusedQuestionTile(int tileX, int tileY)
@@ -759,6 +802,7 @@ public class Game : AiGameBase
 
         if (!isStomp)
         {
+            m_killedByEnemy = true;
             KillMario();
             return;
         }

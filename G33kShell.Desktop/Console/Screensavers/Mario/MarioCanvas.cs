@@ -24,7 +24,7 @@ using SkiaSharp;
 using MarioBrain = G33kShell.Desktop.Console.Screensavers.Mario.Brain;
 using MarioGame = G33kShell.Desktop.Console.Screensavers.Mario.Game;
 
-namespace G33kShell.Desktop.Console.Screensavers;
+namespace G33kShell.Desktop.Console.Screensavers.Mario;
 
 /// <summary>
 /// A pixel-backed World 1-1 level scroll.
@@ -45,7 +45,7 @@ public class MarioCanvas : AiGameCanvasBase
     private const int ViewHeight = 240;
     private const int MarioCollisionWidth = 12;
     private const int MarioCollisionHeight = 16;
-    private const int RenderFps = 60;
+    private const int RenderFps = 48;
     private const int SimulationFps = 30;
     private const int RenderFramesPerSimulationTick = RenderFps / SimulationFps;
     private const int MasteryPassesRequired = 3;

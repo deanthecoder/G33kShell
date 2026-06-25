@@ -550,7 +550,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             : hardStagnation
                 ? "stagnation"
                 : "degenerate";
-        System.Console.WriteLine($"Exploration boost: {m_lastExplorationReason} detected. Increasing mutation/randomness for {m_explorationBoostGenerationsRemaining} generations.");
+        System.Console.WriteLine($"Exploration boost: {m_lastExplorationReason} detected. Using Mut {GetEffectiveMutationRate():F3}/Rnd {GetEffectiveRandomFraction():F2} for {m_explorationBoostGenerationsRemaining} generations.");
     }
 
     private int GetDefaultSeedBase()
