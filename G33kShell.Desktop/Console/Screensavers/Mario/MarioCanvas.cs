@@ -497,40 +497,65 @@ public class MarioCanvas : AiGameCanvasBase
 
     private void DrawLevelViewport(PixelScreenData screen, int cameraX)
     {
-        var skyIndex = m_tiles[m_level.Map[0][0]][0];
-        var skyTile = m_tiles[skyIndex];
         var tileSize = m_level.TileSize;
+        var skyTile = m_tiles[m_level.Map[0][0]];
+        var firstTileX = Math.Max(0, cameraX / tileSize);
+        var lastTileX = Math.Min(m_level.WidthTiles - 1, (cameraX + screen.Width - 1) / tileSize);
+        var lastTileY = Math.Min(m_level.HeightTiles - 1, (screen.Height - 1) / tileSize);
 
-        for (var y = 0; y < screen.Height; y++)
+        for (var tileY = 0; tileY <= lastTileY; tileY++)
         {
-            var tileY = y / tileSize;
-            var tileLocalY = y % tileSize;
-            for (var x = 0; x < screen.Width; x++)
+            var screenY = tileY * tileSize;
+            for (var tileX = firstTileX; tileX <= lastTileX; tileX++)
             {
-                var worldX = cameraX + x;
-                var tileX = worldX / tileSize;
-                var tileLocalX = worldX % tileSize;
-                var tile = skyTile;
-                if (tileY >= 0 && tileY < m_level.HeightTiles && tileX >= 0 && tileX < m_level.WidthTiles)
+                var tile = m_tiles[m_level.Map[tileY][tileX]];
+                var sourceStride = tileSize;
+                var sourceX = 0;
+                var sourceY = 0;
+                if (m_aiGame?.IsBlockBroken(tileX, tileY) == true)
                 {
-                    tile = m_tiles[m_level.Map[tileY][tileX]];
-                    if (m_aiGame?.IsBlockBroken(tileX, tileY) == true)
-                    {
-                        tile = skyTile;
-                    }
-                    else if (m_aiGame?.IsQuestionBlockUsed(tileX, tileY) == true)
-                    {
-                        var blockTileX = tileX - tileX % 2;
-                        var blockTileY = tileY - tileY % 2;
-                        var blockLocalX = (tileX - blockTileX) * tileSize + tileLocalX;
-                        var blockLocalY = (tileY - blockTileY) * tileSize + tileLocalY;
-                        screen.Pixels[y * screen.Width + x] = m_usedQuestionBlockPixels[blockLocalY * 16 + blockLocalX];
-                        continue;
-                    }
+                    tile = skyTile;
+                }
+                else if (m_aiGame?.IsQuestionBlockUsed(tileX, tileY) == true)
+                {
+                    tile = m_usedQuestionBlockPixels;
+                    sourceStride = 16;
+                    sourceX = tileX % 2 * tileSize;
+                    sourceY = tileY % 2 * tileSize;
                 }
 
-                screen.Pixels[y * screen.Width + x] = tile[tileLocalY * tileSize + tileLocalX];
+                BlitTile(screen, tile, sourceStride, sourceX, sourceY, tileX * tileSize - cameraX, screenY, tileSize);
             }
+        }
+    }
+
+    private static void BlitTile(
+        PixelScreenData screen,
+        byte[] source,
+        int sourceStride,
+        int sourceX,
+        int sourceY,
+        int destinationX,
+        int destinationY,
+        int tileSize)
+    {
+        var clippedX = Math.Max(0, destinationX);
+        var clippedRight = Math.Min(screen.Width, destinationX + tileSize);
+        var copyWidth = clippedRight - clippedX;
+        if (copyWidth <= 0)
+            return;
+
+        var sourceClipX = clippedX - destinationX;
+        var clippedBottom = Math.Min(screen.Height, destinationY + tileSize);
+        for (var y = Math.Max(0, destinationY); y < clippedBottom; y++)
+        {
+            var sourceRow = sourceY + y - destinationY;
+            Array.Copy(
+                source,
+                sourceRow * sourceStride + sourceX + sourceClipX,
+                screen.Pixels,
+                y * screen.Width + clippedX,
+                copyWidth);
         }
     }
 
