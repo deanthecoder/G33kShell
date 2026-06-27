@@ -37,15 +37,10 @@ public class SnakeCanvas : AiGameCanvasBase
         Name = "snake";
     }
 
-    public override void UpdateFrame(ScreenData screen)
-    {
-        screen.ClearChars();
+    protected override void UpdateGameFrame(ScreenData screen) => PlayGame(screen);
 
-        if (ShouldTrainAi())
-            TrainAi(screen, brainBytes => Settings.Instance.SnakeBrain = brainBytes);
-        else
-            PlayGame(screen);
-    }
+    protected override void SaveBrainBytes(byte[] brainBytes) =>
+        Settings.Instance.SnakeBrain = brainBytes;
 
     [UsedImplicitly]
     private void PlayGame(ScreenData screen)

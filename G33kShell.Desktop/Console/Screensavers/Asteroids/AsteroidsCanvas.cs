@@ -34,15 +34,10 @@ public class AsteroidsCanvas : AiGameCanvasBase
         Name = "asciiroids";
     }
 
-    public override void UpdateFrame(ScreenData screen)
-    {
-        screen.ClearChars();
-        
-        if (ShouldTrainAi())
-            TrainAi(screen, brainBytes => Settings.Instance.AsteroidsBrain = brainBytes);
-        else
-            PlayGame(screen);
-    }
+    protected override void UpdateGameFrame(ScreenData screen) => PlayGame(screen);
+
+    protected override void SaveBrainBytes(byte[] brainBytes) =>
+        Settings.Instance.AsteroidsBrain = brainBytes;
 
     [UsedImplicitly]
     private void PlayGame(ScreenData screen)

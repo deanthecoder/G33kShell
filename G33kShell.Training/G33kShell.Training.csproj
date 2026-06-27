@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net8.0</TargetFramework>
+        <Nullable>disable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\G33kShell.Desktop\G33kShell.Desktop.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="..\G33kShell.Desktop\Assets\PixelLevels\**\*">
+            <Link>Assets\PixelLevels\%(RecursiveDir)%(Filename)%(Extension)</Link>
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+</Project>

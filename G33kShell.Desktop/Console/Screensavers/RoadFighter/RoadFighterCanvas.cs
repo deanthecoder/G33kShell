@@ -42,15 +42,10 @@ public class RoadFighterCanvas : AiGameCanvasBase
         Name = "roadfighter";
     }
 
-    public override void UpdateFrame(ScreenData screen)
-    {
-        screen.ClearChars();
+    protected override void UpdateGameFrame(ScreenData screen) => PlayGame(screen);
 
-        if (ShouldTrainAi())
-            TrainAi(screen, brainBytes => Settings.Instance.RoadFighterBrain = brainBytes);
-        else
-            PlayGame(screen);
-    }
+    protected override void SaveBrainBytes(byte[] brainBytes) =>
+        Settings.Instance.RoadFighterBrain = brainBytes;
 
     private void PlayGame(ScreenData screen)
     {

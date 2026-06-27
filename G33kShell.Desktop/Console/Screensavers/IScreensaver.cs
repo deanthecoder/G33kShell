@@ -13,6 +13,8 @@ namespace G33kShell.Desktop.Console.Screensavers;
 public interface IScreensaver
 {
     string Name { get; }
+
+    bool IsReadyToRun { get; }
     
     /// <summary>
     /// Allows the user to specify something like 'mysaver_mode'.

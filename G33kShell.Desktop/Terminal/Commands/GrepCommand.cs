@@ -114,7 +114,7 @@ public class GrepCommand : CommandBase
                             WriteLine(file.FullName);
                             matchCount++;
                         }
-                        catch (Exception)
+                        catch
                         {
                         }
                     }
@@ -155,7 +155,7 @@ public class GrepCommand : CommandBase
                                 WriteLine(string.Empty);
                             }
                         }
-                        catch (Exception)
+                        catch
                         {
                         }
                     }
@@ -180,7 +180,7 @@ public class GrepCommand : CommandBase
                         WriteLine(file.FullName);
                         matchCount++;
                     }
-                    catch (Exception)
+                    catch
                     {
                     }
                 }

@@ -36,16 +36,10 @@ public class PongCanvas : AiGameCanvasBase
         m_font = LoadFont();
     }
 
-    public override void UpdateFrame(ScreenData screen)
-    {
-        screen.ClearChars();
+    protected override void UpdateGameFrame(ScreenData screen) => PlayGame(screen);
 
-        if (ShouldTrainAi())
-            TrainAi(screen, brainBytes => Settings.Instance.PongBrain = brainBytes);
-        else
-            PlayGame(screen);
-
-    }
+    protected override void SaveBrainBytes(byte[] brainBytes) =>
+        Settings.Instance.PongBrain = brainBytes;
 
     [UsedImplicitly]
     private void PlayGame(ScreenData screen)

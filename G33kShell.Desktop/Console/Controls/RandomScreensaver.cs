@@ -35,8 +35,17 @@ public class RandomScreensaver : ScreensaverBase
             typeof(IScreensaver).Assembly.GetTypes()
                 .Where(t => !t.IsAbstract && typeof(ScreensaverBase).IsAssignableFrom(t))
                 .Where(t => t != GetType())
+                .Where(IsScreensaverReadyToRun)
                 .ToArray();
         m_screenSaverTypes.Shuffle();
+    }
+
+    public override bool IsReadyToRun => m_screenSaverTypes.Length > 0;
+
+    private static bool IsScreensaverReadyToRun(Type type)
+    {
+        var screensaver = (IScreensaver)Activator.CreateInstance(type, args: [10, 10]);
+        return screensaver?.IsReadyToRun == true;
     }
 
     private ScreensaverBase CreateInstance(int width, int height, Type o)
@@ -58,6 +67,9 @@ public class RandomScreensaver : ScreensaverBase
         m_active?.StopScreensaver();
         m_active?.Stop();
         m_activeIndex = 0;
+        if (m_screenSaverTypes.Length == 0)
+            return;
+
         m_active = CreateInstance(screen.Width, screen.Height, m_screenSaverTypes[m_activeIndex]);
         m_active.BuildScreen(screen);
         StartActiveScreensaver();
@@ -76,6 +88,13 @@ public class RandomScreensaver : ScreensaverBase
 
     public override void UpdateFrame(ScreenData screen)
     {
+        if (m_active == null)
+        {
+            base.BuildScreen(screen);
+            screen.PrintAt(0, 0, "No ready screensavers are available.");
+            return;
+        }
+
         m_active.FrameNumber = m_frameNumber++;
         m_active.UpdateFrame(screen);
 

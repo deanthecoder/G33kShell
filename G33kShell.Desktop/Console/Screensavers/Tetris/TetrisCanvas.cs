@@ -43,15 +43,10 @@ public class TetrisCanvas : AiGameCanvasBase
         Name = "tetris";
     }
 
-    public override void UpdateFrame(ScreenData screen)
-    {
-        screen.ClearChars();
+    protected override void UpdateGameFrame(ScreenData screen) => PlayGame(screen);
 
-        if (ShouldTrainAi())
-            TrainAi(screen, brainBytes => Settings.Instance.TetrisBrain = brainBytes);
-        else
-            PlayGame(screen);
-    }
+    protected override void SaveBrainBytes(byte[] brainBytes) =>
+        Settings.Instance.TetrisBrain = brainBytes;
 
     private void PlayGame(ScreenData screen)
     {

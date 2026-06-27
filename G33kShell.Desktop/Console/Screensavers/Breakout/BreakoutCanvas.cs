@@ -37,15 +37,10 @@ public class BreakoutCanvas : AiGameCanvasBase
         Name = "breakout";
     }
 
-    public override void UpdateFrame(ScreenData screen)
-    {
-        screen.ClearChars();
+    protected override void UpdateGameFrame(ScreenData screen) => PlayGame(screen);
 
-        if (ShouldTrainAi())
-            TrainAi(screen, brainBytes => Settings.Instance.BreakoutBrain = brainBytes);
-        else
-            PlayGame(screen);
-    }
+    protected override void SaveBrainBytes(byte[] brainBytes) =>
+        Settings.Instance.BreakoutBrain = brainBytes;
 
     private void PlayGame(ScreenData screen)
     {

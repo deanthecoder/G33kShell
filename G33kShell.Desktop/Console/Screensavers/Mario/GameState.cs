@@ -16,8 +16,11 @@ namespace G33kShell.Desktop.Console.Screensavers.Mario;
 
 public class GameState : IAiGameState
 {
-    private const int SensorGridSizeX = 10;
-    private const int SensorGridSizeY = 6;
+    public const int SensorGridSizeX = 10;
+    public const int SensorGridSizeY = 6;
+    public const int SensorBlockTileSize = 2;
+    public const int SensorOriginBlockDx = -1;
+    public const int SensorOriginBlockDy = 2;
     private const int SensorChannelCount = 4;
     private const int ScalarInputCount = 35;
     public const int InputCount = SensorGridSizeX * SensorGridSizeY * SensorChannelCount + ScalarInputCount;
@@ -35,7 +38,7 @@ public class GameState : IAiGameState
         {
             for (var x = 0; x < SensorGridSizeX; x++)
             {
-                m_game.GetTileSensor(x - 1, 2 - y, out var solid, out var question, out var enemy, out var flag);
+                m_game.GetBlockSensor(SensorOriginBlockDx + x, SensorOriginBlockDy - y, out var solid, out var question, out var enemy, out var flag);
                 inputVector[i++] = solid;
                 inputVector[i++] = question;
                 inputVector[i++] = enemy;
@@ -44,7 +47,7 @@ public class GameState : IAiGameState
         }
 
         inputVector[i++] = 1.0;
-        inputVector[i++] = m_game.MarioTileXOffset;
+        inputVector[i++] = m_game.MarioBlockXOffset;
         inputVector[i++] = (m_game.MarioVelocityX / Game.MaxRunPixelsPerFrame).Clamp(-1.0, 1.0);
         inputVector[i++] = (m_game.MarioVelocityY / Game.MaxFallPixelsPerFrame).Clamp(-1.0, 1.0);
         inputVector[i++] = m_game.IsGrounded ? 1.0 : -1.0;
@@ -63,7 +66,6 @@ public class GameState : IAiGameState
         inputVector[i++] = (m_game.NextQuestionBlockDeltaY / 128.0).Clamp(-1.0, 1.0);
         inputVector[i++] = m_game.HasQuestionBlockAhead ? 1.0 : -1.0;
         inputVector[i++] = m_game.HasQuestionBlockInJumpZone ? 1.0 : -1.0;
-        inputVector[i++] = m_game.RunMood;
         inputVector[i++] = m_game.NearestEnemyDeltaX / 192.0;
         inputVector[i++] = (m_game.NearestEnemyDeltaY / 96.0).Clamp(-1.0, 1.0);
         inputVector[i++] = m_game.HasEnemyAhead ? 1.0 : -1.0;
@@ -77,6 +79,7 @@ public class GameState : IAiGameState
         inputVector[i++] = m_game.HasEnemyOverhead ? 1.0 : -1.0;
         inputVector[i++] = m_game.DistanceToFlagPole / 512.0;
         inputVector[i++] = m_game.IsNearFlagPole ? 1.0 : -1.0;
+        inputVector[i++] = m_game.LevelProgress;
         inputVector[i] = m_game.FlagPoleLaunchReadiness;
     }
 }

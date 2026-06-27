@@ -146,7 +146,7 @@ public class BadAppleCanvas : ScreensaverBase
         if (m_runRemaining == 0)
         {
             if (m_toggleAfterRun)
-                m_currentColor = (byte)(m_currentColor == Black ? White : Black);
+                m_currentColor = m_currentColor == Black ? White : Black;
 
             if (m_runIndex >= m_movie.Runs.Length)
             {

@@ -15,7 +15,7 @@ namespace G33kShell.Desktop.Console.Screensavers.Mario;
 
 public class Brain : AiBrainBase
 {
-    protected override int BrainVersion => 13;
+    protected override int BrainVersion => 19;
 
     public Brain() : base(GameState.InputCount, [48, 32], 4, frameStackCount: 2)
     {

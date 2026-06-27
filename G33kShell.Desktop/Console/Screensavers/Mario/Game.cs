@@ -51,23 +51,16 @@ public class Game : AiGameBase
     private const int JumpCooldownTicks = 6;
     private const double JumpPressThreshold = 0.35;
     private const double JumpReleaseThreshold = -0.20;
-    private const int InitialEnemyCount = 4;
+    private const int EnemyCount = 5;
     private readonly bool m_useTrainingTimeouts;
     private readonly bool m_enableEnemies;
     private readonly double m_showRewardMultiplier;
     private readonly GameState m_gameState;
     private readonly List<Enemy> m_enemies = [];
     private int m_ticksWithoutProgress;
-    private int m_jumpCount;
-    private int m_walkSpeedTicks;
-    private int m_runSpeedTicks;
     private int m_wallStallTicks;
-    private int m_blockHits;
     private int m_questionBlockHits;
     private int m_enemyStomps;
-    private int m_pogoJumpCount;
-    private int m_styleJumpCount;
-    private int m_unneededEarlyJumpCount;
     private double m_lastStyleJumpX;
     private double m_flagGrabVelocityY;
     private double m_flagGrabHeightScore;
@@ -75,8 +68,6 @@ public class Game : AiGameBase
     private readonly HashSet<(int X, int Y)> m_scoredBlockHitTiles = [];
     private readonly HashSet<(int X, int Y)> m_brokenBlockTiles = [];
     private readonly HashSet<(int X, int Y)> m_usedQuestionBlocks = [];
-    private int m_enemyCount = InitialEnemyCount;
-    private bool m_pendingEnemyIncrease;
     private bool m_fell;
     private bool m_killedByEnemy;
     private EndSequenceState m_endSequenceState;
@@ -89,15 +80,16 @@ public class Game : AiGameBase
     public double MarioY { get; private set; }
     public double MarioVelocityX { get; private set; }
     public double MarioVelocityY { get; private set; }
-    public double MarioTileXOffset
+    public double MarioBlockXOffset
     {
         get
         {
-            var offset = MarioX % s_level.TileSize;
+            var blockSize = s_level.TileSize * GameState.SensorBlockTileSize;
+            var offset = MarioX % blockSize;
             if (offset < 0.0)
-                offset += s_level.TileSize;
+                offset += blockSize;
 
-            return offset / s_level.TileSize;
+            return offset / blockSize;
         }
     }
 
@@ -141,10 +133,10 @@ public class Game : AiGameBase
     public bool HasEnemyOverhead => HasEnemyMatching(dx => dx is >= -8.0 and <= 48.0, dy => dy is >= -48.0 and <= -10.0);
     public double DistanceToFlagPole => Math.Clamp(FlagPoleX - (MarioX + MarioCollisionWidth), 0.0, 512.0);
     public bool IsNearFlagPole => DistanceToFlagPole <= 256.0;
+    public double LevelProgress => Math.Clamp(MarioX / FlagPoleX, 0.0, 1.0);
     public double FlagPoleLaunchReadiness => IsNearFlagPole
         ? Math.Clamp(-MarioVelocityY / Math.Abs(RunningJumpVelocityPixelsPerFrame), -1.0, 1.0)
         : -1.0;
-    public double RunMood { get; private set; }
 
     public override bool IsGameOver =>
         m_endSequenceState == EndSequenceState.Complete ||
@@ -160,14 +152,13 @@ public class Game : AiGameBase
             var distance = BestX;
             var progressTicks = Math.Max(1, Ticks - m_ticksWithoutProgress);
             var distancePerTick = Math.Max(0.0, BestX - 24.0) / progressTicks;
-            var score = GetScore();
-            var failedRunPenalty = IsMarioDead ? 35000.0 : m_fell ? 30000.0 : 0.0;
+            var failedRunPenalty = m_killedByEnemy ? 25000.0 : IsMarioDead ? 22000.0 : m_fell ? 20000.0 : 0.0;
             var stuckPenalty = m_ticksWithoutProgress >= MaxTicksWithoutProgress ? 12000.0 : 0.0;
             var wallStallPenalty = m_wallStallTicks >= DegenerateWallStallTicks ? m_wallStallTicks * 90.0 : 0.0;
             return Math.Max(0.0,
                 distance * 10.0 +
                 distancePerTick * 4500.0 +
-                score * m_showRewardMultiplier -
+                GetScore() * m_showRewardMultiplier -
                 failedRunPenalty -
                 stuckPenalty -
                 wallStallPenalty);
@@ -211,7 +202,7 @@ public class Game : AiGameBase
     }
 
     public override (string Name, double Value, string Format)? BestObservedMetric =>
-        HasReachedFlagPole ? ("Score", GetScore(), "0") : ("X", BestX, "0");
+        ("X", BestX, "0");
 
     private double GetFlagHeightScore() =>
         HasReachedFlagPole ? m_flagGrabHeightScore : 0.0;
@@ -228,6 +219,7 @@ public class Game : AiGameBase
     }
 
     private double GetScore() =>
+        (HasReachedFlagPole ? 25000.0 : 0.0) +
         m_questionBlockHits * 4000.0 +
         m_enemyStomps * 2500.0 +
         GetFlagHeightScore() * 320.0 +
@@ -253,21 +245,13 @@ public class Game : AiGameBase
         Ticks = 0;
         TicksSinceLastJump = MaxTicksSinceJumpBeforePenalty;
         m_ticksWithoutProgress = 0;
-        m_jumpCount = 0;
-        m_walkSpeedTicks = 0;
-        m_runSpeedTicks = 0;
         m_wallStallTicks = 0;
-        m_blockHits = 0;
         m_questionBlockHits = 0;
         m_enemyStomps = 0;
-        m_pogoJumpCount = 0;
-        m_styleJumpCount = 0;
-        m_unneededEarlyJumpCount = 0;
         m_lastStyleJumpX = MarioX;
         m_flagGrabVelocityY = 0.0;
         m_flagGrabHeightScore = 0.0;
         m_isJumpHeld = false;
-        RunMood = GameRand.NextDouble() * 2.0 - 1.0;
         m_scoredBlockHitTiles.Clear();
         m_brokenBlockTiles.Clear();
         m_usedQuestionBlocks.Clear();
@@ -325,8 +309,6 @@ public class Game : AiGameBase
         else if (move.JumpSignal < JumpReleaseThreshold)
             m_isJumpHeld = false;
         var isUnneededEarlyJump = isJumpPressed && IsUnneededEarlyJump();
-        if (grounded && isUnneededEarlyJump)
-            m_unneededEarlyJumpCount++;
         if (grounded && isJumpPressed && !isUnneededEarlyJump && TicksSinceLastJump >= JumpCooldownTicks)
         {
             var ticksSinceLastJump = TicksSinceLastJump;
@@ -334,22 +316,11 @@ public class Game : AiGameBase
                 ? RunningJumpVelocityPixelsPerFrame
                 : WalkingJumpVelocityPixelsPerFrame;
             TicksSinceLastJump = 0;
-            m_jumpCount++;
-            if (ticksSinceLastJump < 42)
-                m_pogoJumpCount++;
-            else if (MarioVelocityX > MaxWalkPixelsPerFrame && MarioX - m_lastStyleJumpX >= 96.0)
-            {
-                m_styleJumpCount++;
+            if (ticksSinceLastJump >= 42 && MarioVelocityX > MaxWalkPixelsPerFrame && MarioX - m_lastStyleJumpX >= 96.0)
                 m_lastStyleJumpX = MarioX;
-            }
 
             grounded = false;
         }
-
-        if (MarioVelocityX is >= 0.65 and <= MaxWalkPixelsPerFrame)
-            m_walkSpeedTicks++;
-        if (MarioVelocityX > MaxWalkPixelsPerFrame)
-            m_runSpeedTicks++;
 
         UpdateHorizontalVelocity(move);
         var nextX = MarioX + MarioVelocityX;
@@ -396,14 +367,30 @@ public class Game : AiGameBase
             m_fell = true;
     }
 
-    public void GetTileSensor(int tileDx, int tileDy, out double solid, out double question, out double enemy, out double flag)
+    public void GetBlockSensor(int blockDx, int blockDy, out double solid, out double question, out double enemy, out double flag)
     {
-        var tileX = (int)Math.Floor(MarioX / s_level.TileSize) + tileDx;
-        var tileY = (int)Math.Floor(MarioY / s_level.TileSize) + tileDy;
-        solid = IsSolidTile(tileX, tileY) ? 1.0 : 0.0;
-        question = IsUnusedQuestionTile(tileX, tileY) ? 1.0 : 0.0;
-        enemy = IsEnemyInTile(tileX, tileY) ? 1.0 : 0.0;
-        flag = IsFlagPoleInTile(tileX, tileY) ? 1.0 : 0.0;
+        var blockSize = s_level.TileSize * GameState.SensorBlockTileSize;
+        var blockX = (int)Math.Floor(MarioX / blockSize) + blockDx;
+        var blockY = (int)Math.Floor(MarioY / blockSize) + blockDy;
+        var left = blockX * blockSize;
+        var top = blockY * blockSize;
+
+        solid = 0.0;
+        question = 0.0;
+        flag = IsFlagPoleInRect(left, top, blockSize, blockSize) ? 1.0 : 0.0;
+        enemy = IsEnemyInRect(left, top, blockSize, blockSize) ? 1.0 : 0.0;
+        for (var y = 0; y < GameState.SensorBlockTileSize; y++)
+        {
+            for (var x = 0; x < GameState.SensorBlockTileSize; x++)
+            {
+                var tileX = blockX * GameState.SensorBlockTileSize + x;
+                var tileY = blockY * GameState.SensorBlockTileSize + y;
+                if (IsSolidTile(tileX, tileY))
+                    solid = 1.0;
+                if (IsUnusedQuestionTile(tileX, tileY))
+                    question = 1.0;
+            }
+        }
     }
 
     public bool IsBlockBroken(int tileX, int tileY) =>
@@ -412,7 +399,7 @@ public class Game : AiGameBase
     public bool IsQuestionBlockUsed(int tileX, int tileY) =>
         m_usedQuestionBlocks.Contains((tileX - tileX % 2, tileY - tileY % 2));
 
-    public int CurrentEnemyCount => m_enableEnemies ? m_enemyCount : 0;
+    public int CurrentEnemyCount => m_enableEnemies ? EnemyCount : 0;
 
     private void UpdateHorizontalVelocity(Brain.Move move)
     {
@@ -493,23 +480,13 @@ public class Game : AiGameBase
     {
         yield return ("X", BestX.ToString("F0"));
         yield return ("Ticks", Ticks.ToString());
-        yield return ("Jumps", m_jumpCount.ToString());
-        yield return ("Pogo", m_pogoJumpCount.ToString());
-        yield return ("Style", m_styleJumpCount.ToString());
-        yield return ("Walk", m_walkSpeedTicks.ToString());
-        yield return ("Run", m_runSpeedTicks.ToString());
-        yield return ("Blocks", m_blockHits.ToString());
         yield return ("Questions", m_questionBlockHits.ToString());
         yield return ("Stomps", m_enemyStomps.ToString());
-        yield return ("Score", GetScore().ToString("F0"));
-        yield return ("Enemies", m_enemies.Count.ToString());
         if (HasReachedFlagPole)
             yield return ("Flag", GetFlagHeightScore().ToString("F0"));
         yield return ("Finished", HasReachedFlagPole ? "1" : "0");
         if (m_ticksWithoutProgress > 0)
             yield return ("Stuck", m_ticksWithoutProgress.ToString());
-        if (m_unneededEarlyJumpCount > 0)
-            yield return ("Early", m_unneededEarlyJumpCount.ToString());
         if (m_wallStallTicks > 0)
             yield return ("Wall", m_wallStallTicks.ToString());
         if (m_fell)
@@ -526,33 +503,29 @@ public class Game : AiGameBase
             yield return new EnemySnapshot(enemy.X, enemy.Y, enemy.IsDead);
     }
 
-    private bool IsEnemyInTile(int tileX, int tileY)
+    private bool IsEnemyInRect(int left, int top, int width, int height)
     {
-        var tileLeft = tileX * s_level.TileSize;
-        var tileTop = tileY * s_level.TileSize;
         foreach (var enemy in m_enemies)
         {
             if (enemy.IsDead)
                 continue;
 
-            if (Overlaps(tileLeft, tileTop, s_level.TileSize, s_level.TileSize, enemy.X, enemy.Y, EnemyCollisionWidth, EnemyCollisionHeight))
+            if (Overlaps(left, top, width, height, enemy.X, enemy.Y, EnemyCollisionWidth, EnemyCollisionHeight))
                 return true;
         }
 
         return false;
     }
 
-    private bool IsFlagPoleInTile(int tileX, int tileY)
+    private static bool IsFlagPoleInRect(int left, int top, int width, int height)
     {
-        var tileLeft = tileX * s_level.TileSize;
-        var tileRight = tileLeft + s_level.TileSize - 1;
-        var tileTop = tileY * s_level.TileSize;
-        var tileBottom = tileTop + s_level.TileSize - 1;
+        var right = left + width - 1;
+        var bottom = top + height - 1;
 
-        return tileRight >= FlagPoleX &&
-               tileLeft <= FlagPoleRightX &&
-               tileBottom >= FlagPoleTopY &&
-               tileTop <= FlagPoleBottomY;
+        return right >= FlagPoleX &&
+               left <= FlagPoleRightX &&
+               bottom >= FlagPoleTopY &&
+               top <= FlagPoleBottomY;
     }
 
     private bool IsUnusedQuestionTile(int tileX, int tileY)
@@ -701,13 +674,7 @@ public class Game : AiGameBase
         if (!m_enableEnemies)
             return;
 
-        if (m_pendingEnemyIncrease)
-        {
-            m_enemyCount += 2;
-            m_pendingEnemyIncrease = false;
-        }
-
-        for (var i = 0; i < m_enemyCount; i++)
+        for (var i = 0; i < EnemyCount; i++)
         {
             var x = GameRand.Next(280, FlagPoleX - 240);
             var y = GameRand.Next(-160, -24);
@@ -847,7 +814,6 @@ public class Game : AiGameBase
         KillEnemiesOnBlock(blockX, blockY);
         if (m_scoredBlockHitTiles.Add((blockX, blockY)))
         {
-            m_blockHits++;
             if (isQuestionBlock)
                 m_questionBlockHits++;
         }
@@ -1063,7 +1029,6 @@ public class Game : AiGameBase
         if (m_useTrainingTimeouts)
             return;
 
-        m_pendingEnemyIncrease = true;
         m_endSequenceState = EndSequenceState.SlidingFlag;
         MarioX = FlagPoleX - MarioCollisionWidth;
         MarioVelocityX = 0;
