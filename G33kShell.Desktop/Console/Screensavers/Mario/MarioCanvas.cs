@@ -15,7 +15,6 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using DTC.Core;
-using DTC.Core.Extensions;
 using G33kShell.Desktop.Console.Screensavers.AI;
 using G33kShell.Desktop.Skins;
 using G33kShell.Desktop.Terminal;
@@ -38,7 +37,7 @@ public class MarioCanvas : AiGameCanvasBase
     private const int ViewHeight = 240;
     private const int MarioCollisionWidth = 12;
     private const int MarioCollisionHeight = 16;
-    private const int RenderFps = 48;
+    private const int RenderFps = 60;
     private const int SimulationFps = 30;
     private const double SimulationStepSeconds = 1.0 / SimulationFps;
     private const int MaxSimulationTicksPerFrame = 5;
@@ -46,6 +45,8 @@ public class MarioCanvas : AiGameCanvasBase
     private const int DebugOverlayHeight = 72;
     private const int DebugOverlayMargin = 4;
     private const int DebugMaxLinksPerLayer = 48;
+    private const int MaxTrainingPopulation = 128;
+    private const int MiniWorldTopMargin = 44;
 
     private WindowManager m_windowManager;
     private PixelScreenDataLock m_pixelScreen;
@@ -63,6 +64,12 @@ public class MarioCanvas : AiGameCanvasBase
     private byte m_debugSightColorIndex;
     private byte[] m_debugLinkPaletteIndexes;
     private readonly DebugLink[] m_debugLinkBuffer = new DebugLink[DebugMaxLinksPerLayer];
+    private int[] m_trainingMarioTileX;
+    private int[] m_trainingMarioTileY;
+    private byte[] m_miniWorldMap;
+    private int m_miniWorldScale;
+    private int m_miniWorldPixelWidth;
+    private int m_miniWorldPixelHeight;
     private bool m_isActive;
     private double m_marioX;
     private double m_marioY;
@@ -448,6 +455,98 @@ public class MarioCanvas : AiGameCanvasBase
                 if (m_tileKinds[tileId] == "green")
                     m_solidMap[y][x] = true;
             }
+        }
+
+        BuildMiniWorldMap();
+    }
+
+    private void BuildMiniWorldMap()
+    {
+        // Scale so the full level width fits within the training screen.
+        m_miniWorldScale = Math.Max(1, (m_level.WidthTiles + ViewWidth - 1) / ViewWidth);
+        m_miniWorldPixelWidth = (m_level.WidthTiles + m_miniWorldScale - 1) / m_miniWorldScale;
+        m_miniWorldPixelHeight = (m_level.HeightTiles + m_miniWorldScale - 1) / m_miniWorldScale;
+
+        var skyTileId = m_level.Map[0][0]; // top-left tile is always sky
+        m_miniWorldMap = new byte[m_miniWorldPixelWidth * m_miniWorldPixelHeight];
+        for (var py = 0; py < m_miniWorldPixelHeight; py++)
+        {
+            for (var px = 0; px < m_miniWorldPixelWidth; px++)
+            {
+                // OR together all source tiles that map to this pixel.
+                var hasTile = false;
+                for (var dy = 0; dy < m_miniWorldScale && !hasTile; dy++)
+                {
+                    var ty = py * m_miniWorldScale + dy;
+                    if (ty >= m_level.HeightTiles)
+                        break;
+                    for (var dx = 0; dx < m_miniWorldScale && !hasTile; dx++)
+                    {
+                        var tx = px * m_miniWorldScale + dx;
+                        if (tx < m_level.WidthTiles && m_level.Map[ty][tx] != skyTileId)
+                            hasTile = true;
+                    }
+                }
+
+                m_miniWorldMap[py * m_miniWorldPixelWidth + px] = hasTile ? (byte)1 : (byte)0;
+            }
+        }
+
+        m_trainingMarioTileX = new int[MaxTrainingPopulation];
+        m_trainingMarioTileY = new int[MaxTrainingPopulation];
+        for (var i = 0; i < MaxTrainingPopulation; i++)
+        {
+            m_trainingMarioTileX[i] = -1;
+            m_trainingMarioTileY[i] = -1;
+        }
+    }
+
+    protected override void OnTrainingTick(int brainIndex, AiGameBase game)
+    {
+        if (m_miniWorldMap == null || m_level == null || brainIndex >= MaxTrainingPopulation)
+            return;
+
+        var marioGame = (MarioGame)game;
+        m_trainingMarioTileX[brainIndex] = (int)(marioGame.MarioX / m_level.TileSize);
+        m_trainingMarioTileY[brainIndex] = (int)(marioGame.MarioY / m_level.TileSize);
+    }
+
+    protected override void OnAfterDrawTrainingGraph(PixelScreenData screen)
+    {
+        if (m_miniWorldMap == null || m_level == null || m_trainingMarioTileX == null)
+            return;
+
+        var mapWidth = m_miniWorldPixelWidth;
+        var mapHeight = m_miniWorldPixelHeight;
+        var startX = Math.Max(0, (screen.Width - mapWidth) / 2);
+        var startY = MiniWorldTopMargin;
+
+        // Draw terrain background.
+        for (var y = 0; y < mapHeight; y++)
+        {
+            var sy = startY + y;
+            if (sy < 0 || sy >= screen.Height)
+                continue;
+            for (var x = 0; x < mapWidth; x++)
+            {
+                var sx = startX + x;
+                if (sx >= 0 && sx < screen.Width)
+                    screen.Pixels[sy * screen.Width + sx] = m_miniWorldMap[y * mapWidth + x];
+            }
+        }
+
+        // Draw each Mario as a bright dot.
+        for (var i = 0; i < MaxTrainingPopulation; i++)
+        {
+            var tileX = m_trainingMarioTileX[i];
+            var tileY = m_trainingMarioTileY[i];
+            if (tileX < 0 || tileX >= m_level.WidthTiles || tileY < 0 || tileY >= m_level.HeightTiles)
+                continue;
+
+            var sx = startX + tileX / m_miniWorldScale;
+            var sy = startY + tileY / m_miniWorldScale;
+            if (sx >= 0 && sx < screen.Width && sy >= 0 && sy < screen.Height)
+                screen.Pixels[sy * screen.Width + sx] = 3;
         }
     }
 
@@ -1047,9 +1146,6 @@ public class MarioCanvas : AiGameCanvasBase
             return (int)(value & 0x7FFFFFFF);
         }
     }
-
-    protected override string GetTrainingStatusText(int generation) =>
-        "Training Mario on the full level with enemies";
 
     protected override byte[] GetSavedBrainBytes() => Settings.Instance.MarioBrain;
 

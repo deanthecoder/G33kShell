@@ -10,10 +10,10 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Diagnostics;
 using DTC.Core;
 using DTC.Core.Extensions;
 using G33kShell.Desktop.Console.Controls;
@@ -312,7 +312,10 @@ public abstract class AiGameCanvasBase : ScreensaverBase
                 var evaluationBrain = m_nextGenBrains[brainIndex].Clone();
                 var game = CreateGameWithSeed(seed, evaluationBrain, m_generation, false, brainIndex, gameIndex);
                 while (!game.IsGameOver && !m_stopTraining)
+                {
                     game.Tick();
+                    OnTrainingTick(brainIndex, game);
+                }
 
                 UpdateBestObservedMetric(game.BestObservedMetric);
                 var extraStats = game.ExtraGameStats().ToArray();
@@ -597,6 +600,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         using (m_trainingPixelScreen.Lock(out var screen))
         {
             screen.Clear();
+            OnAfterDrawTrainingGraph(screen);
             var width = screen.Width - TrainingGraphLeft - TrainingGraphRight;
             var height = screen.Height - TrainingGraphTop - TrainingGraphBottom;
             if (width < 2 || height < 2)
@@ -1032,6 +1036,8 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     protected virtual void OnAiNotReady()
     {
     }
+    protected virtual void OnTrainingTick(int brainIndex, AiGameBase game) { }
+    protected virtual void OnAfterDrawTrainingGraph(PixelScreenData screen) { }
     protected abstract void UpdateGameFrame(ScreenData screen);
     protected abstract void SaveBrainBytes(byte[] brainBytes);
     protected abstract AiGameBase CreateGame(AiBrainBase brain);
