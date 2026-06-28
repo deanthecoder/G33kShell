@@ -17,7 +17,7 @@ public class Brain : AiBrainBase
 {
     protected override int BrainVersion => 27;
 
-    public Brain() : base(GameState.InputCount, [12], 4)
+    public Brain() : base(GameState.InputCount, [28], 4)
     {
     }
 
