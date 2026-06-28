@@ -18,7 +18,7 @@ public class GameState : IAiGameState
     public const int SensorGridSizeY = 13;
     public const int SensorBlockTileSize = 2;
     public const int SensorOriginBlockDx = -1;
-    private const int ScalarInputCount = 7;
+    private const int ScalarInputCount = 11;
     public const int InputCount = SensorGridSizeX * SensorGridSizeY + ScalarInputCount;
     private readonly Game m_game;
 
@@ -42,6 +42,12 @@ public class GameState : IAiGameState
         inputVector[i++] = m_game.MarioVelocityX / Game.MaxRunPixelsPerFrame;
         inputVector[i++] = m_game.MarioVelocityY / Game.MaxFallPixelsPerFrame;
         inputVector[i++] = m_game.IsGrounded ? 1.0 : -1.0;
-        inputVector[i] = m_game.IsJumpHeld ? 1.0 : -1.0;
+        inputVector[i++] = m_game.IsJumpHeld ? 1.0 : -1.0;
+
+        var hasEnemy = m_game.TryGetNearestVisibleEnemy(out var enemyDx, out var enemyDy, out var enemyVelocityX);
+        inputVector[i++] = hasEnemy ? 1.0 : 0.0;
+        inputVector[i++] = enemyDx;
+        inputVector[i++] = enemyDy;
+        inputVector[i] = enemyVelocityX;
     }
 }

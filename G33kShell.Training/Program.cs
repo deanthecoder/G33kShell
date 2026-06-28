@@ -23,6 +23,12 @@ if (options.AnalyzeMutationMatrix)
     return;
 }
 
+if (options.TraceBrain)
+{
+    TraceBrain(options);
+    return;
+}
+
 if (options.EvaluateGames > 0)
 {
     EvaluateBrain(options);
@@ -100,9 +106,12 @@ static void AnalyzeMutationMatrix(TrainingOptions options)
 {
     var champion = (Brain)new Brain().Load(LoadBrainBytes(options));
     var baseline = EvaluateSingleBrain((Brain)champion.Clone(), options.EvaluateSeed);
-    var mutationCounts = new[] { 1, 2, 4, 8 };
-    var mutationStrengths = new[] { 0.01, 0.02, 0.05, 0.10 };
-    const int samplesPerCombination = 12;
+    var mutationCounts = new[] { 1, 4, 16, 64, 256 };
+    var mutationStrengths = new[] { 0.02, 0.10, 0.25, 0.50 };
+    var outputMutationCounts = new[] { 1, 2, 4, 8, 16 };
+    var outputMutationStrengths = new[] { 0.05, 0.10, 0.25, 0.50 };
+    var broadMutationRates = new[] { 0.003, 0.006, 0.012, 0.025, 0.050 };
+    const int samplesPerCombination = 16;
     var random = new Random(options.EvaluateSeed);
 
     Console.WriteLine(
@@ -120,11 +129,61 @@ static void AnalyzeMutationMatrix(TrainingOptions options)
                 outcomes[sample] = EvaluateSingleBrain(child, options.EvaluateSeed);
             }
 
-            Console.WriteLine(
-                $"Count {mutationCount,2}|Strength {mutationStrength:F2}|Finished {outcomes.Count(o => o.Finished),2}/{samplesPerCombination}" +
-                $"|X avg {outcomes.Average(o => o.X):F0} min {outcomes.Min(o => o.X):F0} max {outcomes.Max(o => o.X):F0}");
+            PrintMutationOutcome(
+                $"Exact {mutationCount,3} @ {mutationStrength:F2}",
+                baseline,
+                outcomes);
         }
     }
+
+    foreach (var mutationRate in broadMutationRates)
+    {
+        var outcomes = new OffspringOutcome[samplesPerCombination];
+        for (var sample = 0; sample < samplesPerCombination; sample++)
+        {
+            var child = (Brain)champion.Clone();
+            child.Mutate(mutationRate, random);
+            outcomes[sample] = EvaluateSingleBrain(child, options.EvaluateSeed);
+        }
+
+        PrintMutationOutcome(
+            $"Broad {mutationRate:P1}",
+            baseline,
+            outcomes);
+    }
+
+    foreach (var mutationCount in outputMutationCounts)
+    {
+        foreach (var mutationStrength in outputMutationStrengths)
+        {
+            var outcomes = new OffspringOutcome[samplesPerCombination];
+            for (var sample = 0; sample < samplesPerCombination; sample++)
+            {
+                var child = (Brain)champion.Clone();
+                child.MutateOutput(2, mutationCount, mutationStrength, random);
+                outcomes[sample] = EvaluateSingleBrain(child, options.EvaluateSeed);
+            }
+
+            PrintMutationOutcome(
+                $"Jump  {mutationCount,3} @ {mutationStrength:F2}",
+                baseline,
+                outcomes);
+        }
+    }
+}
+
+static void PrintMutationOutcome(string label, OffspringOutcome baseline, OffspringOutcome[] outcomes)
+{
+    const double progressTolerance = 0.5;
+    var improved = outcomes.Count(o => o.Finished && !baseline.Finished ||
+                                       o.Finished == baseline.Finished && o.X > baseline.X + progressTolerance);
+    var preserved = outcomes.Count(o => o.Finished == baseline.Finished &&
+                                        Math.Abs(o.X - baseline.X) <= progressTolerance);
+    var regressed = outcomes.Length - improved - preserved;
+    Console.WriteLine(
+        $"{label}|Better {improved,2}|Same {preserved,2}|Worse {regressed,2}" +
+        $"|Finished {outcomes.Count(o => o.Finished),2}/{outcomes.Length}" +
+        $"|X avg {outcomes.Average(o => o.X):F0} min {outcomes.Min(o => o.X):F0} max {outcomes.Max(o => o.X):F0}");
 }
 
 static OffspringOutcome EvaluateSingleBrain(Brain brain, int seed)
@@ -138,6 +197,34 @@ static OffspringOutcome EvaluateSingleBrain(Brain brain, int seed)
         game.Tick();
 
     return new OffspringOutcome(game.BestX, game.HasReachedFlagPole, game.Ticks);
+}
+
+static void TraceBrain(TrainingOptions options)
+{
+    var brain = (Brain)new Brain().Load(LoadBrainBytes(options));
+    var game = new Game(options.ScreenWidth, options.ScreenHeight, brain, useTrainingTimeouts: true, enableEnemies: false)
+    {
+        GameRand = new Random(options.EvaluateSeed)
+    };
+    var state = new GameState(game);
+    var trace = new Queue<string>();
+    game.ResetGame();
+    while (!game.IsGameOver)
+    {
+        var move = brain.ChooseMove(state);
+        trace.Enqueue(
+            $"Tick {game.Ticks,4}|X {game.MarioX,7:F1}|Y {game.MarioY,6:F1}" +
+            $"|VX {game.MarioVelocityX,5:F2}|VY {game.MarioVelocityY,5:F2}" +
+            $"|Ground {(game.IsGrounded ? 1 : 0)}|Held {(game.IsJumpHeld ? 1 : 0)}" +
+            $"|Jump {move.JumpSignal,8:F3}|Right {(move.Right ? 1 : 0)}|Run {(move.Run ? 1 : 0)}");
+        while (trace.Count > 30)
+            trace.Dequeue();
+        game.Tick();
+    }
+
+    Console.WriteLine($"Trace complete|X {game.BestX:F0}|Ticks {game.Ticks}|Finished {(game.HasReachedFlagPole ? 1 : 0)}");
+    foreach (var line in trace)
+        Console.WriteLine(line);
 }
 
 static byte[] LoadBrainBytes(TrainingOptions options)
@@ -325,6 +412,7 @@ internal sealed record TrainingOptions(
     int EvaluateSeed,
     bool AnalyzeOffspring,
     bool AnalyzeMutationMatrix,
+    bool TraceBrain,
     bool UseAppBrain,
     bool SeedPopulation,
     double AnalysisMutationRate,
@@ -340,6 +428,7 @@ internal sealed record TrainingOptions(
         var evaluateSeed = 1_000_000;
         var analyzeOffspring = false;
         var analyzeMutationMatrix = false;
+        var traceBrain = false;
         var useAppBrain = false;
         var seedPopulation = false;
         var analysisMutationRate = 0.015;
@@ -374,6 +463,9 @@ internal sealed record TrainingOptions(
                 case "--analyze-mutation-matrix":
                     analyzeMutationMatrix = true;
                     break;
+                case "--trace-brain":
+                    traceBrain = true;
+                    break;
                 case "--app-brain":
                     useAppBrain = true;
                     break;
@@ -398,6 +490,7 @@ internal sealed record TrainingOptions(
             evaluateSeed,
             analyzeOffspring,
             analyzeMutationMatrix,
+            traceBrain,
             useAppBrain,
             seedPopulation,
             Math.Clamp(analysisMutationRate, 0.0, 1.0),

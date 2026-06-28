@@ -34,6 +34,8 @@ namespace G33kShell.Desktop.Console.Screensavers.Mario;
 [UsedImplicitly]
 public class MarioCanvas : AiGameCanvasBase
 {
+    private static readonly string[] s_reportedTrainingStats =
+        ["X", "Finished", "Questions", "Stomps", "Flag", "EnemyDeath"];
     private const int ViewWidth = 256;
     private const int ViewHeight = 240;
     private const int MarioCollisionWidth = 12;
@@ -590,6 +592,7 @@ public class MarioCanvas : AiGameCanvasBase
         m_routeCompletionRates.Clear();
         ResetExplorationProgressTracking();
         ResetCompletingArchiveAfterBreeding();
+        ResetChampionBenchmarkAfterBreeding();
         System.Console.WriteLine("Mario curriculum advanced to enemy training after the population mastered the route.");
     }
 
@@ -1197,8 +1200,9 @@ public class MarioCanvas : AiGameCanvasBase
         new MarioGame(ArenaWidth, ArenaHeight, (MarioBrain)brain, useTrainingTimeouts: true, enableEnemies: m_trainingWithEnemies);
 
     protected override int GetGamesPerBrain() => m_trainingWithEnemies ? 6 : 1;
-    protected override int GetValidationGamesPerBrain() => m_trainingWithEnemies ? 64 : 1;
-    protected override int GetValidationCandidateCount() => 1;
+    protected override int GetValidationGamesPerBrain() => m_trainingWithEnemies ? 16 : 1;
+    protected override int GetPromotionValidationGamesPerBrain() => m_trainingWithEnemies ? 64 : 1;
+    protected override int GetValidationCandidateCount() => m_trainingWithEnemies ? 4 : 1;
     protected override int GetInitialPopulationSize() => 80;
     protected override int GetMinPopulationSize() => 60;
     protected override int GetEliteCount() => 8;
@@ -1221,11 +1225,26 @@ public class MarioCanvas : AiGameCanvasBase
     {
         if (conservativeMutation)
         {
-            var conservativeCounts = new[] { 1, 2, 4 };
-            return child.Mutate(conservativeCounts[offspringIndex % conservativeCounts.Length], 0.02, random);
+            return (offspringIndex % 4) switch
+            {
+                0 => child,
+                1 => child,
+                2 => child.MutateOutput(2, 1, 0.02, random),
+                _ => child.MutateOutput(2, 1, 0.05, random)
+            };
         }
 
-        return child.Mutate(mutationRate, random);
+        return (offspringIndex % 8) switch
+        {
+            0 => child.MutateOutput(2, 2, 0.10, random),
+            1 => child.MutateOutput(2, 4, 0.10, random),
+            2 => child.MutateOutput(2, 4, 0.25, random),
+            3 => child.MutateOutput(2, 8, 0.25, random),
+            4 => child.Mutate(16, 0.25, random),
+            5 => child.Mutate(64, 0.10, random),
+            6 => child.Mutate(0.012, random),
+            _ => child.Mutate(0.025, random)
+        };
     }
     protected override double GetCrossoverRate() => 0.0;
     protected override double GetRandomFraction() => 0.05;
@@ -1249,10 +1268,11 @@ public class MarioCanvas : AiGameCanvasBase
         return candidate.Secondary >= best.Secondary + 32.0;
     }
     protected override int GetExplorationStagnationThreshold() => 15;
-    protected override string GetExplorationStagnationReason() => "route";
+    protected override string GetExplorationStagnationReason() => m_trainingWithEnemies ? "enemy" : "route";
     protected override int GetCompletingArchiveSize() => 8;
-    protected override double GetCompletingArchiveDescendantFraction() => 0.60;
+    protected override double GetCompletingArchiveDescendantFraction() => 0.80;
     protected override bool IsCompletingArchiveCandidate(ExplorationProgress progress) => progress.Primary > 0.0;
+    protected override bool UseExplorationBoostWithCompletingArchive() => false;
     protected override string GetTrainingStatusText(int generation) =>
         m_trainingWithEnemies
             ? "Enemy training"
@@ -1262,10 +1282,45 @@ public class MarioCanvas : AiGameCanvasBase
     protected override int GetForcedValidationInterval() => 8;
     protected override bool UseTrainingScoreForGoat() => false;
     protected override bool UseDegeneracyPenalty() => false;
+    protected override IReadOnlyList<string> GetReportedTrainingStats() => s_reportedTrainingStats;
+    protected override bool IncludeVsGoatInTrainingLog() => false;
+    protected override bool IncludeGoatAgeInTrainingLog() => false;
+    protected override bool IncludeEvolutionParametersInTrainingLog() => false;
+    protected override bool IncludeBestObservedMetricInTrainingLog() => false;
+    protected override double GetEvaluationFitness(
+        double averageRating,
+        IReadOnlyDictionary<string, double> averageStats,
+        int sampleCount)
+    {
+        var averageX = GetAverageStat(averageStats, "X");
+        var finishedCount = GetAverageStat(averageStats, "Finished") * sampleCount;
+        var averageTicks = Math.Max(1.0, GetAverageStat(averageStats, "Ticks"));
+        var distanceQuality = Math.Clamp((averageX - 24.0) / (MarioGame.FlagPoleX - 24.0), 0.0, 1.0);
+        var speedQuality = Math.Clamp(
+            (averageX - 24.0) / averageTicks / MarioGame.MaxRunPixelsPerFrame,
+            0.0,
+            1.0);
+        var questionQuality = Math.Clamp(GetAverageStat(averageStats, "Questions") / 5.0, 0.0, 1.0);
+        var stompQuality = Math.Clamp(GetAverageStat(averageStats, "Stomps") / 5.0, 0.0, 1.0);
+        var flagQuality = Math.Clamp(GetAverageStat(averageStats, "Flag") / 168.0, 0.0, 1.0);
+        var scoreQuality = (questionQuality + stompQuality + flagQuality) / 3.0;
+
+        // The fractional quality is capped below one, so one more completed
+        // validation game always outranks every secondary improvement.
+        return finishedCount +
+               distanceQuality * 0.75 +
+               speedQuality * 0.15 +
+               scoreQuality * 0.099;
+    }
     protected override int GetTrainingSeed(int generation, int brainIndex, int gameIndex) =>
         MixTrainingSeed(0x2A17B4C3, (generation - 1) / 5, gameIndex);
     protected override int GetValidationSeed(int generation, int candidateIndex, int gameIndex) =>
-        MixTrainingSeed(0x6D2B79F5, generation, gameIndex);
+        MixTrainingSeed(m_trainingWithEnemies ? 0x6D2B79F5 : 0x13C6EF37, 0, gameIndex);
+    protected override int GetPromotionValidationSeed(int generation, int gameIndex) =>
+        MixTrainingSeed(0x51ED270B, 0, gameIndex);
+
+    private static double GetAverageStat(IReadOnlyDictionary<string, double> stats, string name) =>
+        stats.TryGetValue(name, out var value) ? value : 0.0;
 
     private static int MixTrainingSeed(int salt, int generation, int gameIndex)
     {

@@ -38,6 +38,7 @@ public class Game : AiGameBase
     public const int MarioCollisionHeight = 16;
     public const int EnemyCollisionWidth = 16;
     public const int EnemyCollisionHeight = 16;
+    public const double EnemyWalkPixelsPerFrame = 0.55;
     public const int FlagPoleX = 3175;
     private const int FlagPoleRightX = 3176;
     private const int FlagPoleTopY = 40;
@@ -50,7 +51,6 @@ public class Game : AiGameBase
     private const int MaxTicksSinceJumpBeforePenalty = 120;
     private const int JumpCooldownTicks = 6;
     private const double JumpPressThreshold = 0.35;
-    private const double JumpReleaseThreshold = -0.20;
     private const int EnemyCount = 5;
     private readonly bool m_useTrainingTimeouts;
     private readonly bool m_enableEnemies;
@@ -285,13 +285,9 @@ public class Game : AiGameBase
         var grounded = IsGrounded;
         var move = ((Brain)Brain).ChooseMove(m_gameState);
         var wantsJump = move.JumpSignal > JumpPressThreshold;
-        var isJumpPressed = wantsJump && !m_isJumpHeld;
-        if (isJumpPressed)
-            m_isJumpHeld = true;
-        else if (move.JumpSignal < JumpReleaseThreshold)
-            m_isJumpHeld = false;
-        var isUnneededEarlyJump = isJumpPressed && IsUnneededEarlyJump();
-        if (grounded && isJumpPressed && !isUnneededEarlyJump && TicksSinceLastJump >= JumpCooldownTicks)
+        m_isJumpHeld = wantsJump;
+        var isUnneededEarlyJump = wantsJump && IsUnneededEarlyJump();
+        if (grounded && wantsJump && !isUnneededEarlyJump && TicksSinceLastJump >= JumpCooldownTicks)
         {
             var ticksSinceLastJump = TicksSinceLastJump;
             MarioVelocityY = move.Run || MarioVelocityX > MaxWalkPixelsPerFrame
@@ -383,6 +379,56 @@ public class Game : AiGameBase
         }
 
         return hasSolid ? 1.0 : 0.0;
+    }
+
+    public bool TryGetNearestVisibleEnemy(out double dx, out double dy, out double velocityX)
+    {
+        var blockSize = s_level.TileSize * GameState.SensorBlockTileSize;
+        var sensorLeft = ((int)Math.Floor(MarioX / blockSize) + GameState.SensorOriginBlockDx) * blockSize;
+        var sensorWidth = GameState.SensorGridSizeX * blockSize;
+        var bottomBlockY = (ViewHeight - 1) / blockSize;
+        var sensorTop = (bottomBlockY - GameState.SensorGridSizeY + 1) * blockSize;
+        var sensorHeight = GameState.SensorGridSizeY * blockSize;
+        var marioCenterX = MarioX + MarioCollisionWidth * 0.5;
+        var marioCenterY = MarioY + MarioCollisionHeight * 0.5;
+        var nearestDistanceSquared = double.MaxValue;
+        Enemy nearestEnemy = null;
+
+        foreach (var enemy in m_enemies)
+        {
+            if (enemy.IsDead ||
+                !Overlaps(sensorLeft, sensorTop, sensorWidth, sensorHeight,
+                    enemy.X, enemy.Y, EnemyCollisionWidth, EnemyCollisionHeight))
+                continue;
+
+            var enemyDx = enemy.X + EnemyCollisionWidth * 0.5 - marioCenterX;
+            var enemyDy = enemy.Y + EnemyCollisionHeight * 0.5 - marioCenterY;
+            var distanceSquared = enemyDx * enemyDx + enemyDy * enemyDy;
+            if (distanceSquared >= nearestDistanceSquared)
+                continue;
+
+            nearestDistanceSquared = distanceSquared;
+            nearestEnemy = enemy;
+        }
+
+        if (nearestEnemy == null)
+        {
+            dx = 0.0;
+            dy = 0.0;
+            velocityX = 0.0;
+            return false;
+        }
+
+        dx = Math.Clamp(
+            (nearestEnemy.X + EnemyCollisionWidth * 0.5 - marioCenterX) / sensorWidth,
+            -1.0,
+            1.0);
+        dy = Math.Clamp(
+            (nearestEnemy.Y + EnemyCollisionHeight * 0.5 - marioCenterY) / sensorHeight,
+            -1.0,
+            1.0);
+        velocityX = Math.Clamp(nearestEnemy.VelocityX / EnemyWalkPixelsPerFrame, -1.0, 1.0);
+        return true;
     }
 
     public bool IsBlockBroken(int tileX, int tileY) =>
@@ -554,7 +600,7 @@ public class Game : AiGameBase
         {
             var x = GameRand.Next(280, FlagPoleX - 240);
             var y = GameRand.Next(-160, -24);
-            m_enemies.Add(new Enemy(x, y, -0.55));
+            m_enemies.Add(new Enemy(x, y, -EnemyWalkPixelsPerFrame));
         }
     }
 
