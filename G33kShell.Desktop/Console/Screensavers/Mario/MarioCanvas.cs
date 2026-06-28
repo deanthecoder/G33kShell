@@ -1206,16 +1206,6 @@ public class MarioCanvas : AiGameCanvasBase
     protected override int GetInitialPopulationSize() => 80;
     protected override int GetMinPopulationSize() => 60;
     protected override int GetEliteCount() => 8;
-    protected override double GetMutationRate() => 0.006;
-    protected override double GetMinimumMutationRate() => 0.001;
-    protected override double GetMutationRateMultiplier(int offspringIndex) =>
-        offspringIndex % 4 switch
-        {
-            0 => 0.25,
-            1 => 0.5,
-            2 => 1.0,
-            _ => 2.0
-        };
     protected override AiBrainBase MutateChild(
         AiBrainBase child,
         double mutationRate,

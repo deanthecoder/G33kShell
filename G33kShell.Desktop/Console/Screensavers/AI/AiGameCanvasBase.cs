@@ -110,7 +110,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         m_parallelOptions.MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1);
     }
 
-    public sealed override void UpdateFrame(ScreenData screen)
+    public override sealed void UpdateFrame(ScreenData screen)
     {
         PrepareAiFrame(screen);
         if (ShouldTrainAi())
@@ -493,7 +493,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
                 : GetSelectionFitness(bestValidation);
         if (!skippedValidation)
         {
-            var archiveBrain = useTrainingScoreForGoat ? theBest.Brain : bestValidation.Brain;
+            var archiveBrain = bestValidation.Brain;
             UpdateCompletingBrainArchive(archiveBrain, currentProgressStats, bestEvalFitness);
         }
         var evaluatedGoatRating = m_championRating;
@@ -799,7 +799,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             return;
 
         if (ReferenceEquals(m_windowManager?.PixelScreen, m_trainingPixelScreen))
-            m_windowManager.ClearPixelScreen();
+            m_windowManager?.ClearPixelScreen();
         m_trainingPixelScreen = null;
     }
 
