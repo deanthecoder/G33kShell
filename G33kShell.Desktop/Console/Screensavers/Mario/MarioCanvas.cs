@@ -931,7 +931,7 @@ public class MarioCanvas : AiGameCanvasBase
         var marioBlockX = (int)Math.Floor(m_marioX / blockSize);
         var left = (marioBlockX + GameState.SensorOriginBlockDx) * blockSize - cameraX;
         var bottomBlockY = (Game.ViewHeight - 1) / blockSize;
-        var top = (bottomBlockY - GameState.SensorGridSizeY + 1) * blockSize;
+        var top = (bottomBlockY - GameState.SensorBottomBlockRow - GameState.SensorGridSizeY + 1) * blockSize;
         DrawRect(screen, left, top, GameState.SensorGridSizeX * blockSize, GameState.SensorGridSizeY * blockSize, m_debugSightColorIndex);
     }
 
@@ -1180,10 +1180,10 @@ public class MarioCanvas : AiGameCanvasBase
     {
         public double X = x;
         public double Y = y;
-        public double VelocityX = velocityX;
+        public readonly double VelocityX = velocityX;
         public double VelocityY = velocityY;
-        public byte[] Pixels = pixels;
-        public int Size = size;
+        public readonly byte[] Pixels = pixels;
+        public readonly int Size = size;
         public double Life = 38;
     }
 
@@ -1303,14 +1303,33 @@ public class MarioCanvas : AiGameCanvasBase
         var questionQuality = Math.Clamp(GetAverageStat(averageStats, "Questions") / 5.0, 0.0, 1.0);
         var stompQuality = Math.Clamp(GetAverageStat(averageStats, "Stomps") / 5.0, 0.0, 1.0);
         var flagQuality = Math.Clamp(GetAverageStat(averageStats, "Flag") / 168.0, 0.0, 1.0);
+        var groundedQuality = Math.Clamp(GetAverageStat(averageStats, "Grounded"), 0.0, 1.0);
+        var timeQuality = Math.Clamp(GetAverageStat(averageStats, "TimeBonus"), 0.0, 1.0);
+        var fallRate = Math.Clamp(
+            GetAverageStat(averageStats, "Fell") - GetAverageStat(averageStats, "EnemyDeath"),
+            0.0,
+            1.0);
         var scoreQuality = (questionQuality + stompQuality + flagQuality) / 3.0;
 
-        // The fractional quality is capped below one, so one more completed
-        // validation game always outranks every secondary improvement.
+        if (finishedCount <= 0.0)
+        {
+            // Until a route is discovered, distance must remain the main stepping stone.
+            return distanceQuality * 0.70 +
+                   speedQuality * 0.10 +
+                   scoreQuality * 0.05 +
+                   groundedQuality * 0.05 -
+                   fallRate * 0.09;
+        }
+
+        // Once completion is possible, hole deaths dominate all secondary rewards.
+        // The complete secondary range is still below one, so another completion wins.
         return finishedCount +
-               distanceQuality * 0.75 +
-               speedQuality * 0.15 +
-               scoreQuality * 0.099;
+               distanceQuality * 0.08 +
+               speedQuality * 0.02 +
+               timeQuality * 0.03 +
+               scoreQuality * 0.02 +
+               groundedQuality * 0.04 -
+               fallRate * 0.80;
     }
     protected override int GetTrainingSeed(int generation, int brainIndex, int gameIndex) =>
         MixTrainingSeed(0x2A17B4C3, (generation - 1) / 5, gameIndex);
@@ -1320,7 +1339,7 @@ public class MarioCanvas : AiGameCanvasBase
         MixTrainingSeed(0x51ED270B, 0, gameIndex);
 
     private static double GetAverageStat(IReadOnlyDictionary<string, double> stats, string name) =>
-        stats.TryGetValue(name, out var value) ? value : 0.0;
+        stats.GetValueOrDefault(name, 0.0);
 
     private static int MixTrainingSeed(int salt, int generation, int gameIndex)
     {

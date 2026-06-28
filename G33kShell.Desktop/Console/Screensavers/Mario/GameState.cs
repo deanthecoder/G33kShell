@@ -15,9 +15,10 @@ namespace G33kShell.Desktop.Console.Screensavers.Mario;
 public class GameState : IAiGameState
 {
     public const int SensorGridSizeX = 10;
-    public const int SensorGridSizeY = 13;
+    public const int SensorGridSizeY = 12;
     public const int SensorBlockTileSize = 2;
     public const int SensorOriginBlockDx = -1;
+    public const int SensorBottomBlockRow = 1;
     private const int ScalarInputCount = 11;
     public const int InputCount = SensorGridSizeX * SensorGridSizeY + ScalarInputCount;
     private readonly Game m_game;
@@ -33,7 +34,7 @@ public class GameState : IAiGameState
         for (var y = 0; y < SensorGridSizeY; y++)
         {
             for (var x = 0; x < SensorGridSizeX; x++)
-                inputVector[i++] = m_game.GetBlockSensorValue(SensorOriginBlockDx + x, y);
+                inputVector[i++] = m_game.GetBlockSensorValue(SensorOriginBlockDx + x, SensorBottomBlockRow + y);
         }
 
         inputVector[i++] = 1.0;

@@ -59,6 +59,7 @@ public class Game : AiGameBase
     private readonly List<Enemy> m_enemies = [];
     private int m_ticksWithoutProgress;
     private int m_wallStallTicks;
+    private int m_groundedTicks;
     private int m_questionBlockHits;
     private int m_enemyStomps;
     private double m_lastStyleJumpX;
@@ -228,6 +229,7 @@ public class Game : AiGameBase
         TicksSinceLastJump = MaxTicksSinceJumpBeforePenalty;
         m_ticksWithoutProgress = 0;
         m_wallStallTicks = 0;
+        m_groundedTicks = 0;
         m_questionBlockHits = 0;
         m_enemyStomps = 0;
         m_lastStyleJumpX = MarioX;
@@ -283,6 +285,8 @@ public class Game : AiGameBase
 
         var previousMarioY = MarioY;
         var grounded = IsGrounded;
+        if (grounded)
+            m_groundedTicks++;
         var move = ((Brain)Brain).ChooseMove(m_gameState);
         var wantsJump = move.JumpSignal > JumpPressThreshold;
         m_isJumpHeld = wantsJump;
@@ -387,7 +391,7 @@ public class Game : AiGameBase
         var sensorLeft = ((int)Math.Floor(MarioX / blockSize) + GameState.SensorOriginBlockDx) * blockSize;
         var sensorWidth = GameState.SensorGridSizeX * blockSize;
         var bottomBlockY = (ViewHeight - 1) / blockSize;
-        var sensorTop = (bottomBlockY - GameState.SensorGridSizeY + 1) * blockSize;
+        var sensorTop = (bottomBlockY - GameState.SensorBottomBlockRow - GameState.SensorGridSizeY + 1) * blockSize;
         var sensorHeight = GameState.SensorGridSizeY * blockSize;
         var marioCenterX = MarioX + MarioCollisionWidth * 0.5;
         var marioCenterY = MarioY + MarioCollisionHeight * 0.5;
@@ -518,6 +522,8 @@ public class Game : AiGameBase
     {
         yield return ("X", BestX.ToString("F0"));
         yield return ("Ticks", Ticks.ToString());
+        yield return ("Grounded", (m_groundedTicks / (double)Math.Max(1, Ticks)).ToString("F3"));
+        yield return ("TimeBonus", (HasReachedFlagPole ? Math.Max(0.0, 1.0 - Ticks / (double)MaxTicks) : 0.0).ToString("F3"));
         yield return ("Questions", m_questionBlockHits.ToString());
         yield return ("Stomps", m_enemyStomps.ToString());
         if (HasReachedFlagPole)

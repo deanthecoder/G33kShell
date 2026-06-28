@@ -44,11 +44,8 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     private readonly record struct TrainingPoint(double? CurrentRating, double GoatRating);
     private readonly record struct ArchivedBrain(AiBrainBase Brain, ExplorationProgress Progress, double Fitness);
     private readonly record struct EvaluationResult(
-        double AverageRating,
         double AverageDegeneracy,
         string DegeneracyReason,
-        double BestRating,
-        int GameSeed,
         AiBrainBase Brain,
         string GameStats,
         string AverageStats,
@@ -314,7 +311,6 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         var trainingTotals = new double[m_nextGenBrains.Count];
         var trainingDegeneracyTotals = new double[m_nextGenBrains.Count];
         var trainingBestRatings = new double[m_nextGenBrains.Count];
-        var trainingBestSeeds = new int[m_nextGenBrains.Count];
         var trainingBestStats = new string[m_nextGenBrains.Count];
         var trainingStatsTotals = new Dictionary<string, double>[m_nextGenBrains.Count];
         var trainingReasons = new string[m_nextGenBrains.Count];
@@ -356,7 +352,6 @@ public abstract class AiGameCanvasBase : ScreensaverBase
                     if (game.Rating > trainingBestRatings[brainIndex])
                     {
                         trainingBestRatings[brainIndex] = game.Rating;
-                        trainingBestSeeds[brainIndex] = seed;
                         trainingBestStats[brainIndex] = gameStats;
                     }
                 }
@@ -376,11 +371,8 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             var averageDegeneracy = trainingDegeneracyTotals[i] / gamesPerBrain;
             var averageStats = AverageStats(trainingStatsTotals[i], gamesPerBrain);
             gameResults[i] = new EvaluationResult(
-                averageRating,
                 averageDegeneracy,
                 trainingReasons[i],
-                trainingBestRatings[i],
-                trainingBestSeeds[i],
                 m_nextGenBrains[i],
                 trainingBestStats[i] ?? string.Empty,
                 FormatAverageStats(trainingStatsTotals[i], gamesPerBrain),
@@ -407,7 +399,6 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             var validationTotals = new double[validationResultCount];
             var validationDegeneracyTotals = new double[validationResultCount];
             var validationBestRatings = new double[validationResultCount];
-            var validationBestSeeds = new int[validationResultCount];
             var validationBestStats = new string[validationResultCount];
             var validationReasons = new string[validationResultCount];
             var validationStatsTotals = new Dictionary<string, double>[validationResultCount];
@@ -444,7 +435,6 @@ public abstract class AiGameCanvasBase : ScreensaverBase
                         if (game.Rating > validationBestRatings[candidateIndex])
                         {
                             validationBestRatings[candidateIndex] = game.Rating;
-                            validationBestSeeds[candidateIndex] = seed;
                             validationBestStats[candidateIndex] = gameStats;
                         }
                     }
@@ -464,11 +454,8 @@ public abstract class AiGameCanvasBase : ScreensaverBase
                 var averageDegeneracy = validationDegeneracyTotals[i] / validationGamesPerBrain;
                 var averageStats = AverageStats(validationStatsTotals[i], validationGamesPerBrain);
                 validationResults[i] = new EvaluationResult(
-                    averageRating,
                     averageDegeneracy,
                     validationReasons[i],
-                    validationBestRatings[i],
-                    validationBestSeeds[i],
                     orderedGames[i].Brain,
                     validationBestStats[i] ?? string.Empty,
                     FormatAverageStats(validationStatsTotals[i], validationGamesPerBrain),
@@ -664,7 +651,6 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         var totalRating = 0.0;
         var totalDegeneracy = 0.0;
         var bestRating = double.MinValue;
-        var bestSeed = 0;
         var bestStats = string.Empty;
         var degeneracyReason = string.Empty;
         var statsTotals = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
@@ -698,7 +684,6 @@ public abstract class AiGameCanvasBase : ScreensaverBase
                     if (game.Rating > bestRating)
                     {
                         bestRating = game.Rating;
-                        bestSeed = seed;
                         bestStats = gameStats;
                     }
                 }
@@ -714,11 +699,8 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         var averageStats = AverageStats(statsTotals, gameCount);
         return (
             new EvaluationResult(
-                averageRating,
                 averageDegeneracy,
                 degeneracyReason,
-                bestRating,
-                bestSeed,
                 sourceBrain,
                 bestStats,
                 FormatAverageStats(statsTotals, gameCount),
@@ -986,7 +968,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         {
             var mumBrain = SelectParent(orderedGames);
             var dadBrain = SelectParent(orderedGames);
-            var childBrain = BreedChild(mumBrain, dadBrain, mutationRate, offspringIndex++, false);
+            var childBrain = BreedChild(mumBrain, dadBrain, mutationRate, offspringIndex++);
             nextBrains.Add(childBrain);
         }
 
