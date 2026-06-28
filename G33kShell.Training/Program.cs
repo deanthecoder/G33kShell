@@ -1,13 +1,28 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using G33kShell.Desktop.Console;
+using G33kShell.Desktop.Console.Screensavers.AI;
 using G33kShell.Desktop.Console.Screensavers.Mario;
 
 var options = TrainingOptions.Parse(args);
+if (options.AnalyzeOffspring)
+{
+    AnalyzeOffspring(options);
+    return;
+}
+
+if (options.AnalyzeMutationMatrix)
+{
+    AnalyzeMutationMatrix(options);
+    return;
+}
+
 if (options.EvaluateGames > 0)
 {
     EvaluateBrain(options);
@@ -15,7 +30,8 @@ if (options.EvaluateGames > 0)
 }
 
 var screen = new ScreenData(options.ScreenWidth, options.ScreenHeight);
-var canvas = new HeadlessMarioTrainer(options.ScreenWidth, options.ScreenHeight, options.BrainPath);
+var seedBrainBytes = options.SeedPopulation ? LoadBrainBytes(options) : null;
+var canvas = new HeadlessMarioTrainer(options.ScreenWidth, options.ScreenHeight, options.BrainPath, seedBrainBytes);
 using var monitor = new TrainingMonitor(options.Generations);
 
 canvas.StartTraining(screen);
@@ -29,12 +45,127 @@ canvas.StopTrainingLoop();
 Thread.Sleep(500);
 monitor.PrintSummary();
 
+static void AnalyzeOffspring(TrainingOptions options)
+{
+    var brainBytes = LoadBrainBytes(options);
+    var champion = (Brain)new Brain().Load(brainBytes);
+    var random = new Random(options.EvaluateSeed);
+    var population = new List<(string Kind, double MutationRate, Brain Brain)>();
+
+    for (var i = 0; i < 8; i++)
+        population.Add(("Elite", 0.0, (Brain)champion.Clone()));
+
+    var randomCount = Math.Max(1, (int)(80 * options.AnalysisRandomFraction));
+    for (var i = 0; i < randomCount; i++)
+        population.Add(("Random", 0.0, new Brain()));
+
+    var mutationMultipliers = new[] { 0.25, 0.5, 1.0, 2.0 };
+    var childIndex = 0;
+    while (population.Count < 80)
+    {
+        var mutationRate = options.AnalysisMutationRate * mutationMultipliers[childIndex++ % mutationMultipliers.Length];
+        var child = (Brain)champion.Clone();
+        child.Mutate(mutationRate, random);
+        population.Add(("Child", mutationRate, child));
+    }
+
+    var baseline = EvaluateSingleBrain((Brain)champion.Clone(), options.EvaluateSeed);
+    Console.WriteLine(
+        $"Enemy-free offspring analysis|Parent X {baseline.X:F0}|Finished {(baseline.Finished ? 1 : 0)}" +
+        $"|Population {population.Count}|Base mutation {options.AnalysisMutationRate:F4}|Random {options.AnalysisRandomFraction:P0}");
+
+    var results = new List<(string Kind, double MutationRate, OffspringOutcome Outcome)>();
+    for (var i = 0; i < population.Count; i++)
+    {
+        var entry = population[i];
+        var outcome = EvaluateSingleBrain(entry.Brain, options.EvaluateSeed);
+        results.Add((entry.Kind, entry.MutationRate, outcome));
+        Console.WriteLine(
+            $"#{i:00}|{entry.Kind}|Mut {entry.MutationRate:F5}|X {outcome.X:F0}" +
+            $"|Finished {(outcome.Finished ? 1 : 0)}|Ticks {outcome.Ticks}");
+    }
+
+    Console.WriteLine("Summary:");
+    foreach (var group in results.GroupBy(o => (o.Kind, o.MutationRate)).OrderBy(o => o.Key.Kind).ThenBy(o => o.Key.MutationRate))
+    {
+        var outcomes = group.Select(o => o.Outcome).ToArray();
+        Console.WriteLine(
+            $"  {group.Key.Kind,-6} Mut {group.Key.MutationRate:F5}|Count {outcomes.Length}" +
+            $"|Finished {outcomes.Count(o => o.Finished)}|X avg {outcomes.Average(o => o.X):F0}" +
+            $" min {outcomes.Min(o => o.X):F0} max {outcomes.Max(o => o.X):F0}");
+    }
+}
+
+static void AnalyzeMutationMatrix(TrainingOptions options)
+{
+    var champion = (Brain)new Brain().Load(LoadBrainBytes(options));
+    var baseline = EvaluateSingleBrain((Brain)champion.Clone(), options.EvaluateSeed);
+    var mutationCounts = new[] { 1, 2, 4, 8 };
+    var mutationStrengths = new[] { 0.01, 0.02, 0.05, 0.10 };
+    const int samplesPerCombination = 12;
+    var random = new Random(options.EvaluateSeed);
+
+    Console.WriteLine(
+        $"Enemy-free mutation matrix|Parent X {baseline.X:F0}|Finished {(baseline.Finished ? 1 : 0)}" +
+        $"|Samples {samplesPerCombination} per combination");
+    foreach (var mutationCount in mutationCounts)
+    {
+        foreach (var mutationStrength in mutationStrengths)
+        {
+            var outcomes = new OffspringOutcome[samplesPerCombination];
+            for (var sample = 0; sample < samplesPerCombination; sample++)
+            {
+                var child = (Brain)champion.Clone();
+                child.Mutate(mutationCount, mutationStrength, random);
+                outcomes[sample] = EvaluateSingleBrain(child, options.EvaluateSeed);
+            }
+
+            Console.WriteLine(
+                $"Count {mutationCount,2}|Strength {mutationStrength:F2}|Finished {outcomes.Count(o => o.Finished),2}/{samplesPerCombination}" +
+                $"|X avg {outcomes.Average(o => o.X):F0} min {outcomes.Min(o => o.X):F0} max {outcomes.Max(o => o.X):F0}");
+        }
+    }
+}
+
+static OffspringOutcome EvaluateSingleBrain(Brain brain, int seed)
+{
+    var game = new Game(256, 240, brain, useTrainingTimeouts: true, enableEnemies: false)
+    {
+        GameRand = new Random(seed)
+    };
+    game.ResetGame();
+    while (!game.IsGameOver)
+        game.Tick();
+
+    return new OffspringOutcome(game.BestX, game.HasReachedFlagPole, game.Ticks);
+}
+
+static byte[] LoadBrainBytes(TrainingOptions options)
+{
+    if (!options.UseAppBrain)
+    {
+        if (!File.Exists(options.BrainPath))
+            throw new FileNotFoundException("Brain file not found.", options.BrainPath);
+        return File.ReadAllBytes(options.BrainPath);
+    }
+
+    var settingsPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "G33kShell",
+        "settings.json");
+    if (!File.Exists(settingsPath))
+        throw new FileNotFoundException("G33kShell settings file not found.", settingsPath);
+
+    using var settings = JsonDocument.Parse(File.ReadAllText(settingsPath));
+    if (!settings.RootElement.TryGetProperty("MarioBrain", out var brainElement))
+        throw new InvalidDataException($"MarioBrain was not found in {settingsPath}.");
+
+    return Convert.FromBase64String(brainElement.GetString() ?? string.Empty);
+}
+
 static void EvaluateBrain(TrainingOptions options)
 {
-    if (!File.Exists(options.BrainPath))
-        throw new FileNotFoundException("Brain file not found.", options.BrainPath);
-
-    var brainBytes = File.ReadAllBytes(options.BrainPath);
+    var brainBytes = LoadBrainBytes(options);
     var completed = 0;
     var fell = 0;
     var enemyDeaths = 0;
@@ -68,11 +199,13 @@ static void EvaluateBrain(TrainingOptions options)
 internal sealed class HeadlessMarioTrainer : MarioCanvas
 {
     private readonly string m_brainPath;
+    private readonly byte[] m_seedBrainBytes;
     private volatile int m_completedGeneration;
 
-    public HeadlessMarioTrainer(int screenWidth, int screenHeight, string brainPath) : base(screenWidth, screenHeight)
+    public HeadlessMarioTrainer(int screenWidth, int screenHeight, string brainPath, byte[] seedBrainBytes) : base(screenWidth, screenHeight)
     {
         m_brainPath = brainPath;
+        m_seedBrainBytes = seedBrainBytes;
         ActivationName = "mario_train";
     }
 
@@ -90,6 +223,15 @@ internal sealed class HeadlessMarioTrainer : MarioCanvas
 
     protected override byte[] GetSavedBrainBytes() =>
         File.Exists(m_brainPath) ? File.ReadAllBytes(m_brainPath) : null;
+
+    protected override IEnumerable<AiBrainBase> CreateInitialPopulation()
+    {
+        if (m_seedBrainBytes == null)
+            return base.CreateInitialPopulation();
+
+        var champion = (Brain)new Brain().Load(m_seedBrainBytes);
+        return Enumerable.Range(0, 80).Select(_ => champion.Clone());
+    }
 
     protected override void OnTrainingGenerationComplete(TrainingGenerationResult result)
     {
@@ -172,7 +314,21 @@ internal sealed class TrainingMonitor : TextWriter
         double.TryParse(value, out var result) ? result : 0.0;
 }
 
-internal sealed record TrainingOptions(int Generations, string BrainPath, int ScreenWidth, int ScreenHeight, int EvaluateGames, int EvaluateSeed)
+internal readonly record struct OffspringOutcome(double X, bool Finished, int Ticks);
+
+internal sealed record TrainingOptions(
+    int Generations,
+    string BrainPath,
+    int ScreenWidth,
+    int ScreenHeight,
+    int EvaluateGames,
+    int EvaluateSeed,
+    bool AnalyzeOffspring,
+    bool AnalyzeMutationMatrix,
+    bool UseAppBrain,
+    bool SeedPopulation,
+    double AnalysisMutationRate,
+    double AnalysisRandomFraction)
 {
     public static TrainingOptions Parse(string[] args)
     {
@@ -182,6 +338,12 @@ internal sealed record TrainingOptions(int Generations, string BrainPath, int Sc
         var height = 240;
         var evaluateGames = 0;
         var evaluateSeed = 1_000_000;
+        var analyzeOffspring = false;
+        var analyzeMutationMatrix = false;
+        var useAppBrain = false;
+        var seedPopulation = false;
+        var analysisMutationRate = 0.015;
+        var analysisRandomFraction = 0.18;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -206,9 +368,39 @@ internal sealed record TrainingOptions(int Generations, string BrainPath, int Sc
                 case "--seed" when i + 1 < args.Length:
                     evaluateSeed = int.Parse(args[++i]);
                     break;
+                case "--analyze-offspring":
+                    analyzeOffspring = true;
+                    break;
+                case "--analyze-mutation-matrix":
+                    analyzeMutationMatrix = true;
+                    break;
+                case "--app-brain":
+                    useAppBrain = true;
+                    break;
+                case "--seed-population":
+                    seedPopulation = true;
+                    break;
+                case "--mutation" when i + 1 < args.Length:
+                    analysisMutationRate = double.Parse(args[++i]);
+                    break;
+                case "--random-fraction" when i + 1 < args.Length:
+                    analysisRandomFraction = double.Parse(args[++i]);
+                    break;
             }
         }
 
-        return new TrainingOptions(Math.Max(1, generations), brainPath, width, height, Math.Max(0, evaluateGames), evaluateSeed);
+        return new TrainingOptions(
+            Math.Max(1, generations),
+            brainPath,
+            width,
+            height,
+            Math.Max(0, evaluateGames),
+            evaluateSeed,
+            analyzeOffspring,
+            analyzeMutationMatrix,
+            useAppBrain,
+            seedPopulation,
+            Math.Clamp(analysisMutationRate, 0.0, 1.0),
+            Math.Clamp(analysisRandomFraction, 0.0, 1.0));
     }
 }

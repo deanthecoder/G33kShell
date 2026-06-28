@@ -10,20 +10,16 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
 using G33kShell.Desktop.Console.Screensavers.AI;
-using DTC.Core.Extensions;
-
 namespace G33kShell.Desktop.Console.Screensavers.Mario;
 
 public class GameState : IAiGameState
 {
     public const int SensorGridSizeX = 10;
-    public const int SensorGridSizeY = 6;
+    public const int SensorGridSizeY = 13;
     public const int SensorBlockTileSize = 2;
     public const int SensorOriginBlockDx = -1;
-    public const int SensorOriginBlockDy = 2;
-    private const int SensorChannelCount = 4;
-    private const int ScalarInputCount = 35;
-    public const int InputCount = SensorGridSizeX * SensorGridSizeY * SensorChannelCount + ScalarInputCount;
+    private const int ScalarInputCount = 7;
+    public const int InputCount = SensorGridSizeX * SensorGridSizeY + ScalarInputCount;
     private readonly Game m_game;
 
     public GameState(Game game)
@@ -37,49 +33,15 @@ public class GameState : IAiGameState
         for (var y = 0; y < SensorGridSizeY; y++)
         {
             for (var x = 0; x < SensorGridSizeX; x++)
-            {
-                m_game.GetBlockSensor(SensorOriginBlockDx + x, SensorOriginBlockDy - y, out var solid, out var question, out var enemy, out var flag);
-                inputVector[i++] = solid;
-                inputVector[i++] = question;
-                inputVector[i++] = enemy;
-                inputVector[i++] = flag;
-            }
+                inputVector[i++] = m_game.GetBlockSensorValue(SensorOriginBlockDx + x, y);
         }
 
         inputVector[i++] = 1.0;
         inputVector[i++] = m_game.MarioBlockXOffset;
-        inputVector[i++] = (m_game.MarioVelocityX / Game.MaxRunPixelsPerFrame).Clamp(-1.0, 1.0);
-        inputVector[i++] = (m_game.MarioVelocityY / Game.MaxFallPixelsPerFrame).Clamp(-1.0, 1.0);
+        inputVector[i++] = m_game.MarioBlockYOffset;
+        inputVector[i++] = m_game.MarioVelocityX / Game.MaxRunPixelsPerFrame;
+        inputVector[i++] = m_game.MarioVelocityY / Game.MaxFallPixelsPerFrame;
         inputVector[i++] = m_game.IsGrounded ? 1.0 : -1.0;
-        inputVector[i++] = ((m_game.MarioY + Game.MarioCollisionHeight) / Game.ViewHeight).Clamp(0.0, 1.0);
-        inputVector[i++] = (m_game.TicksSinceLastJump / 90.0).Clamp(0.0, 1.0);
-        inputVector[i++] = ((m_game.BestX - m_game.MarioX) / 64.0).Clamp(0.0, 1.0);
-        inputVector[i++] = m_game.DistanceToNextObstacle / 128.0;
-        inputVector[i++] = m_game.DistanceToNextGap / 128.0;
-        inputVector[i++] = m_game.DistanceToNextOverheadBlock / 128.0;
-        inputVector[i++] = m_game.DistanceToNextPipe / 192.0;
-        inputVector[i++] = (m_game.NextGroundDeltaY / 80.0).Clamp(-1.0, 1.0);
-        inputVector[i++] = m_game.IsBlockedAhead ? 1.0 : -1.0;
-        inputVector[i++] = m_game.IsGapAhead ? 1.0 : -1.0;
-        inputVector[i++] = m_game.HasCeilingAbove ? 1.0 : -1.0;
-        inputVector[i++] = m_game.DistanceToNextQuestionBlock / 192.0;
-        inputVector[i++] = (m_game.NextQuestionBlockDeltaY / 128.0).Clamp(-1.0, 1.0);
-        inputVector[i++] = m_game.HasQuestionBlockAhead ? 1.0 : -1.0;
-        inputVector[i++] = m_game.HasQuestionBlockInJumpZone ? 1.0 : -1.0;
-        inputVector[i++] = m_game.NearestEnemyDeltaX / 192.0;
-        inputVector[i++] = (m_game.NearestEnemyDeltaY / 96.0).Clamp(-1.0, 1.0);
-        inputVector[i++] = m_game.HasEnemyAhead ? 1.0 : -1.0;
-        inputVector[i++] = m_game.HasEnemyThreat ? 1.0 : -1.0;
-        inputVector[i++] = m_game.HasStompableEnemyAhead ? 1.0 : -1.0;
-        inputVector[i++] = m_game.DistanceToEnemyAhead / 160.0;
-        inputVector[i++] = m_game.DistanceToEnemyThreat / 80.0;
-        inputVector[i++] = m_game.EnemyClosingSpeed;
-        inputVector[i++] = m_game.HasEnemyBeside ? 1.0 : -1.0;
-        inputVector[i++] = m_game.HasEnemyLandingTarget ? 1.0 : -1.0;
-        inputVector[i++] = m_game.HasEnemyOverhead ? 1.0 : -1.0;
-        inputVector[i++] = m_game.DistanceToFlagPole / 512.0;
-        inputVector[i++] = m_game.IsNearFlagPole ? 1.0 : -1.0;
-        inputVector[i++] = m_game.LevelProgress;
-        inputVector[i] = m_game.FlagPoleLaunchReadiness;
+        inputVector[i] = m_game.IsJumpHeld ? 1.0 : -1.0;
     }
 }

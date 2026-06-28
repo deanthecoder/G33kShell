@@ -192,6 +192,12 @@ public abstract class AiBrainBase
         return this;
     }
 
+    public AiBrainBase Mutate(int mutationCount, double mutationStrength, Random random = null)
+    {
+        m_qNet.Mutate(mutationCount, mutationStrength, random);
+        return this;
+    }
+
     public void ResetTemporalState()
     {
         for (var i = 0; i < m_frameVectors.Length; i++)

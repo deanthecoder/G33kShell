@@ -92,6 +92,18 @@ public class Game : AiGameBase
             return offset / blockSize;
         }
     }
+    public double MarioBlockYOffset
+    {
+        get
+        {
+            var blockSize = s_level.TileSize * GameState.SensorBlockTileSize;
+            var offset = MarioY % blockSize;
+            if (offset < 0.0)
+                offset += blockSize;
+
+            return offset / blockSize;
+        }
+    }
 
     public double BestX { get; private set; }
     public int Ticks { get; private set; }
@@ -103,40 +115,10 @@ public class Game : AiGameBase
     public int LastBlockHitSizeTiles { get; private set; }
     public bool HasReachedFlagPole { get; private set; }
     public bool IsMarioDead { get; private set; }
+    public bool IsJumpHeld => m_isJumpHeld;
     
     public IEnumerable<EnemySnapshot> Enemies => GetEnemySnapshots();
     public bool IsGrounded => Collides(MarioX, MarioY + 1, MarioCollisionWidth, MarioCollisionHeight);
-    public double DistanceToNextObstacle => FindDistanceToNextObstacle(128);
-    public double DistanceToNextGap => FindDistanceToNextGap(128);
-    public double DistanceToNextOverheadBlock => FindDistanceToNextOverheadBlock(128);
-    public double DistanceToNextPipe => FindDistanceToNextPipe(192);
-    public double NextGroundDeltaY => FindGroundY((int)MarioX + MarioCollisionWidth + 32) - (MarioY + MarioCollisionHeight);
-    public bool IsBlockedAhead => DistanceToNextObstacle < 24;
-    public bool IsGapAhead => DistanceToNextGap < 24;
-    public bool HasCeilingAbove => DistanceToNextOverheadBlock < 24;
-    public double DistanceToNextQuestionBlock => TryGetNextQuestionBlock(out var dx, out _) ? Math.Clamp(dx, 0.0, 192.0) : 192.0;
-    public double NextQuestionBlockDeltaY => TryGetNextQuestionBlock(out _, out var dy) ? Math.Clamp(dy, -128.0, 128.0) : -128.0;
-    public bool HasQuestionBlockAhead => TryGetNextQuestionBlock(out var dx, out var dy) && dx is >= -16.0 and <= 160.0 && dy is >= -128.0 and <= 16.0;
-    public bool HasQuestionBlockInJumpZone => TryGetNextQuestionBlock(out var dx, out var dy) && dx is >= -8.0 and <= 64.0 && dy is >= -112.0 and <= -16.0;
-    public double NearestEnemyDeltaX => TryGetNearestEnemy(out var dx, out _) ? Math.Clamp(dx, -192.0, 192.0) : 192.0;
-    public double NearestEnemyDeltaY => TryGetNearestEnemy(out _, out var dy) ? Math.Clamp(dy, -96.0, 96.0) : 96.0;
-    public bool HasEnemyAhead => TryGetNearestEnemy(out var dx, out var dy) && dx is >= -8.0 and <= 128.0 && Math.Abs(dy) < 48.0;
-    public bool HasEnemyThreat => TryGetNearestEnemy(out var dx, out var dy) && dx is >= -12.0 and <= 56.0 && Math.Abs(dy) < 28.0;
-    public bool HasStompableEnemyAhead => TryGetNearestEnemy(out var dx, out var dy) && dx is >= -4.0 and <= 72.0 && dy is >= -4.0 and <= 36.0;
-    public double DistanceToEnemyAhead => FindDistanceToEnemyAhead(160);
-    public double DistanceToEnemyThreat => FindDistanceToEnemyThreat(80);
-    public double EnemyClosingSpeed => TryGetNearestEnemyAhead(out var enemy)
-        ? Math.Clamp((MarioVelocityX - enemy.VelocityX) / (MaxRunPixelsPerFrame + Math.Abs(enemy.VelocityX)), -1.0, 1.0)
-        : 0.0;
-    public bool HasEnemyBeside => HasEnemyMatching(dx => dx is >= -10.0 and <= 26.0, dy => Math.Abs(dy) < 14.0);
-    public bool HasEnemyLandingTarget => HasEnemyMatching(dx => dx is >= -12.0 and <= 48.0, dy => dy is >= 6.0 and <= 40.0);
-    public bool HasEnemyOverhead => HasEnemyMatching(dx => dx is >= -8.0 and <= 48.0, dy => dy is >= -48.0 and <= -10.0);
-    public double DistanceToFlagPole => Math.Clamp(FlagPoleX - (MarioX + MarioCollisionWidth), 0.0, 512.0);
-    public bool IsNearFlagPole => DistanceToFlagPole <= 256.0;
-    public double LevelProgress => Math.Clamp(MarioX / FlagPoleX, 0.0, 1.0);
-    public double FlagPoleLaunchReadiness => IsNearFlagPole
-        ? Math.Clamp(-MarioVelocityY / Math.Abs(RunningJumpVelocityPixelsPerFrame), -1.0, 1.0)
-        : -1.0;
 
     public override bool IsGameOver =>
         m_endSequenceState == EndSequenceState.Complete ||
@@ -156,7 +138,7 @@ public class Game : AiGameBase
             var stuckPenalty = m_ticksWithoutProgress >= MaxTicksWithoutProgress ? 12000.0 : 0.0;
             var wallStallPenalty = m_wallStallTicks >= DegenerateWallStallTicks ? m_wallStallTicks * 90.0 : 0.0;
             return Math.Max(0.0,
-                distance * 10.0 +
+                distance * 100.0 +
                 distancePerTick * 4500.0 +
                 GetScore() * m_showRewardMultiplier -
                 failedRunPenalty -
@@ -220,8 +202,8 @@ public class Game : AiGameBase
 
     private double GetScore() =>
         (HasReachedFlagPole ? 25000.0 : 0.0) +
-        m_questionBlockHits * 4000.0 +
-        m_enemyStomps * 2500.0 +
+        m_questionBlockHits * 500.0 +
+        m_enemyStomps * 1000.0 +
         GetFlagHeightScore() * 320.0 +
         GetFlagStyleScore();
 
@@ -367,18 +349,26 @@ public class Game : AiGameBase
             m_fell = true;
     }
 
-    public void GetBlockSensor(int blockDx, int blockDy, out double solid, out double question, out double enemy, out double flag)
+    public double GetBlockSensorValue(int blockDx, int blockRowFromBottom)
     {
         var blockSize = s_level.TileSize * GameState.SensorBlockTileSize;
         var blockX = (int)Math.Floor(MarioX / blockSize) + blockDx;
-        var blockY = (int)Math.Floor(MarioY / blockSize) + blockDy;
+        var bottomBlockY = (ViewHeight - 1) / blockSize;
+        var blockY = bottomBlockY - blockRowFromBottom;
         var left = blockX * blockSize;
         var top = blockY * blockSize;
 
-        solid = 0.0;
-        question = 0.0;
-        flag = IsFlagPoleInRect(left, top, blockSize, blockSize) ? 1.0 : 0.0;
-        enemy = IsEnemyInRect(left, top, blockSize, blockSize) ? 1.0 : 0.0;
+        var marioCenterX = MarioX + MarioCollisionWidth * 0.5;
+        var marioCenterY = MarioY + MarioCollisionHeight * 0.5;
+        if (marioCenterX >= left && marioCenterX < left + blockSize &&
+            marioCenterY >= top && marioCenterY < top + blockSize)
+            return 0.25;
+        if (IsEnemyInRect(left, top, blockSize, blockSize))
+            return -1.0;
+        if (IsFlagPoleInRect(left, top, blockSize, blockSize))
+            return -0.5;
+
+        var hasSolid = false;
         for (var y = 0; y < GameState.SensorBlockTileSize; y++)
         {
             for (var x = 0; x < GameState.SensorBlockTileSize; x++)
@@ -386,11 +376,13 @@ public class Game : AiGameBase
                 var tileX = blockX * GameState.SensorBlockTileSize + x;
                 var tileY = blockY * GameState.SensorBlockTileSize + y;
                 if (IsSolidTile(tileX, tileY))
-                    solid = 1.0;
+                    hasSolid = true;
                 if (IsUnusedQuestionTile(tileX, tileY))
-                    question = 1.0;
+                    return 0.5;
             }
         }
+
+        return hasSolid ? 1.0 : 0.0;
     }
 
     public bool IsBlockBroken(int tileX, int tileY) =>
@@ -423,7 +415,7 @@ public class Game : AiGameBase
     {
         if (MarioX >= 112.0)
             return false;
-        if (DistanceToNextObstacle < 28 || DistanceToNextGap < 28)
+        if (FindDistanceToNextObstacle(128) < 28 || FindDistanceToNextGap(128) < 28)
             return false;
         foreach (var enemy in m_enemies)
         {
@@ -550,122 +542,6 @@ public class Game : AiGameBase
             return false;
 
         return s_solidMap[tileY][tileX];
-    }
-
-    private bool TryGetNearestEnemy(out double dx, out double dy)
-    {
-        dx = 0.0;
-        dy = 0.0;
-
-        Enemy nearest = null;
-        var nearestScore = double.MaxValue;
-        foreach (var enemy in m_enemies)
-        {
-            if (enemy.IsDead)
-                continue;
-
-            var enemyDx = enemy.X - MarioX;
-            if (enemyDx < -48.0 || enemyDx > 192.0)
-                continue;
-
-            var enemyDy = enemy.Y - MarioY;
-            var score = Math.Abs(enemyDx) + Math.Abs(enemyDy) * 0.35;
-            if (score >= nearestScore)
-                continue;
-
-            nearest = enemy;
-            nearestScore = score;
-        }
-
-        if (nearest == null)
-            return false;
-
-        dx = nearest.X - MarioX;
-        dy = nearest.Y - MarioY;
-        return true;
-    }
-
-    private bool TryGetNextQuestionBlock(out double dx, out double dy)
-    {
-        dx = 0.0;
-        dy = 0.0;
-
-        var marioCenterX = MarioX + MarioCollisionWidth / 2.0;
-        var bestDx = double.MaxValue;
-        var bestDy = 0.0;
-        for (var tileX = Math.Max(0, (int)(MarioX / s_level.TileSize) - 4); tileX < s_level.WidthTiles; tileX++)
-        {
-            var blockLeft = tileX * s_level.TileSize;
-            if (blockLeft - marioCenterX > 192.0)
-                break;
-
-            for (var tileY = 0; tileY < s_level.HeightTiles; tileY++)
-            {
-                var tileId = s_level.Map[tileY][tileX];
-                if (!IsQuestionTile(tileId))
-                    continue;
-
-                var blockX = tileX - tileX % 2;
-                var blockY = tileY - tileY % 2;
-                if (m_usedQuestionBlocks.Contains((blockX, blockY)))
-                    continue;
-
-                var blockCenterX = (blockX + 1) * s_level.TileSize;
-                var candidateDx = blockCenterX - marioCenterX;
-                if (candidateDx < -24.0 || candidateDx > 192.0 || Math.Abs(candidateDx) >= Math.Abs(bestDx))
-                    continue;
-
-                var blockBottomY = (blockY + 2) * s_level.TileSize;
-                var candidateDy = blockBottomY - MarioY;
-                if (candidateDy < -144.0 || candidateDy > 32.0)
-                    continue;
-
-                bestDx = candidateDx;
-                bestDy = candidateDy;
-            }
-        }
-
-        if (bestDx == double.MaxValue)
-            return false;
-
-        dx = bestDx;
-        dy = bestDy;
-        return true;
-    }
-
-    private bool TryGetNearestEnemyAhead(out Enemy nearest)
-    {
-        nearest = null;
-        var nearestDx = double.MaxValue;
-        foreach (var enemy in m_enemies)
-        {
-            if (enemy.IsDead)
-                continue;
-
-            var dx = enemy.X - MarioX;
-            var dy = enemy.Y - MarioY;
-            if (dx < -8.0 || dx > 160.0 || Math.Abs(dy) > 48.0 || dx >= nearestDx)
-                continue;
-
-            nearest = enemy;
-            nearestDx = dx;
-        }
-
-        return nearest != null;
-    }
-
-    private bool HasEnemyMatching(Func<double, bool> dxPredicate, Func<double, bool> dyPredicate)
-    {
-        foreach (var enemy in m_enemies)
-        {
-            if (enemy.IsDead)
-                continue;
-
-            if (dxPredicate(enemy.X - MarioX) && dyPredicate(enemy.Y - MarioY))
-                return true;
-        }
-
-        return false;
     }
 
     private void ResetEnemies()
@@ -922,77 +798,6 @@ public class Game : AiGameBase
         }
 
         return maxDistance;
-    }
-
-    private double FindDistanceToNextOverheadBlock(int maxDistance)
-    {
-        var headY = (int)MarioY;
-        for (var dx = 1; dx <= maxDistance; dx++)
-        {
-            var x = (int)(MarioX + MarioCollisionWidth + dx);
-            if (IsSolidPixel(x, headY - 1) || IsSolidPixel(x, headY - 9))
-                return dx;
-        }
-
-        return maxDistance;
-    }
-
-    private double FindDistanceToNextPipe(int maxDistance)
-    {
-        var currentTileX = (int)(MarioX + MarioCollisionWidth) / s_level.TileSize;
-        var maxTileDx = maxDistance / s_level.TileSize;
-        for (var dx = 0; dx <= maxTileDx; dx++)
-        {
-            var tileX = currentTileX + dx;
-            if (tileX < 0 || tileX >= s_level.WidthTiles)
-                break;
-
-            for (var tileY = 0; tileY < s_level.HeightTiles; tileY++)
-            {
-                if (s_level.Map[tileY][tileX] is >= 31 and <= 39)
-                    return Math.Max(0, tileX * s_level.TileSize - (MarioX + MarioCollisionWidth));
-            }
-        }
-
-        return maxDistance;
-    }
-
-    private double FindDistanceToEnemyAhead(int maxDistance)
-    {
-        var nearest = (double)maxDistance;
-        foreach (var enemy in m_enemies)
-        {
-            if (enemy.IsDead)
-                continue;
-
-            var dx = enemy.X - (MarioX + MarioCollisionWidth);
-            var dy = enemy.Y - MarioY;
-            if (dx < 0.0 || dx > maxDistance || Math.Abs(dy) > 48.0)
-                continue;
-
-            nearest = Math.Min(nearest, dx);
-        }
-
-        return nearest;
-    }
-
-    private double FindDistanceToEnemyThreat(int maxDistance)
-    {
-        var nearest = (double)maxDistance;
-        foreach (var enemy in m_enemies)
-        {
-            if (enemy.IsDead)
-                continue;
-
-            var dx = enemy.X - (MarioX + MarioCollisionWidth);
-            var dy = enemy.Y - MarioY;
-            if (dx < -8.0 || dx > maxDistance || Math.Abs(dy) > 24.0)
-                continue;
-
-            nearest = Math.Min(nearest, Math.Max(0.0, dx));
-        }
-
-        return nearest;
     }
 
     private bool Collides(double x, double y, int width, int height)

@@ -40,7 +40,9 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         int Generation,
         double? CurrentRating,
         double GoatRating);
+    protected readonly record struct ExplorationProgress(double Primary, double Secondary);
     private readonly record struct TrainingPoint(double? CurrentRating, double GoatRating);
+    private readonly record struct ArchivedBrain(AiBrainBase Brain, ExplorationProgress Progress, double Fitness);
 
     private const int DefaultInitialPopSize = 160;
     private const int DefaultMinPopSize = 80;
@@ -57,6 +59,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     private const int TrainingGraphGenerationSpacing = 5;
     
     private readonly List<(double Rating, AiBrainBase Brain)> m_goatBrains = new List<(double Rating, AiBrainBase Brain)>(MaxGoatBrains);
+    private readonly List<ArchivedBrain> m_completingBrainArchive = [];
     private readonly object m_trainingHistoryLock = new object();
     private readonly List<TrainingPoint> m_trainingHistory = new List<TrainingPoint>();
     private int m_generation;
@@ -64,6 +67,10 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     private double m_goatRatingTotal;
     private int m_goatRatingCount;
     private int m_generationsSinceImprovement;
+    private int m_generationsSinceExplorationProgress;
+    private ExplorationProgress? m_bestExplorationProgress;
+    private bool m_hasCustomExplorationProgress;
+    private bool m_resetCompletingArchiveAfterBreeding;
     private int m_explorationBoostGenerationsRemaining;
     private int m_currentPopSize;
     private string m_lastExplorationReason;
@@ -198,6 +205,14 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         m_championRating = 0.0;
         m_goatRatingTotal = 0.0;
         m_goatRatingCount = 0;
+        m_generationsSinceImprovement = 0;
+        m_explorationBoostGenerationsRemaining = 0;
+        m_generationsSinceExplorationProgress = 0;
+        m_bestExplorationProgress = null;
+        m_hasCustomExplorationProgress = false;
+        m_completingBrainArchive.Clear();
+        m_resetCompletingArchiveAfterBreeding = false;
+        OnTrainingStarted();
         System.Console.WriteLine("Starting training from random brains...");
         var brain = CreateBrain();
         System.Console.WriteLine($"Brain layers: {brain.InputSize} : {brain.HiddenLayers.ToCsv(' ')} : {brain.OutputSize}");
@@ -283,6 +298,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     {
         m_nextGenBrains ??= CreateInitialPopulation().ToList();
         m_generation++;
+        OnTrainingGenerationStarted(m_generation, m_nextGenBrains.Count);
         var gamesPerBrain = GetGamesPerBrain();
         var validationGamesPerBrain = GetValidationGamesPerBrain();
         
@@ -316,6 +332,8 @@ public abstract class AiGameCanvasBase : ScreensaverBase
                     game.Tick();
                     OnTrainingTick(brainIndex, game);
                 }
+                if (!m_stopTraining)
+                    OnTrainingGameComplete(brainIndex, game);
 
                 UpdateBestObservedMetric(game.BestObservedMetric);
                 var extraStats = game.ExtraGameStats().ToArray();
@@ -360,8 +378,12 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         // Select the breeders.
         var orderedGames = gameResults.OrderByDescending(GetSelectionFitness).ToArray();
         var theBest = orderedGames[0];
-        var bestTrainingFitness = GetSelectionFitness(theBest);
         var useTrainingScoreForGoat = UseTrainingScoreForGoat();
+        var bestTrainingIndex = Array.FindIndex(gameResults, result => ReferenceEquals(result.Brain, theBest.Brain));
+        IReadOnlyDictionary<string, double> currentProgressStats = useTrainingScoreForGoat
+            ? AverageStats(trainingStatsTotals[bestTrainingIndex], gamesPerBrain)
+            : null;
+        var bestTrainingFitness = GetSelectionFitness(theBest);
         var skippedValidation = useTrainingScoreForGoat ||
                                 (m_persistedChampionBrain == null && ShouldSkipValidation(bestTrainingFitness, m_championRating));
         var bestValidation = theBest;
@@ -443,7 +465,11 @@ public abstract class AiGameCanvasBase : ScreensaverBase
                     FormatAverageStats(validationStatsTotals[i], validationGamesPerBrain));
             }
 
-            bestValidation = validationResults.Take(validationCandidateCount).OrderByDescending(GetSelectionFitness).First();
+            var bestValidationIndex = Enumerable.Range(0, validationCandidateCount)
+                .OrderByDescending(i => GetSelectionFitness(validationResults[i]))
+                .First();
+            bestValidation = validationResults[bestValidationIndex];
+            currentProgressStats = AverageStats(validationStatsTotals[bestValidationIndex], validationGamesPerBrain);
             if (championValidationIndex >= 0)
                 UpdateChampionRating(GetSelectionFitness(validationResults[championValidationIndex]));
         }
@@ -451,6 +477,7 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         if (AbortInterruptedGeneration())
             return;
 
+        UpdateExplorationProgress(currentProgressStats);
         UpdateExplorationBoost(bestValidation);
         var mutationRate = GetEffectiveMutationRate();
         var randomFraction = GetEffectiveRandomFraction();
@@ -459,6 +486,11 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             : skippedValidation
                 ? 0.0
                 : GetSelectionFitness(bestValidation);
+        if (!skippedValidation)
+        {
+            var archiveBrain = useTrainingScoreForGoat ? theBest.Brain : bestValidation.Brain;
+            UpdateCompletingBrainArchive(archiveBrain, currentProgressStats, bestEvalFitness);
+        }
         var evaluatedGoatRating = m_championRating;
 
         // Remember the GOAT brains.
@@ -533,12 +565,19 @@ public abstract class AiGameCanvasBase : ScreensaverBase
             stats += $"|NoSave {m_lastPersistBlockReason}";
         if (m_explorationBoostGenerationsRemaining > 0)
             stats += $"|Boost {m_lastExplorationReason}";
+        if (m_completingBrainArchive.Count > 0)
+            stats += $"|Archive {m_completingBrainArchive.Count}";
         System.Console.WriteLine(stats);
 
         // Build the brains for the next generation.
         m_nextGenBrains = UseHarnessStyleEvolution()
             ? BuildHarnessStyleNextGeneration(orderedGames, mutationRate, randomFraction)
             : BuildLegacyNextGeneration(orderedGames, mutationRate, randomFraction);
+        if (m_resetCompletingArchiveAfterBreeding)
+        {
+            m_completingBrainArchive.Clear();
+            m_resetCompletingArchiveAfterBreeding = false;
+        }
 
         if (m_explorationBoostGenerationsRemaining > 0)
             m_explorationBoostGenerationsRemaining--;
@@ -579,6 +618,9 @@ public abstract class AiGameCanvasBase : ScreensaverBase
 
         return totals.Select(o => $"{o.Key} {o.Value / sampleCount:0.###}").ToCsv('|');
     }
+
+    private static IReadOnlyDictionary<string, double> AverageStats(Dictionary<string, double> totals, int sampleCount) =>
+        totals.ToDictionary(o => o.Key, o => o.Value / sampleCount, StringComparer.OrdinalIgnoreCase);
 
     private Rgb[] GetTrainingGraphPalette() =>
     [
@@ -738,6 +780,50 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     private double GetAverageGoatRating() =>
         m_goatRatingCount > 0 ? m_goatRatingTotal / m_goatRatingCount : 0.0;
 
+    private void UpdateCompletingBrainArchive(
+        AiBrainBase brain,
+        IReadOnlyDictionary<string, double> averageStats,
+        double fitness)
+    {
+        var archiveSize = GetCompletingArchiveSize();
+        if (archiveSize <= 0 || brain == null || averageStats == null)
+            return;
+
+        var progress = GetExplorationProgress(averageStats);
+        if (!progress.HasValue || !IsCompletingArchiveCandidate(progress.Value))
+            return;
+
+        var candidate = new ArchivedBrain(brain.Clone(), progress.Value, fitness);
+        if (m_completingBrainArchive.Count < archiveSize)
+        {
+            m_completingBrainArchive.Add(candidate);
+        }
+        else
+        {
+            var worstIndex = 0;
+            for (var i = 1; i < m_completingBrainArchive.Count; i++)
+            {
+                if (CompareArchivedBrains(m_completingBrainArchive[i], m_completingBrainArchive[worstIndex]) < 0)
+                    worstIndex = i;
+            }
+
+            if (CompareArchivedBrains(candidate, m_completingBrainArchive[worstIndex]) <= 0)
+                return;
+            m_completingBrainArchive[worstIndex] = candidate;
+        }
+
+        m_completingBrainArchive.Sort((left, right) => CompareArchivedBrains(right, left));
+    }
+
+    private static int CompareArchivedBrains(ArchivedBrain left, ArchivedBrain right)
+    {
+        var primary = left.Progress.Primary.CompareTo(right.Progress.Primary);
+        if (primary != 0)
+            return primary;
+        var secondary = left.Progress.Secondary.CompareTo(right.Progress.Secondary);
+        return secondary != 0 ? secondary : left.Fitness.CompareTo(right.Fitness);
+    }
+
     protected virtual string GetPersistBlockReason(double averageDegeneracy, string bestStats, string averageStats) => null;
 
     private List<AiBrainBase> BuildLegacyNextGeneration((double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats, string AverageStats)[] orderedGames, double mutationRate, double randomFraction)
@@ -759,11 +845,12 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         // Elite get to be parents.
         var breeders = orderedGames.Select(o => (Rating: GetSelectionFitness(o), o.Brain)).ToList();
         breeders.AddRange(m_goatBrains);
+        var offspringIndex = 0;
         while (nextBrains.Count < m_currentPopSize)
         {
             var mumBrain = Random.Shared.RouletteSelection(breeders, o => o.Rating).Brain;
             var dadBrain = Random.Shared.RouletteSelection(breeders, o => o.Rating).Brain;
-            var childBrain = mumBrain.Clone().CrossWith(dadBrain, GetCrossoverRate(), m_breedingRandom).Mutate(mutationRate, m_breedingRandom);
+            var childBrain = BreedChild(mumBrain, dadBrain, mutationRate, offspringIndex++);
             nextBrains.Add(childBrain);
         }
 
@@ -773,6 +860,13 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     private List<AiBrainBase> BuildHarnessStyleNextGeneration((double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats, string AverageStats)[] orderedGames, double mutationRate, double randomFraction)
     {
         var nextBrains = new List<AiBrainBase>(m_currentPopSize);
+        foreach (var archived in m_completingBrainArchive)
+        {
+            if (nextBrains.Count >= m_currentPopSize)
+                break;
+            nextBrains.Add(archived.Brain.Clone());
+        }
+
         var eliteCount = Math.Min(GetEliteCount(), orderedGames.Length);
         for (var i = 0; i < eliteCount && nextBrains.Count < m_currentPopSize; i++)
             nextBrains.Add(orderedGames[i].Brain.Clone());
@@ -781,34 +875,68 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         for (var i = 0; i < randomCount && nextBrains.Count < m_currentPopSize; i++)
             nextBrains.Add(CreateBrain());
 
+        var offspringIndex = 0;
+        var archiveDescendantCount = m_completingBrainArchive.Count == 0
+            ? 0
+            : Math.Min(
+                (int)Math.Round(m_currentPopSize * GetCompletingArchiveDescendantFraction()),
+                m_currentPopSize - nextBrains.Count);
+        for (var i = 0; i < archiveDescendantCount; i++)
+        {
+            var parent = m_completingBrainArchive[i % m_completingBrainArchive.Count].Brain;
+            nextBrains.Add(BreedChild(parent, parent, mutationRate, offspringIndex++, true));
+        }
+
         while (nextBrains.Count < m_currentPopSize)
         {
             var mumBrain = SelectParent(orderedGames);
             var dadBrain = SelectParent(orderedGames);
-            var childBrain = mumBrain.Clone().CrossWith(dadBrain, GetCrossoverRate(), m_breedingRandom).Mutate(mutationRate, m_breedingRandom);
+            var childBrain = BreedChild(mumBrain, dadBrain, mutationRate, offspringIndex++, false);
             nextBrains.Add(childBrain);
         }
 
         return nextBrains;
     }
 
+    private AiBrainBase BreedChild(
+        AiBrainBase primaryParent,
+        AiBrainBase secondaryParent,
+        double mutationRate,
+        int offspringIndex,
+        bool conservativeMutation = false)
+    {
+        var child = primaryParent.Clone();
+        var crossoverRate = GetCrossoverRate();
+        if (crossoverRate > 0.0)
+            child.CrossWith(secondaryParent, crossoverRate, m_breedingRandom);
+        var effectiveMutationRate = Math.Clamp(
+            mutationRate * GetMutationRateMultiplier(offspringIndex),
+            0.0,
+            1.0);
+        return MutateChild(child, effectiveMutationRate, offspringIndex, conservativeMutation, m_breedingRandom);
+    }
+
     private AiBrainBase SelectParent((double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats, string AverageStats)[] orderedGames)
     {
+        var parentPoolSize = Math.Clamp(
+            (int)Math.Ceiling(orderedGames.Length * GetParentPoolFraction()),
+            1,
+            orderedGames.Length);
         var totalFitness = 0.0;
-        for (var i = 0; i < orderedGames.Length; i++)
+        for (var i = 0; i < parentPoolSize; i++)
             totalFitness += Math.Max(1.0, GetSelectionFitness(orderedGames[i]));
 
         var random = m_breedingRandom;
         var target = (random?.NextDouble() ?? Random.Shared.NextDouble()) * totalFitness;
         var cumulative = 0.0;
-        for (var i = 0; i < orderedGames.Length; i++)
+        for (var i = 0; i < parentPoolSize; i++)
         {
             cumulative += Math.Max(1.0, GetSelectionFitness(orderedGames[i]));
             if (target <= cumulative)
                 return orderedGames[i].Brain;
         }
 
-        return orderedGames[^1].Brain;
+        return orderedGames[parentPoolSize - 1].Brain;
     }
 
     private AiGameBase CreateGameWithSeed(int seed, AiBrainBase brain, int generation, bool isValidation, int candidateIndex, int gameIndex)
@@ -822,10 +950,10 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     private double GetEffectiveMutationRate()
     {
         var baseRate = GetMutationRate();
-        var floorRate = Math.Max(0.01, baseRate * 0.35);
+        var floorRate = Math.Max(GetMinimumMutationRate(), baseRate * 0.35);
         var decay = Math.Min(1.0, Math.Max(0, m_generation - 1) / 400.0);
         var rate = baseRate + (floorRate - baseRate) * decay;
-        if (m_generationsSinceImprovement >= 40)
+        if (GetExplorationStagnationGenerations() >= GetExplorationStagnationThreshold())
             rate = Math.Min(baseRate, rate * 1.35);
         if (m_explorationBoostGenerationsRemaining > 0)
             rate = Math.Min(0.18, Math.Max(rate, baseRate * 2.5));
@@ -852,23 +980,55 @@ public abstract class AiGameCanvasBase : ScreensaverBase
         return randomFraction;
     }
 
+    private void UpdateExplorationProgress(IReadOnlyDictionary<string, double> averageStats)
+    {
+        if (averageStats == null)
+        {
+            if (m_hasCustomExplorationProgress)
+                m_generationsSinceExplorationProgress++;
+            return;
+        }
+
+        var progress = GetExplorationProgress(averageStats);
+        if (!progress.HasValue)
+            return;
+
+        m_hasCustomExplorationProgress = true;
+        if (!m_bestExplorationProgress.HasValue ||
+            IsMeaningfulExplorationProgress(progress.Value, m_bestExplorationProgress.Value))
+        {
+            m_bestExplorationProgress = progress;
+            m_generationsSinceExplorationProgress = 0;
+            return;
+        }
+
+        m_generationsSinceExplorationProgress++;
+    }
+
+    private int GetExplorationStagnationGenerations() =>
+        m_hasCustomExplorationProgress
+            ? m_generationsSinceExplorationProgress
+            : m_generationsSinceImprovement;
+
     private void UpdateExplorationBoost((double AverageRating, double AverageDegeneracy, string DegeneracyReason, double BestRating, int GameSeed, AiBrainBase Brain, string GameStats, string AverageStats) bestValidation)
     {
         if (m_explorationBoostGenerationsRemaining > 0)
             return;
 
+        var stagnationGenerations = GetExplorationStagnationGenerations();
         var useDegeneracy = UseDegeneracyPenalty();
         var severeDegeneracy = useDegeneracy && bestValidation.AverageDegeneracy >= 0.85;
-        var stubbornDegeneracy = useDegeneracy && bestValidation.AverageDegeneracy >= 0.60 && m_generationsSinceImprovement >= 12;
-        var hardStagnation = m_generationsSinceImprovement >= 40;
+        var stubbornDegeneracy = useDegeneracy && bestValidation.AverageDegeneracy >= 0.60 && stagnationGenerations >= 12;
+        var hardStagnation = stagnationGenerations >= GetExplorationStagnationThreshold();
         if (!severeDegeneracy && !stubbornDegeneracy && !hardStagnation)
             return;
 
         m_explorationBoostGenerationsRemaining = severeDegeneracy ? 20 : 12;
-        m_lastExplorationReason = !string.IsNullOrWhiteSpace(bestValidation.DegeneracyReason)
+        m_lastExplorationReason = (severeDegeneracy || stubbornDegeneracy) &&
+                                  !string.IsNullOrWhiteSpace(bestValidation.DegeneracyReason)
             ? bestValidation.DegeneracyReason
             : hardStagnation
-                ? "stagnation"
+                ? GetExplorationStagnationReason()
                 : "degenerate";
         System.Console.WriteLine($"Exploration boost: {m_lastExplorationReason} detected. Using Mut {GetEffectiveMutationRate():F3}/Rnd {GetEffectiveRandomFraction():F2} for {m_explorationBoostGenerationsRemaining} generations.");
     }
@@ -1015,8 +1175,27 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     protected virtual int GetValidationCandidateCount() => DefaultValidationCandidateCount;
     protected virtual int GetEliteCount() => MaxGoatBrains;
     protected virtual double GetRandomFraction() => 0.05;
+    protected virtual double GetParentPoolFraction() => 1.0;
     protected virtual double GetCrossoverRate() => 0.5;
     protected virtual double GetMutationRate() => 0.05;
+    protected virtual double GetMinimumMutationRate() => 0.01;
+    protected virtual double GetMutationRateMultiplier(int offspringIndex) => 1.0;
+    protected virtual AiBrainBase MutateChild(
+        AiBrainBase child,
+        double mutationRate,
+        int offspringIndex,
+        bool conservativeMutation,
+        Random random) =>
+        child.Mutate(mutationRate, random);
+    protected virtual ExplorationProgress? GetExplorationProgress(IReadOnlyDictionary<string, double> averageStats) => null;
+    protected virtual bool IsMeaningfulExplorationProgress(ExplorationProgress candidate, ExplorationProgress best) =>
+        candidate.Primary > best.Primary ||
+        candidate.Primary.Equals(best.Primary) && candidate.Secondary > best.Secondary;
+    protected virtual int GetExplorationStagnationThreshold() => 40;
+    protected virtual string GetExplorationStagnationReason() => "stagnation";
+    protected virtual int GetCompletingArchiveSize() => 0;
+    protected virtual double GetCompletingArchiveDescendantFraction() => 0.0;
+    protected virtual bool IsCompletingArchiveCandidate(ExplorationProgress progress) => false;
     protected virtual bool UseTrainingScoreForGoat() => false;
     protected virtual double GetValidationSkipThresholdRatio() => 0.75;
     protected virtual int GetValidationSkipWarmupGenerations() => 30;
@@ -1037,9 +1216,23 @@ public abstract class AiGameCanvasBase : ScreensaverBase
     {
     }
     protected virtual void OnTrainingTick(int brainIndex, AiGameBase game) { }
+    protected virtual void OnTrainingStarted() { }
+    protected virtual void OnTrainingGenerationStarted(int generation, int populationCount) { }
+    protected virtual void OnTrainingGameComplete(int brainIndex, AiGameBase game) { }
     protected virtual void OnAfterDrawTrainingGraph(PixelScreenData screen) { }
     protected abstract void UpdateGameFrame(ScreenData screen);
     protected abstract void SaveBrainBytes(byte[] brainBytes);
     protected abstract AiGameBase CreateGame(AiBrainBase brain);
     protected abstract AiBrainBase CreateBrain();
+
+    protected void ResetExplorationProgressTracking()
+    {
+        m_generationsSinceExplorationProgress = 0;
+        m_bestExplorationProgress = null;
+        m_hasCustomExplorationProgress = false;
+        m_explorationBoostGenerationsRemaining = 0;
+    }
+
+    protected void ResetCompletingArchiveAfterBreeding() =>
+        m_resetCompletingArchiveAfterBreeding = true;
 }

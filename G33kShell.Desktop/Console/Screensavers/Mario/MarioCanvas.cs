@@ -14,6 +14,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using DTC.Core;
 using G33kShell.Desktop.Console.Screensavers.AI;
 using G33kShell.Desktop.Skins;
@@ -47,6 +48,8 @@ public class MarioCanvas : AiGameCanvasBase
     private const int DebugMaxLinksPerLayer = 48;
     private const int MaxTrainingPopulation = 128;
     private const int MiniWorldTopMargin = 44;
+    private const double RouteMasteryCompletionRate = 0.70;
+    private const int RouteMasteryGenerationCount = 5;
 
     private WindowManager m_windowManager;
     private PixelScreenDataLock m_pixelScreen;
@@ -66,6 +69,13 @@ public class MarioCanvas : AiGameCanvasBase
     private readonly DebugLink[] m_debugLinkBuffer = new DebugLink[DebugMaxLinksPerLayer];
     private int[] m_trainingMarioTileX;
     private int[] m_trainingMarioTileY;
+    private readonly object m_trainingProgressLock = new();
+    private double m_trainingTotalBestX;
+    private double m_trainingMaxBestX;
+    private int m_trainingCompletedGames;
+    private int m_trainingFinishedGames;
+    private readonly Queue<double> m_routeCompletionRates = new();
+    private bool m_trainingWithEnemies;
     private byte[] m_miniWorldMap;
     private int m_miniWorldScale;
     private int m_miniWorldPixelWidth;
@@ -206,7 +216,7 @@ public class MarioCanvas : AiGameCanvasBase
     {
         if (m_aiGame == null)
         {
-            var brain = (MarioBrain)CreateBrain().Load(Settings.Instance.MarioBrain);
+            var brain = (MarioBrain)CreateBrain().Load(GetSavedBrainBytes());
             m_aiGame = (MarioGame)CreateGame(brain).ResetGame();
             m_gameOverHoldFrames = 0;
             m_lastSeenBlockHitTick = 0;
@@ -473,22 +483,23 @@ public class MarioCanvas : AiGameCanvasBase
         {
             for (var px = 0; px < m_miniWorldPixelWidth; px++)
             {
-                // OR together all source tiles that map to this pixel.
-                var hasTile = false;
-                for (var dy = 0; dy < m_miniWorldScale && !hasTile; dy++)
+                byte mapValue = 0;
+                for (var dy = 0; dy < m_miniWorldScale; dy++)
                 {
                     var ty = py * m_miniWorldScale + dy;
                     if (ty >= m_level.HeightTiles)
                         break;
-                    for (var dx = 0; dx < m_miniWorldScale && !hasTile; dx++)
+                    for (var dx = 0; dx < m_miniWorldScale; dx++)
                     {
                         var tx = px * m_miniWorldScale + dx;
-                        if (tx < m_level.WidthTiles && m_level.Map[ty][tx] != skyTileId)
-                            hasTile = true;
+                        if (tx >= m_level.WidthTiles || m_level.Map[ty][tx] == skyTileId)
+                            continue;
+
+                        mapValue = Math.Max(mapValue, m_solidMap[ty][tx] ? (byte)2 : (byte)1);
                     }
                 }
 
-                m_miniWorldMap[py * m_miniWorldPixelWidth + px] = hasTile ? (byte)1 : (byte)0;
+                m_miniWorldMap[py * m_miniWorldPixelWidth + px] = mapValue;
             }
         }
 
@@ -509,6 +520,77 @@ public class MarioCanvas : AiGameCanvasBase
         var marioGame = (MarioGame)game;
         m_trainingMarioTileX[brainIndex] = (int)(marioGame.MarioX / m_level.TileSize);
         m_trainingMarioTileY[brainIndex] = (int)(marioGame.MarioY / m_level.TileSize);
+    }
+
+    protected override void OnTrainingGenerationStarted(int generation, int populationCount)
+    {
+        lock (m_trainingProgressLock)
+        {
+            m_trainingTotalBestX = 0.0;
+            m_trainingMaxBestX = 0.0;
+            m_trainingCompletedGames = 0;
+            m_trainingFinishedGames = 0;
+            if (m_trainingMarioTileX != null)
+            {
+                Array.Fill(m_trainingMarioTileX, -1);
+                Array.Fill(m_trainingMarioTileY, -1);
+            }
+        }
+    }
+
+    protected override void OnTrainingGameComplete(int brainIndex, AiGameBase game)
+    {
+        var marioGame = (MarioGame)game;
+        var bestX = marioGame.BestX;
+        lock (m_trainingProgressLock)
+        {
+            m_trainingTotalBestX += bestX;
+            m_trainingMaxBestX = Math.Max(m_trainingMaxBestX, bestX);
+            m_trainingCompletedGames++;
+            if (marioGame.HasReachedFlagPole)
+                m_trainingFinishedGames++;
+        }
+    }
+
+    protected override void OnTrainingGenerationComplete(TrainingGenerationResult result)
+    {
+        base.OnTrainingGenerationComplete(result);
+        lock (m_trainingProgressLock)
+        {
+            if (m_trainingCompletedGames > 0)
+            {
+                var completionRate = m_trainingFinishedGames / (double)m_trainingCompletedGames;
+                System.Console.WriteLine(
+                    $"  X: avg={m_trainingTotalBestX / m_trainingCompletedGames:F0} max={m_trainingMaxBestX:F0}" +
+                    $" finished={completionRate:P1} (flag={MarioGame.FlagPoleX})");
+                UpdateTrainingCurriculum(completionRate);
+            }
+        }
+    }
+
+    protected override void OnTrainingStarted()
+    {
+        m_trainingWithEnemies = false;
+        m_routeCompletionRates.Clear();
+    }
+
+    private void UpdateTrainingCurriculum(double completionRate)
+    {
+        if (m_trainingWithEnemies)
+            return;
+
+        m_routeCompletionRates.Enqueue(completionRate);
+        while (m_routeCompletionRates.Count > RouteMasteryGenerationCount)
+            m_routeCompletionRates.Dequeue();
+        if (m_routeCompletionRates.Count < RouteMasteryGenerationCount ||
+            m_routeCompletionRates.Average() < RouteMasteryCompletionRate)
+            return;
+
+        m_trainingWithEnemies = true;
+        m_routeCompletionRates.Clear();
+        ResetExplorationProgressTracking();
+        ResetCompletingArchiveAfterBreeding();
+        System.Console.WriteLine("Mario curriculum advanced to enemy training after the population mastered the route.");
     }
 
     protected override void OnAfterDrawTrainingGraph(PixelScreenData screen)
@@ -844,9 +926,9 @@ public class MarioCanvas : AiGameCanvasBase
 
         var blockSize = m_level.TileSize * GameState.SensorBlockTileSize;
         var marioBlockX = (int)Math.Floor(m_marioX / blockSize);
-        var marioBlockY = (int)Math.Floor(m_marioY / blockSize);
         var left = (marioBlockX + GameState.SensorOriginBlockDx) * blockSize - cameraX;
-        var top = (marioBlockY + GameState.SensorOriginBlockDy - GameState.SensorGridSizeY + 1) * blockSize;
+        var bottomBlockY = (Game.ViewHeight - 1) / blockSize;
+        var top = (bottomBlockY - GameState.SensorGridSizeY + 1) * blockSize;
         DrawRect(screen, left, top, GameState.SensorGridSizeX * blockSize, GameState.SensorGridSizeY * blockSize, m_debugSightColorIndex);
     }
 
@@ -934,7 +1016,7 @@ public class MarioCanvas : AiGameCanvasBase
         }
     }
 
-    private double GetDebugLayerMaxValue(AiBrainBase brain, int layer, int layerSize)
+    private static double GetDebugLayerMaxValue(AiBrainBase brain, int layer, int layerSize)
     {
         var maxValue = 0.0;
         for (var neuron = 0; neuron < layerSize; neuron++)
@@ -1109,25 +1191,79 @@ public class MarioCanvas : AiGameCanvasBase
         new MarioGame(ArenaWidth, ArenaHeight, (MarioBrain)brain, useTrainingTimeouts: false, enableEnemies: true);
 
     protected override AiGameBase CreateTrainingGame(AiBrainBase brain) =>
-        new MarioGame(ArenaWidth, ArenaHeight, (MarioBrain)brain, useTrainingTimeouts: true, enableEnemies: true);
+        new MarioGame(ArenaWidth, ArenaHeight, (MarioBrain)brain, useTrainingTimeouts: true, enableEnemies: m_trainingWithEnemies);
 
     protected override AiGameBase CreateTrainingGame(AiBrainBase brain, int generation, bool isValidation, int candidateIndex, int gameIndex) =>
-        new MarioGame(ArenaWidth, ArenaHeight, (MarioBrain)brain, useTrainingTimeouts: true, enableEnemies: true);
+        new MarioGame(ArenaWidth, ArenaHeight, (MarioBrain)brain, useTrainingTimeouts: true, enableEnemies: m_trainingWithEnemies);
 
-    protected override int GetGamesPerBrain() => 6;
-    protected override int GetValidationGamesPerBrain() => 64;
+    protected override int GetGamesPerBrain() => m_trainingWithEnemies ? 6 : 1;
+    protected override int GetValidationGamesPerBrain() => m_trainingWithEnemies ? 64 : 1;
     protected override int GetValidationCandidateCount() => 1;
     protected override int GetInitialPopulationSize() => 80;
     protected override int GetMinPopulationSize() => 60;
-    protected override double GetMutationRate() => SecondsSinceGoat >= 90 ? 0.12 : SecondsSinceGoat >= 45 ? 0.10 : 0.08;
-    protected override double GetRandomFraction() => SecondsSinceGoat >= 90 ? 0.14 : SecondsSinceGoat >= 45 ? 0.10 : 0.06;
+    protected override int GetEliteCount() => 8;
+    protected override double GetMutationRate() => 0.006;
+    protected override double GetMinimumMutationRate() => 0.001;
+    protected override double GetMutationRateMultiplier(int offspringIndex) =>
+        offspringIndex % 4 switch
+        {
+            0 => 0.25,
+            1 => 0.5,
+            2 => 1.0,
+            _ => 2.0
+        };
+    protected override AiBrainBase MutateChild(
+        AiBrainBase child,
+        double mutationRate,
+        int offspringIndex,
+        bool conservativeMutation,
+        Random random)
+    {
+        if (conservativeMutation)
+        {
+            var conservativeCounts = new[] { 1, 2, 4 };
+            return child.Mutate(conservativeCounts[offspringIndex % conservativeCounts.Length], 0.02, random);
+        }
+
+        return child.Mutate(mutationRate, random);
+    }
+    protected override double GetCrossoverRate() => 0.0;
+    protected override double GetRandomFraction() => 0.05;
+    protected override double GetParentPoolFraction() => 0.10;
+    protected override ExplorationProgress? GetExplorationProgress(IReadOnlyDictionary<string, double> averageStats)
+    {
+        if (!averageStats.TryGetValue("Finished", out var finished) ||
+            !averageStats.TryGetValue("X", out var averageX))
+            return null;
+
+        return new ExplorationProgress(finished, averageX);
+    }
+    protected override bool IsMeaningfulExplorationProgress(ExplorationProgress candidate, ExplorationProgress best)
+    {
+        const double finishRateTolerance = 0.0001;
+        if (candidate.Primary > best.Primary + finishRateTolerance)
+            return true;
+        if (candidate.Primary < best.Primary - finishRateTolerance)
+            return false;
+
+        return candidate.Secondary >= best.Secondary + 32.0;
+    }
+    protected override int GetExplorationStagnationThreshold() => 15;
+    protected override string GetExplorationStagnationReason() => "route";
+    protected override int GetCompletingArchiveSize() => 8;
+    protected override double GetCompletingArchiveDescendantFraction() => 0.60;
+    protected override bool IsCompletingArchiveCandidate(ExplorationProgress progress) => progress.Primary > 0.0;
+    protected override string GetTrainingStatusText(int generation) =>
+        m_trainingWithEnemies
+            ? "Enemy training"
+            : $"Route training: mastery {m_routeCompletionRates.Count}/{RouteMasteryGenerationCount}";
     protected override double GetValidationSkipThresholdRatio() => 1.0;
     protected override int GetValidationSkipWarmupGenerations() => 5;
     protected override int GetForcedValidationInterval() => 8;
     protected override bool UseTrainingScoreForGoat() => false;
     protected override bool UseDegeneracyPenalty() => false;
     protected override int GetTrainingSeed(int generation, int brainIndex, int gameIndex) =>
-        MixTrainingSeed(0x2A17B4C3, generation, gameIndex);
+        MixTrainingSeed(0x2A17B4C3, (generation - 1) / 5, gameIndex);
     protected override int GetValidationSeed(int generation, int candidateIndex, int gameIndex) =>
         MixTrainingSeed(0x6D2B79F5, generation, gameIndex);
 
