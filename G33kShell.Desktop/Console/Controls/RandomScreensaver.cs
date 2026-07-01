@@ -26,6 +26,7 @@ public class RandomScreensaver : ScreensaverBase
     private ScreenData m_shellScreen;
     private int m_frameNumber;
     private int m_activeIndex;
+    private WindowManager m_windowManager;
 
     public RandomScreensaver(int width, int height) : base(width, height)
     {
@@ -55,9 +56,29 @@ public class RandomScreensaver : ScreensaverBase
         instance.Foreground = Foreground;
         instance.Background = Background;
         m_frameNumber = 0;
-        TargetFps = instance.TargetFps;
         ActivationName = instance.ActivationName;
+        if (m_windowManager != null)
+        {
+            instance.OnLoaded(m_windowManager);
+            instance.Stop();
+        }
+        TargetFps = instance.TargetFps;
         return instance;
+    }
+
+    public override void OnLoaded(WindowManager windowManager)
+    {
+        m_windowManager = windowManager;
+        base.OnLoaded(windowManager);
+    }
+
+    protected override void OnUnloaded()
+    {
+        m_active?.StopScreensaver();
+        m_active?.Stop();
+        m_active = null;
+        m_windowManager = null;
+        base.OnUnloaded();
     }
 
     public override void BuildScreen(ScreenData screen)
