@@ -50,6 +50,7 @@ Cycle anything you like with `screensaver -l` and `screensaver <name>` - add `_t
 | `mandelbrot` | Mandelbrot zooms in chunky characters. |
 | `matrix` | Matrix-style code rain. |
 | `neo` | Matrix corridor with glowing trails. |
+| `pipes` | Chunky monochrome 3D pipes grow through a shaded pixel grid. |
 | `plasma` | Old-school plasma waves. |
 | `pong` | AI pong duel; add `_train` to coach it. |
 | `sand` | Sand pours over your last screen and settles. |
