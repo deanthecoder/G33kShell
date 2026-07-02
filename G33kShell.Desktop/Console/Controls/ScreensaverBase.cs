@@ -33,8 +33,6 @@ public abstract class ScreensaverBase : AnimatedCanvas, IScreensaver
         }
     }
 
-    protected IReadOnlyCollection<string> ActivationSwitches => m_activationSwitches;
-
     public virtual bool IsReadyToRun => true;
 
     protected ScreensaverBase(int width, int height, int targetFps = 30) : base(width, height, targetFps)

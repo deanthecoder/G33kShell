@@ -25,23 +25,27 @@ namespace G33kShell.Desktop.Console.Screensavers;
 [UsedImplicitly]
 public class PipesCanvas : ScreensaverBase
 {
-    private const int PixelWidth = 160;
-    private const int PixelHeight = 120;
+    private const int RenderScale = 2;
+    private const int PixelWidth = 160 * RenderScale;
+    private const int PixelHeight = 120 * RenderScale;
     private const int GridWidth = 22;
     private const int GridHeight = 16;
     private const int GridDepth = 18;
     private const int FramesPerSegment = 4;
-    private const int SimultaneousPipes = 2;
     private const int MinStraightSegments = 4;
     private const double ContinueStraightChance = 0.84;
-    private const int MaxPipes = 10;
-    private const int SceneFps = 45;
+    private const int MaxPipes = 2;
+    private const int SceneFps = 30;
     private const int SceneDurationFrames = 45 * SceneFps;
+    private const int PipeStartDelayFrames = 5 * SceneFps;
     private const int ResetDelayFrames = 60;
     private const float WorldSpacing = 1.15f;
-    private const float FocalLength = 240.0f;
-    private const double TubeRadius = 2.5;
-    private const double JointRadius = 3.7;
+    private const float FocalLength = 240.0f * RenderScale;
+    private const double TubeRadius = 2.5 * RenderScale;
+    private const double JointRadius = 3.7 * RenderScale;
+    private const double LightX = -0.45;
+    private const double LightY = -0.65;
+    private const double LightZ = 0.62;
 
     private static readonly Vector3 s_sceneCenter =
         new Vector3((GridWidth - 1) * 0.5f, (GridHeight - 1) * 0.5f, (GridDepth - 1) * 0.5f);
@@ -75,9 +79,11 @@ public class PipesCanvas : ScreensaverBase
 
     private readonly bool[,,] m_occupied = new bool[GridWidth, GridHeight, GridDepth];
     private readonly double[] m_depthBuffer = new double[PixelWidth * PixelHeight];
+    private readonly double[] m_staticDepthBuffer = new double[PixelWidth * PixelHeight];
+    private readonly byte[] m_staticPixels = new byte[PixelWidth * PixelHeight];
     private readonly List<PipeSegment> m_segments = [];
     private readonly List<PipeJoint> m_joints = [];
-    private readonly List<PipeHead> m_activePipes = new List<PipeHead>(SimultaneousPipes);
+    private readonly List<PipeHead> m_activePipes = new List<PipeHead>(MaxPipes);
     private readonly List<GridPoint> m_availableDirections = new List<GridPoint>(6);
 
     private WindowManager m_windowManager;
@@ -86,6 +92,8 @@ public class PipesCanvas : ScreensaverBase
     private int m_startedPipeCount;
     private int m_sceneFrame;
     private int m_resetFrames;
+    private int m_nextPipeStartFrame;
+    private bool m_staticSceneDirty = true;
 
     public PipesCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight, targetFps: SceneFps)
     {
@@ -143,10 +151,7 @@ public class PipesCanvas : ScreensaverBase
 
         AdvanceGrowth();
         using (m_pixelScreen.Lock(out var pixels))
-        {
-            pixels.Clear();
             DrawScene(pixels);
-        }
     }
 
     private void AdvanceGrowth()
@@ -200,12 +205,14 @@ public class PipesCanvas : ScreensaverBase
             if (previous.End == pipe.Head && GetDirection(previous) == pipe.Direction)
             {
                 m_segments[pipe.LastSegmentIndex] = previous with { End = pipe.Target };
+                m_staticSceneDirty = true;
                 return;
             }
         }
 
         m_segments.Add(new PipeSegment(pipe.Head, pipe.Target, pipe.ShadeOffset));
         pipe.LastSegmentIndex = m_segments.Count - 1;
+        m_staticSceneDirty = true;
     }
 
     private bool ChooseNextTarget(PipeHead pipe)
@@ -229,6 +236,7 @@ public class PipesCanvas : ScreensaverBase
         if (pipe.Direction != default && nextDirection != pipe.Direction)
         {
             m_joints.Add(new PipeJoint(pipe.Head, pipe.ShadeOffset));
+            m_staticSceneDirty = true;
             pipe.StraightSegments = 1;
         }
         else
@@ -256,22 +264,24 @@ public class PipesCanvas : ScreensaverBase
 
     private void StartAvailablePipes()
     {
-        while (m_activePipes.Count < SimultaneousPipes && m_startedPipeCount < MaxPipes)
-        {
-            if (!TryFindFreeCell(out var head))
-                break;
+        if (m_activePipes.Count >= MaxPipes || m_sceneFrame < m_nextPipeStartFrame)
+            return;
 
-            var pipe = new PipeHead
-            {
-                Head = head,
-                ShadeOffset = GetUnusedShadeOffset(),
-                LastSegmentIndex = -1
-            };
-            m_activePipes.Add(pipe);
-            m_startedPipeCount++;
-            m_occupied[head.X, head.Y, head.Z] = true;
-            m_joints.Add(new PipeJoint(head, pipe.ShadeOffset));
-        }
+        if (!TryFindFreeCell(out var head))
+            return;
+
+        var pipe = new PipeHead
+        {
+            Head = head,
+            ShadeOffset = GetUnusedShadeOffset(),
+            LastSegmentIndex = -1
+        };
+        m_activePipes.Add(pipe);
+        m_startedPipeCount++;
+        m_nextPipeStartFrame = m_sceneFrame + PipeStartDelayFrames;
+        m_occupied[head.X, head.Y, head.Z] = true;
+        m_joints.Add(new PipeJoint(head, pipe.ShadeOffset));
+        m_staticSceneDirty = true;
     }
 
     private int GetUnusedShadeOffset()
@@ -294,11 +304,12 @@ public class PipesCanvas : ScreensaverBase
     {
         m_joints.Add(new PipeJoint(pipe.Head, pipe.ShadeOffset));
         pipe.HasTarget = false;
+        m_staticSceneDirty = true;
     }
 
     private bool TryFindFreeCell(out GridPoint cell)
     {
-        var freeCells = GridWidth * GridHeight * GridDepth;
+        const int freeCells = GridWidth * GridHeight * GridDepth;
         var start = Random.Shared.Next(freeCells);
         for (var pass = 0; pass < 2; pass++)
         {
@@ -332,7 +343,36 @@ public class PipesCanvas : ScreensaverBase
 
     private void DrawScene(PixelScreenData screen)
     {
-        Array.Fill(m_depthBuffer, double.NegativeInfinity);
+        EnsureStaticSceneCache(screen.Width, screen.Height);
+        Array.Copy(m_staticDepthBuffer, m_depthBuffer, m_depthBuffer.Length);
+        Array.Copy(m_staticPixels, screen.Pixels, m_staticPixels.Length);
+
+        foreach (var pipe in m_activePipes)
+        {
+            if (!pipe.HasTarget)
+                continue;
+
+            var mergeGrowingSegment = ShouldMergeGrowingSegment(pipe);
+            var amount = Math.Clamp(pipe.SegmentFrame / (double)FramesPerSegment, 0.0, 1.0);
+            DrawTube(
+                screen.Pixels,
+                m_depthBuffer,
+                screen.Width,
+                screen.Height,
+                mergeGrowingSegment ? m_segments[pipe.LastSegmentIndex].Start : pipe.Head,
+                Lerp(pipe.Head, pipe.Target, amount),
+                pipe.Direction,
+                pipe.ShadeOffset);
+        }
+    }
+
+    private void EnsureStaticSceneCache(int screenWidth, int screenHeight)
+    {
+        if (!m_staticSceneDirty)
+            return;
+
+        Array.Clear(m_staticPixels);
+        Array.Fill(m_staticDepthBuffer, double.NegativeInfinity);
 
         for (var i = 0; i < m_segments.Count; i++)
         {
@@ -343,26 +383,21 @@ public class PipesCanvas : ScreensaverBase
                 continue;
 
             var segment = m_segments[i];
-            DrawTube(screen, segment.Start, segment.End, GetDirection(segment), segment.ShadeOffset);
-        }
-
-        foreach (var pipe in m_activePipes)
-        {
-            if (!pipe.HasTarget)
-                continue;
-
-            var mergeGrowingSegment = ShouldMergeGrowingSegment(pipe);
-            var amount = Math.Clamp(pipe.SegmentFrame / (double)FramesPerSegment, 0.0, 1.0);
             DrawTube(
-                screen,
-                mergeGrowingSegment ? m_segments[pipe.LastSegmentIndex].Start : pipe.Head,
-                Lerp(pipe.Head, pipe.Target, amount),
-                pipe.Direction,
-                pipe.ShadeOffset);
+                m_staticPixels,
+                m_staticDepthBuffer,
+                screenWidth,
+                screenHeight,
+                segment.Start,
+                segment.End,
+                GetDirection(segment),
+                segment.ShadeOffset);
         }
 
         foreach (var joint in m_joints)
-            DrawJoint(screen, joint.Position, joint.ShadeOffset);
+            DrawJoint(m_staticPixels, m_staticDepthBuffer, screenWidth, screenHeight, joint.Position, joint.ShadeOffset);
+
+        m_staticSceneDirty = false;
     }
 
     private bool ShouldMergeGrowingSegment(PipeHead pipe)
@@ -374,8 +409,11 @@ public class PipesCanvas : ScreensaverBase
         return previous.End == pipe.Head && GetDirection(previous) == pipe.Direction;
     }
 
-    private void DrawTube(
-        PixelScreenData screen,
+    private static void DrawTube(
+        byte[] pixels,
+        double[] depthBuffer,
+        int screenWidth,
+        int screenHeight,
         WorldPoint start,
         WorldPoint end,
         GridPoint direction,
@@ -393,9 +431,9 @@ public class PipesCanvas : ScreensaverBase
         var endRadius = GetPerspectiveScale(end) * TubeRadius;
         var maxRadius = Math.Max(startRadius, endRadius);
         var minX = Math.Max(0, (int)Math.Floor(Math.Min(a.X, b.X) - maxRadius));
-        var maxX = Math.Min(screen.Width - 1, (int)Math.Ceiling(Math.Max(a.X, b.X) + maxRadius));
+        var maxX = Math.Min(screenWidth - 1, (int)Math.Ceiling(Math.Max(a.X, b.X) + maxRadius));
         var minY = Math.Max(0, (int)Math.Floor(Math.Min(a.Y, b.Y) - maxRadius));
-        var maxY = Math.Min(screen.Height - 1, (int)Math.Ceiling(Math.Max(a.Y, b.Y) + maxRadius));
+        var maxY = Math.Min(screenHeight - 1, (int)Math.Ceiling(Math.Max(a.Y, b.Y) + maxRadius));
         var startDepth = GetDepth(start);
         var endDepth = GetDepth(end);
 
@@ -415,16 +453,23 @@ public class PipesCanvas : ScreensaverBase
                 if (distanceSquared > radius * radius)
                     continue;
 
+                var normalX = offsetX / radius;
+                var normalY = offsetY / radius;
                 var normalZ = Math.Sqrt(Math.Max(0.0, 1.0 - distanceSquared / (radius * radius)));
-                var light = normalZ * 0.5 - offsetX / radius * 0.35 - offsetY / radius * 0.5;
-                var shade = (byte)Math.Clamp(baseShade + (int)Math.Round(light * 2.0 - 0.35), 1, 7);
+                var shade = GetPhongShade(baseShade, normalX, normalY, normalZ);
                 var depth = startDepth + (endDepth - startDepth) * amount + normalZ * 0.4;
-                SetDepthPixel(screen, x, y, depth, shade);
+                SetDepthPixel(pixels, depthBuffer, screenWidth, screenHeight, x, y, depth, shade);
             }
         }
     }
 
-    private void DrawJoint(PixelScreenData screen, WorldPoint position, int shadeOffset)
+    private static void DrawJoint(
+        byte[] pixels,
+        double[] depthBuffer,
+        int screenWidth,
+        int screenHeight,
+        WorldPoint position,
+        int shadeOffset)
     {
         var center = Project(position);
         var radius = JointRadius * GetPerspectiveScale(position);
@@ -443,10 +488,12 @@ public class PipesCanvas : ScreensaverBase
                 var normalX = x / radius;
                 var normalY = y / radius;
                 var normalZ = Math.Sqrt(Math.Max(0.0, 1.0 - distanceSquared / (radius * radius)));
-                var light = -normalX * 0.35 - normalY * 0.5 + normalZ * 0.65;
-                var shade = (byte)Math.Clamp(baseShade + (int)Math.Round(light * 2.0 - 0.35), 1, 7);
+                var shade = GetPhongShade(baseShade, normalX, normalY, normalZ);
                 SetDepthPixel(
-                    screen,
+                    pixels,
+                    depthBuffer,
+                    screenWidth,
+                    screenHeight,
                     (int)Math.Round(center.X + x),
                     (int)Math.Round(center.Y + y),
                     centerDepth + normalZ * 0.55,
@@ -455,17 +502,34 @@ public class PipesCanvas : ScreensaverBase
         }
     }
 
-    private void SetDepthPixel(PixelScreenData screen, int x, int y, double depth, byte shade)
+    private static byte GetPhongShade(int baseShade, double normalX, double normalY, double normalZ)
     {
-        if (x < 0 || x >= screen.Width || y < 0 || y >= screen.Height)
+        var diffuse = Math.Max(0.0, normalX * LightX + normalY * LightY + normalZ * LightZ);
+        var reflectedView = Math.Max(0.0, 2.0 * diffuse * normalZ - LightZ);
+        var specular = Math.Pow(reflectedView, 18.0);
+        var light = 0.22 + diffuse * 0.82 + specular * 1.15;
+        return (byte)Math.Clamp(baseShade + (int)Math.Round((light - 0.55) * 4.0), 1, 7);
+    }
+
+    private static void SetDepthPixel(
+        byte[] pixels,
+        double[] depthBuffer,
+        int screenWidth,
+        int screenHeight,
+        int x,
+        int y,
+        double depth,
+        byte shade)
+    {
+        if (x < 0 || x >= screenWidth || y < 0 || y >= screenHeight)
             return;
 
-        var index = y * screen.Width + x;
-        if (depth < m_depthBuffer[index])
+        var index = y * screenWidth + x;
+        if (depth < depthBuffer[index])
             return;
 
-        m_depthBuffer[index] = depth;
-        screen.Pixels[index] = shade;
+        depthBuffer[index] = depth;
+        pixels[index] = shade;
     }
 
     private static ScreenPoint Project(WorldPoint point)
@@ -526,6 +590,8 @@ public class PipesCanvas : ScreensaverBase
         m_startedPipeCount = 0;
         m_sceneFrame = 0;
         m_resetFrames = 0;
+        m_nextPipeStartFrame = 0;
+        m_staticSceneDirty = true;
         StartAvailablePipes();
     }
 
@@ -535,7 +601,9 @@ public class PipesCanvas : ScreensaverBase
         if (m_windowManager != null &&
             m_pixelScreen != null &&
             ReferenceEquals(m_windowManager.PixelScreen, m_pixelScreen))
+        {
             m_windowManager.ClearPixelScreen();
+        }
         m_pixelScreen = null;
     }
 

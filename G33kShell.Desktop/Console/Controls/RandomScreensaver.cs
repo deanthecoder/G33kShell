@@ -145,6 +145,7 @@ public class RandomScreensaver : ScreensaverBase
         if (m_active == null || m_shellScreen == null)
             return;
 
+        System.Console.WriteLine($"Starting screensaver {m_active.Name}");
         m_active.StartScreensaver(m_shellScreen.Clone());
     }
 }
