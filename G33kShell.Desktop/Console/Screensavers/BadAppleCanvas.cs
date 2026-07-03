@@ -13,8 +13,6 @@ using System;
 using System.IO;
 using DTC.Core;
 using DTC.Core.Extensions;
-using G33kShell.Desktop.Console.Controls;
-using G33kShell.Desktop.Skins;
 using JetBrains.Annotations;
 
 namespace G33kShell.Desktop.Console.Screensavers;
@@ -23,7 +21,7 @@ namespace G33kShell.Desktop.Console.Screensavers;
 /// A mono, pixel-backed Bad Apple!! animation.
 /// </summary>
 [UsedImplicitly]
-public class BadAppleCanvas : ScreensaverBase
+public class BadAppleCanvas : PixelScreensaverBase
 {
     private const string AssetFileName = "badapple_128x120_24fps.bar";
     private const byte Black = 0;
@@ -31,10 +29,7 @@ public class BadAppleCanvas : ScreensaverBase
 
     private static readonly Rgb[] s_basePalette = [Rgb.Black, Rgb.White];
 
-    private WindowManager m_windowManager;
-    private PixelScreenDataLock m_pixelScreen;
     private MovieData m_movie;
-    private bool m_isActive;
     private int m_decodedFrameIndex = -1;
     private int m_runIndex;
     private int m_runRemaining;
@@ -48,67 +43,32 @@ public class BadAppleCanvas : ScreensaverBase
 
     public override void OnLoaded(WindowManager windowManager)
     {
-        m_windowManager = windowManager;
         m_movie ??= LoadMovie();
         TargetFps = m_movie.Fps;
         base.OnLoaded(windowManager);
     }
 
-    protected override void OnUnloaded()
-    {
-        base.OnUnloaded();
-        ClearPixelScreen();
-        m_windowManager = null;
-    }
-
-    public override void OnSkinChanged(SkinBase skin)
-    {
-        base.OnSkinChanged(skin);
-        if (!m_isActive || m_pixelScreen == null)
-            return;
-
-        using (m_pixelScreen.Lock(out var pixelScreen))
-            pixelScreen.SetPalette(GetPalette());
-    }
-
     public override void StartScreensaver(ScreenData shellScreen)
     {
         base.StartScreensaver(shellScreen);
-        if (m_windowManager == null || m_movie == null)
+        if (WindowManager == null || m_movie == null)
             return;
 
         ResetDecoder();
-        m_isActive = true;
-        m_pixelScreen = m_windowManager.SetPixelScreen(m_movie.DisplayWidth, m_movie.DisplayHeight, GetPalette());
+        StartPixelScreen(m_movie.DisplayWidth, m_movie.DisplayHeight);
     }
-
-    public override void StopScreensaver()
-    {
-        base.StopScreensaver();
-        ClearPixelScreen();
-    }
-
-    public override void BuildScreen(ScreenData screen) =>
-        ClearTextOverlay(screen);
 
     public override void UpdateFrame(ScreenData screen)
     {
         ClearTextOverlay(screen);
-        if (!m_isActive || m_pixelScreen == null || m_movie == null)
+        if (!IsPixelScreenActive || PixelScreen == null || m_movie == null)
             return;
 
-        using (m_pixelScreen.Lock(out var pixels))
+        using (PixelScreen.Lock(out var pixels))
             DecodeFrame(FrameNumber % m_movie.FrameCount, pixels);
     }
 
-    private void ClearPixelScreen()
-    {
-        m_isActive = false;
-        m_pixelScreen = null;
-        m_windowManager?.ClearPixelScreen();
-    }
-
-    private Rgb[] GetPalette()
+    protected override Rgb[] GetPixelPalette()
     {
         var foreground = Foreground ?? Rgb.White;
         var background = Background ?? Rgb.Black;
@@ -171,20 +131,6 @@ public class BadAppleCanvas : ScreensaverBase
         m_runRemaining = 0;
         m_toggleAfterRun = false;
         m_currentColor = m_movie?.InitialColor ?? Black;
-    }
-
-    private static void ClearTextOverlay(ScreenData screen)
-    {
-        for (var y = 0; y < screen.Height; y++)
-        {
-            for (var x = 0; x < screen.Width; x++)
-            {
-                var attr = screen.Chars[y][x];
-                attr.Set(' ');
-                attr.Foreground = null;
-                attr.Background = null;
-            }
-        }
     }
 
     private static MovieData LoadMovie()

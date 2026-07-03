@@ -13,8 +13,6 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using DTC.Core;
-using G33kShell.Desktop.Console.Controls;
-using G33kShell.Desktop.Skins;
 using JetBrains.Annotations;
 
 namespace G33kShell.Desktop.Console.Screensavers;
@@ -23,7 +21,7 @@ namespace G33kShell.Desktop.Console.Screensavers;
 /// Low-resolution, monochrome take on the classic 3D pipes screensaver.
 /// </summary>
 [UsedImplicitly]
-public class PipesCanvas : ScreensaverBase
+public class PipesCanvas : PixelScreensaverBase
 {
     private const int RenderScale = 2;
     private const int PixelWidth = 160 * RenderScale;
@@ -86,9 +84,6 @@ public class PipesCanvas : ScreensaverBase
     private readonly List<PipeHead> m_activePipes = new List<PipeHead>(MaxPipes);
     private readonly List<GridPoint> m_availableDirections = new List<GridPoint>(6);
 
-    private WindowManager m_windowManager;
-    private PixelScreenDataLock m_pixelScreen;
-    private bool m_isActive;
     private int m_startedPipeCount;
     private int m_sceneFrame;
     private int m_resetFrames;
@@ -100,57 +95,24 @@ public class PipesCanvas : ScreensaverBase
         Name = "pipes";
     }
 
-    public override void OnLoaded(WindowManager windowManager)
-    {
-        m_windowManager = windowManager;
-        base.OnLoaded(windowManager);
-    }
-
-    protected override void OnUnloaded()
-    {
-        base.OnUnloaded();
-        ClearPixelScreen();
-        m_windowManager = null;
-    }
-
-    public override void OnSkinChanged(SkinBase skin)
-    {
-        base.OnSkinChanged(skin);
-        if (!m_isActive || m_pixelScreen == null)
-            return;
-
-        using (m_pixelScreen.Lock(out var pixels))
-            pixels.SetPalette(GetPalette());
-    }
-
     public override void StartScreensaver(ScreenData shellScreen)
     {
         base.StartScreensaver(shellScreen);
-        if (m_windowManager == null)
+        if (WindowManager == null)
             return;
 
         ResetScene();
-        m_isActive = true;
-        m_pixelScreen = m_windowManager.SetPixelScreen(PixelWidth, PixelHeight, GetPalette());
+        StartPixelScreen(PixelWidth, PixelHeight);
     }
-
-    public override void StopScreensaver()
-    {
-        base.StopScreensaver();
-        ClearPixelScreen();
-    }
-
-    public override void BuildScreen(ScreenData screen) =>
-        ClearTextOverlay(screen);
 
     public override void UpdateFrame(ScreenData screen)
     {
         ClearTextOverlay(screen);
-        if (!m_isActive || m_pixelScreen == null)
+        if (!IsPixelScreenActive || PixelScreen == null)
             return;
 
         AdvanceGrowth();
-        using (m_pixelScreen.Lock(out var pixels))
+        using (PixelScreen.Lock(out var pixels))
             DrawScene(pixels);
     }
 
@@ -574,7 +536,7 @@ public class PipesCanvas : ScreensaverBase
         point.Y is >= 0 and < GridHeight &&
         point.Z is >= 0 and < GridDepth;
 
-    private Rgb[] GetPalette()
+    protected override Rgb[] GetPixelPalette()
     {
         var foreground = Foreground ?? Rgb.White;
         var background = Background ?? Rgb.Black;
@@ -593,32 +555,6 @@ public class PipesCanvas : ScreensaverBase
         m_nextPipeStartFrame = 0;
         m_staticSceneDirty = true;
         StartAvailablePipes();
-    }
-
-    private void ClearPixelScreen()
-    {
-        m_isActive = false;
-        if (m_windowManager != null &&
-            m_pixelScreen != null &&
-            ReferenceEquals(m_windowManager.PixelScreen, m_pixelScreen))
-        {
-            m_windowManager.ClearPixelScreen();
-        }
-        m_pixelScreen = null;
-    }
-
-    private static void ClearTextOverlay(ScreenData screen)
-    {
-        for (var y = 0; y < screen.Height; y++)
-        {
-            for (var x = 0; x < screen.Width; x++)
-            {
-                var attr = screen.Chars[y][x];
-                attr.Set(' ');
-                attr.Foreground = null;
-                attr.Background = null;
-            }
-        }
     }
 
     private readonly record struct GridPoint(int X, int Y, int Z)
