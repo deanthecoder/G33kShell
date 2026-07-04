@@ -65,6 +65,9 @@
       <None Update="Assets\BadApple\**\*">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </None>
+      <Content Include="Assets\Fonts\VGA\PxPlus_IBM_VGA8.ttf">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
     </ItemGroup>
 
     <ItemGroup>

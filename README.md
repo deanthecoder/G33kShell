@@ -54,6 +54,7 @@ Cycle anything you like with `screensaver -l` and `screensaver <name>` - add `_t
 | `plasma` | Old-school plasma waves. |
 | `pong` | AI pong duel; add `_train` to coach it. |
 | `sand` | Sand pours over your last screen and settles. |
+| `science` | A roaming glass lens refracts a snapshot of your terminal. |
 | `scroller` | Retro text scroller for demo vibes. |
 | `snake` | AI snake that learns; add `_train`. |
 | `stars` | Warp-speed starfield. |
