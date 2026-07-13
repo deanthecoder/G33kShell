@@ -10,6 +10,9 @@
         <Company>Dean Edis (DeanTheCoder)</Company>
         <ApplicationIcon>Assets/app.ico</ApplicationIcon>
         <AssemblyName>G33kShell</AssemblyName>
+        <Version>0.18</Version>
+        <FileVersion>0.18.0.0</FileVersion>
+        <AssemblyVersion>0.18.0.0</AssemblyVersion>
     </PropertyGroup>
 
     <ItemGroup>

@@ -100,6 +100,12 @@ public class Settings : UserSettingsBase
         set => Set(value);
     }
 
+    public int MemoryReportThresholdMb
+    {
+        get => Get<int>();
+        set => Set(value);
+    }
+
     protected override void ApplyDefaults()
     {
         UsedCommands = new List<string>();
@@ -107,6 +113,7 @@ public class Settings : UserSettingsBase
         SkinName = "RetroPlasma";
         ScreensaverName = "matrix";
         PathHistory = [];
+        MemoryReportThresholdMb = 256;
     }
 
     public void AppendPathToHistory(string newPath)

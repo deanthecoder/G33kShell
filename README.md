@@ -94,6 +94,8 @@ Several tempting alternatives were tested and lost to this simpler format: row d
 
 The application persists settings (skin, screensaver, path history, trained brains) under your user profile. Delete the settings file if you ever want a clean slate.
 
+G33kShell also monitors its own memory use. It writes a detailed process, managed-heap, garbage-collection, renderer, visual-tree, terminal-history, and screensaver summary to the app log at startup and whenever working-set or private memory crosses another 256 MB boundary. On Windows, the log is stored at `%APPDATA%\G33kShell\log.txt`.
+
 ## Development Notes
 - Run the unit suite with `dotnet test` from the repo root.
 - Avalonia assets live under `G33kShell.Desktop/Assets`; screensavers under `G33kShell.Desktop/Console/Screensavers`.

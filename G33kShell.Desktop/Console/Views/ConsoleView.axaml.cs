@@ -22,6 +22,7 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using DTC.Core;
+using DTC.Core.Extensions;
 using G33kShell.Desktop.Console.Events;
 
 namespace G33kShell.Desktop.Console.Views;
@@ -288,6 +289,20 @@ public partial class ConsoleView : Control
         m_topLevel.KeyDown -= OnTopLevelKeyDown;
         m_topLevel.KeyUp -= OnTopLevelKeyUp;
         m_topLevel = null;
+    }
+
+    internal string GetMemoryDetails()
+    {
+        var lastFrameCells = m_lastFrame == null ? 0L : (long)m_lastFrame.Width * m_lastFrame.Height;
+        var pixelBitmapBytes = m_pixelBitmap == null
+            ? 0L
+            : (long)m_pixelBitmap.PixelSize.Width * m_pixelBitmap.PixelSize.Height * 4;
+        var pixelBitmap = m_pixelBitmap == null
+            ? "none"
+            : $"{m_pixelBitmap.PixelSize.Width:N0}x{m_pixelBitmap.PixelSize.Height:N0}/{pixelBitmapBytes.ToSize()}";
+        var pixelBufferBytes = (long)(m_pixelBuffer?.Length ?? 0) * sizeof(int);
+        return $"render caches brushes={m_brushCache.Count:N0}, geometries={m_geometryCache.Count:N0}; " +
+               $"last frame={lastFrameCells:N0} cells; pixel bitmap={pixelBitmap}, buffer={pixelBufferBytes.ToSize()}";
     }
 
     private void OnTopLevelKeyDown(object sender, KeyEventArgs e)

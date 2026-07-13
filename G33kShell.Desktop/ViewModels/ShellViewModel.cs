@@ -130,6 +130,33 @@ public class ShellViewModel : ViewModelBase, IDisposable
     public void RaiseRevealCwdRequested() =>
         RevealCwdRequested?.Invoke(this, EventArgs.Empty);
 
+    internal string GetMemoryDetails()
+    {
+        var commands = m_terminalState?.CommandHistory.Commands.ToArray() ?? [];
+        var commandCharacters = commands.Sum(o => (long)(o.Command?.Length ?? 0));
+        var outputCharacters = commands.Sum(o => (long)(o.Output?.Length ?? 0));
+        var screensaver = m_screensaverControl?.Children.FirstOrDefault();
+        var screensaverName = screensaver == null
+            ? "none"
+            : $"{screensaver.GetType().Name} ({(m_screensaverControl.IsVisible ? "active" : "idle")})";
+        var savedBrainBytes = GetSavedBrainByteCount();
+        return $"{WindowManager.GetMemoryDetails()}; command history={commands.Length:N0}, " +
+               $"commands={commandCharacters:N0} chars, outputs={outputCharacters:N0} chars; " +
+               $"screensaver={screensaverName}; saved brains={savedBrainBytes.ToSize()}";
+    }
+
+    private static long GetSavedBrainByteCount()
+    {
+        var settings = Settings.Instance;
+        return (long)(settings.SnakeBrain?.Length ?? 0) +
+               (settings.PongBrain?.Length ?? 0) +
+               (settings.AsteroidsBrain?.Length ?? 0) +
+               (settings.BreakoutBrain?.Length ?? 0) +
+               (settings.RoadFighterBrain?.Length ?? 0) +
+               (settings.TetrisBrain?.Length ?? 0) +
+               (settings.MarioBrain?.Length ?? 0);
+    }
+
     private void SetScreensaver(string name, string extendedName, bool startNow)
     {
         Settings.Instance.ScreensaverName = name;

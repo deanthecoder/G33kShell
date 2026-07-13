@@ -16,6 +16,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using DTC.Core.Extensions;
+using G33kShell.Desktop.Diagnostics;
 using G33kShell.Desktop.Skins;
 using G33kShell.Desktop.Terminal;
 using G33kShell.Desktop.Terminal.Commands;
@@ -26,6 +27,8 @@ namespace G33kShell.Desktop.Views;
 
 public class App : Application
 {
+    private MemoryMonitor m_memoryMonitor;
+
     public App()
     {
         DataContext = new AppViewModel();
@@ -40,17 +43,25 @@ public class App : Application
         {
             var skin = SkinCommand.CreateSkins().FirstOrDefault(o => o?.Name.Equals(Settings.Instance.SkinName, StringComparison.OrdinalIgnoreCase) == true) ?? new RetroPlasma();
             var viewModel = new ShellViewModel(skin);
-            desktop.MainWindow = new MainWindow
+            var mainWindow = new MainWindow
             {
                 DataContext = viewModel
             };
+            desktop.MainWindow = mainWindow;
             desktop.MainWindow.KeyDown += (_, args) =>
             {
                 if (args.PhysicalKey == PhysicalKey.Escape)
                     viewModel.CancelLogin();
             };
 
-            desktop.Exit += (_, _) => viewModel.Dispose();
+            m_memoryMonitor = new MemoryMonitor(Settings.Instance.MemoryReportThresholdMb, mainWindow.GetMemoryDetails);
+            m_memoryMonitor.Start();
+
+            desktop.Exit += (_, _) =>
+            {
+                m_memoryMonitor.Dispose();
+                viewModel.Dispose();
+            };
 
             if (!Design.IsDesignMode)
             {

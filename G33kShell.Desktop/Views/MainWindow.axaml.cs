@@ -60,4 +60,10 @@ public partial class MainWindow : Window
 
     private void OnDoubleTapped(object sender, TappedEventArgs e) =>
         ((ShellViewModel)DataContext)?.RaiseRevealCwdRequested();
+
+    internal string GetMemoryDetails()
+    {
+        var shellDetails = (DataContext as ShellViewModel)?.GetMemoryDetails() ?? "shell unavailable";
+        return $"{shellDetails}; {Source.GetMemoryDetails()}";
+    }
 }

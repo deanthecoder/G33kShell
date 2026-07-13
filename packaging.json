@@ -5,7 +5,7 @@
   "BundleIdentifier": "com.deanthecoder.g33kshell",
   "Executable": "G33kShell",
   "Project": "G33kShell.Desktop/G33kShell.Desktop.csproj",
-  "Version": "1.0",
+  "Version": "0.18",
   "Win": {
     "Executable": "G33kShell.exe",
     "InnoScript": "Installer/templates/inno.iss",

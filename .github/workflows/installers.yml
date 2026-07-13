@@ -18,8 +18,8 @@ on:
         required: true
         default: true
         type: boolean
-      create_tag:
-        description: "Create v-prefixed tag after successful builds."
+      create_release:
+        description: "Create a GitHub release with installers after successful builds."
         required: true
         default: true
         type: boolean
@@ -33,4 +33,4 @@ jobs:
       version: ${{ inputs.version }}
       build_windows: ${{ inputs.build_windows }}
       build_macos: ${{ inputs.build_macos }}
-      create_tag: ${{ inputs.create_tag }}
+      create_release: ${{ inputs.create_release }}

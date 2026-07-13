@@ -284,4 +284,34 @@ public class WindowManager
             m_consoleEvents.Clear();
         }
     }
+
+    internal string GetMemoryDetails()
+    {
+        Visual[] visuals;
+        lock (m_renderLock)
+            visuals = GetVisualTree(Root).ToArray();
+
+        int pendingEvents;
+        lock (m_consoleEvents)
+            pendingEvents = m_consoleEvents.Count;
+
+        var screenCells = visuals.Sum(o => (long)o.Width * o.Height);
+        var visualTypes = string.Join(", ", visuals
+            .GroupBy(o => o.GetType().Name)
+            .OrderByDescending(o => o.Count())
+            .ThenBy(o => o.Key)
+            .Take(6)
+            .Select(o => $"{o.Key}={o.Count():N0}"));
+        var animations = visuals.OfType<AnimatedCanvas>().ToArray();
+        var visibleAnimations = string.Join(", ", animations.Where(o => o.IsVisible).Select(o => o.GetType().Name));
+        if (string.IsNullOrEmpty(visibleAnimations))
+            visibleAnimations = "none";
+        var pixelSurface = PixelScreen == null
+            ? "none"
+            : $"{PixelScreen.Width:N0}x{PixelScreen.Height:N0} ({(long)PixelScreen.Width * PixelScreen.Height:N0} pixels)";
+
+        return $"visuals={visuals.Length:N0}, screen cells={screenCells:N0}, root children={Root.Children.Count():N0}, " +
+               $"pending events={pendingEvents:N0}, pixel surface={pixelSurface}, animations={animations.Length:N0} " +
+               $"(visible: {visibleAnimations}), visual types [{visualTypes}]";
+    }
 }
