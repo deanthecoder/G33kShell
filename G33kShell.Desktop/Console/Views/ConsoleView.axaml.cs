@@ -10,10 +10,9 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
 using System;
-using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -24,6 +23,7 @@ using Avalonia.Platform;
 using DTC.Core;
 using DTC.Core.Extensions;
 using G33kShell.Desktop.Console.Events;
+using SkiaSharp;
 
 namespace G33kShell.Desktop.Console.Views;
 
@@ -31,16 +31,22 @@ public partial class ConsoleView : Control
 {
     private const int CharWidth = 8;
     private const int CharHeight = 16;
-    private readonly Point m_zeroPoint = new Point();
+    private const int GlyphCacheCapacity = 1024;
     private readonly LruCache<Rgb, IImmutableBrush> m_brushCache = new LruCache<Rgb, IImmutableBrush>(512);
-    private readonly LruCache<string, Geometry> m_geometryCache = new LruCache<string, Geometry>(4096);
+    private readonly LruCache<char, GlyphMask> m_glyphCache = new LruCache<char, GlyphMask>(GlyphCacheCapacity);
     private WindowManager m_windowManager;
     private FontFamily m_fontFamily;
     private Thickness m_padding;
-    private ScreenData m_lastFrame;
     private TopLevel m_topLevel;
     private WriteableBitmap m_pixelBitmap;
     private int[] m_pixelBuffer;
+    private WriteableBitmap m_textBitmap;
+    private int[] m_textBuffer;
+    private CellSnapshot[] m_lastCells;
+    private SKTypeface m_glyphTypeface;
+    private SKPaint m_glyphPaint;
+    private long m_textBitmapUploads;
+    private long m_cellsComposed;
 
     public static readonly DirectProperty<ConsoleView, WindowManager> WindowManagerProperty = AvaloniaProperty.RegisterDirect<ConsoleView, WindowManager>(nameof(WindowManager), o => o.WindowManager, (o, v) => o.WindowManager = v);
     public static readonly DirectProperty<ConsoleView, FontFamily> FontFamilyProperty = AvaloniaProperty.RegisterDirect<ConsoleView, FontFamily>(nameof(FontFamily), o => o.FontFamily, (o, v) => o.FontFamily = v);
@@ -59,6 +65,7 @@ public partial class ConsoleView : Control
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         DetachTopLevelHandlers();
+        DisposeRenderResources();
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -104,91 +111,29 @@ public partial class ConsoleView : Control
 
         DrawPixelScreen(context);
         
-        // Draw the screen content.
-        var currentText = new StringBuilder();
+        // Compose all character cells into a single bitmap. Only changed cells are recomputed,
+        // and Avalonia receives one image draw instead of many native text geometries.
+        DrawTextScreen(context);
+
         using var _ = m_windowManager.Screen.Lock(out var screen);
-
-        if (m_lastFrame == null)
-        {
-            m_lastFrame = new ScreenData(screen.Width, screen.Height);
-            CopyScreenToLastFrame(screen);
-        }
-
-        for (var y = 0; y < screen.Height; y++)
-        {
-            var xStart = 0;
-            var currentAttrForeground = screen.Chars[y][0].Foreground;
-            var currentAttrBackground = screen.Chars[y][0].Background;
-            currentText.Clear();
-
-            for (var x = 0; x < screen.Width; x++)
-            {
-                var attr = screen.Chars[y][x];
-                var attrForeground = attr.Foreground;
-                var attrBackground = attr.Background;
-
-                // Check if the attribute colors (foreground or background) change.
-                if (attrForeground == currentAttrForeground && attrBackground == currentAttrBackground)
-                {
-                    // Same attributes - Collate the characters.
-                    currentText.Append(attr.Ch);
-                }
-                else
-                {
-                    // Draw the accumulated run with the same foreground and background.
-                    DrawTextRun(context, currentText, xStart, y, currentAttrForeground, currentAttrBackground);
-
-                    // Start a new run.
-                    currentAttrForeground = attrForeground;
-                    currentAttrBackground = attrBackground;
-                    currentText.Clear();
-                    currentText.Append(attr.Ch);
-                    xStart = x;
-                }
-            }
-
-            // Draw the last accumulated run
-            if (currentText.Length > 0)
-                DrawTextRun(context, currentText, xStart, y, currentAttrForeground, currentAttrBackground);
-        }
         
         // Draw the screen cursor.
         var cursor = m_windowManager.Cursor;
-        if (cursor?.IsVisible == true)
-        {
-            var cursorY = cursor.Y + m_windowManager.OffsetY;
-            if (cursorY >= 0 && cursorY < screen.Height)
-            {
-                if (cursor.X >= 0 && cursor.X < screen.Width)
-                {
-                    var foregroundColor = m_windowManager.Skin.ForegroundColor;
-                    if (cursor.IsBusy)
-                    {
-                        var animChars = "/-\\|";
-                        var animFrame = (Environment.TickCount64 / 100) % animChars.Length;
-                        DrawTextRun(context, new StringBuilder(animChars, (int)animFrame, 1, 1), cursor.X, cursorY, foregroundColor, screen.Chars[cursorY][cursor.X].Background);
-                    }
-                    else
-                    {
-                        var isFlashOn = (Environment.TickCount64 - cursor.MoveTime) % 1000 < 500;
-                        if (isFlashOn)
-                        {
-                            var cursorRect = new Rect(cursor.X * CharWidth + Padding.Left, cursorY * CharHeight + Padding.Top, CharWidth, CharHeight);
-                            context.FillRectangle(GetBrush(foregroundColor), cursorRect);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private void CopyScreenToLastFrame(ScreenData screen)
-    {
-        for (var y = 0; y < screen.Height; y++)
-        {
-            for (var x = 0; x < screen.Width; x++)
-                m_lastFrame.Chars[y][x].Set(screen.Chars[y][x]);
-        }
+        if (cursor?.IsVisible != true)
+            return;
+        var cursorY = cursor.Y + m_windowManager.OffsetY;
+        if (cursorY < 0 || cursorY >= screen.Height)
+            return;
+        if (cursor.X < 0 || cursor.X >= screen.Width)
+            return;
+        var foregroundColor = m_windowManager.Skin.ForegroundColor;
+        if (cursor.IsBusy)
+            return;
+        var isFlashOn = (Environment.TickCount64 - cursor.MoveTime) % 1000 < 500;
+        if (!isFlashOn)
+            return;
+        var cursorRect = new Rect(cursor.X * CharWidth + Padding.Left, cursorY * CharHeight + Padding.Top, CharWidth, CharHeight);
+        context.FillRectangle(GetBrush(foregroundColor), cursorRect);
     }
 
     private IImmutableBrush GetBrush(Rgb color) =>
@@ -257,16 +202,175 @@ public partial class ConsoleView : Control
         }
     }
 
-    private Geometry GetTextGeometry(string text) =>
-        m_geometryCache.GetOrAdd(text, BuildTextGeometry);
-
-    private Geometry BuildTextGeometry(string text)
+    private void DrawTextScreen(DrawingContext context)
     {
-        var formattedText = new FormattedText(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, Typeface.Default, 1.0, Brushes.White);
-        if (m_fontFamily != null)
-            formattedText.SetFontFamily(m_fontFamily);
-        formattedText.SetFontSize(CharHeight);
-        return formattedText.BuildGeometry(m_zeroPoint);
+        var changed = false;
+        using (m_windowManager.Screen.Lock(out var screen))
+        {
+            var screenWidth = screen.Width;
+            var screenHeight = screen.Height;
+            EnsureTextBitmap(screenWidth, screenHeight);
+
+            for (var y = 0; y < screenHeight; y++)
+            {
+                var row = screen.Chars[y];
+                var cellIndex = y * screenWidth;
+                for (var x = 0; x < screenWidth; x++, cellIndex++)
+                {
+                    var attr = row[x];
+                    var foreground = attr.Foreground;
+                    var background = attr.Background;
+                    var foregroundBgra = ToBgra(foreground);
+                    var backgroundBgra = ToBgra(background);
+                    ref var previous = ref m_lastCells[cellIndex];
+                    if (previous.Matches(attr.Ch, foregroundBgra, backgroundBgra))
+                        continue;
+
+                    previous = new CellSnapshot(attr.Ch, foregroundBgra, backgroundBgra);
+                    ComposeCell(x, y, attr.Ch, foreground, background, foregroundBgra, backgroundBgra);
+                    changed = true;
+                    m_cellsComposed++;
+                }
+            }
+
+            var cursor = m_windowManager.Cursor;
+            var cursorY = (cursor?.Y ?? -1) + m_windowManager.OffsetY;
+            if (cursor is { IsVisible: true, IsBusy: true, X: >= 0 } && cursor.X < screenWidth && cursorY >= 0 && cursorY < screenHeight)
+            {
+                const string animChars = "/-\\|";
+                var animFrame = (int)((Environment.TickCount64 / 100) % animChars.Length);
+                var foreground = m_windowManager.Skin.ForegroundColor;
+                var background = screen.Chars[cursorY][cursor.X].Background;
+                ComposeCell(cursor.X, cursorY, animChars[animFrame], foreground, background, ToBgra(foreground), ToBgra(background));
+                m_lastCells[cursorY * screenWidth + cursor.X] = CellSnapshot.Uninitialized;
+                changed = true;
+                m_cellsComposed++;
+            }
+        }
+
+        if (changed)
+        {
+            using var frameBuffer = m_textBitmap.Lock();
+            CopyToFramebuffer(m_textBuffer, frameBuffer, m_textBitmap.PixelSize.Width, m_textBitmap.PixelSize.Height);
+            m_textBitmapUploads++;
+        }
+
+        var sourceRect = new Rect(0, 0, m_textBitmap.PixelSize.Width, m_textBitmap.PixelSize.Height);
+        var targetRect = new Rect(Padding.Left, Padding.Top, sourceRect.Width, sourceRect.Height);
+        using (context.PushRenderOptions(new RenderOptions { BitmapInterpolationMode = BitmapInterpolationMode.None }))
+            context.DrawImage(m_textBitmap, sourceRect, targetRect);
+    }
+
+    private void EnsureTextBitmap(int screenWidth, int screenHeight)
+    {
+        var pixelSize = new PixelSize(screenWidth * CharWidth, screenHeight * CharHeight);
+        if (m_textBitmap?.PixelSize == pixelSize)
+            return;
+
+        m_textBitmap?.Dispose();
+        m_textBitmap = new WriteableBitmap(pixelSize, new Vector(96, 96), PixelFormats.Bgra8888, AlphaFormat.Premul);
+        m_textBuffer = new int[pixelSize.Width * pixelSize.Height];
+        m_lastCells = new CellSnapshot[screenWidth * screenHeight];
+        Array.Fill(m_lastCells, CellSnapshot.Uninitialized);
+    }
+
+    private void ComposeCell(int cellX, int cellY, char ch, Rgb foregroundColor, Rgb backgroundColor, int foreground, int background)
+    {
+        var bufferWidth = m_textBitmap.PixelSize.Width;
+        var pixelX = cellX * CharWidth;
+        var pixelY = cellY * CharHeight;
+
+        for (var y = 0; y < CharHeight; y++)
+            Array.Fill(m_textBuffer, background, (pixelY + y) * bufferWidth + pixelX, CharWidth);
+
+        if (foregroundColor == null || ch is '\0' or ' ' || foregroundColor == backgroundColor)
+            return;
+
+        var mask = m_glyphCache.GetOrAdd(ch, RasterizeGlyph);
+        var maskOffset = 0;
+        for (var y = 0; y < CharHeight; y++)
+        {
+            var bufferOffset = (pixelY + y) * bufferWidth + pixelX;
+            for (var x = 0; x < CharWidth; x++)
+            {
+                var coverage = mask.Coverage[maskOffset++];
+                if (coverage == 0)
+                    continue;
+                m_textBuffer[bufferOffset + x] = coverage == byte.MaxValue
+                    ? foreground
+                    : BlendPixel(foregroundColor, backgroundColor, coverage);
+            }
+        }
+    }
+
+    private GlyphMask RasterizeGlyph(char ch)
+    {
+        EnsureGlyphPaint();
+        using var bitmap = new SKBitmap(new SKImageInfo(CharWidth, CharHeight, SKColorType.Alpha8, SKAlphaType.Unpremul));
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Transparent);
+        canvas.DrawText(ch.ToString(), 0, CharHeight - 1, m_glyphPaint);
+
+        var pixels = bitmap.Bytes;
+        var coverage = new byte[CharWidth * CharHeight];
+        for (var y = 0; y < CharHeight; y++)
+        {
+            for (var x = 0; x < CharWidth; x++)
+                coverage[y * CharWidth + x] = pixels[y * bitmap.RowBytes + x];
+        }
+
+        return new GlyphMask(coverage);
+    }
+
+    private void EnsureGlyphPaint()
+    {
+        if (m_glyphPaint != null)
+            return;
+
+        var fontPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Fonts", "VGA", "PxPlus_IBM_VGA8.ttf");
+        m_glyphTypeface = SKTypeface.FromFile(fontPath) ?? throw new FileNotFoundException("Could not load the console font.", fontPath);
+        m_glyphPaint = new SKPaint
+        {
+            Color = SKColors.White,
+            Typeface = m_glyphTypeface,
+            TextSize = CharHeight,
+            IsAntialias = true,
+            IsStroke = false,
+            LcdRenderText = false,
+            SubpixelText = false
+        };
+    }
+
+    private static int BlendPixel(Rgb foreground, Rgb background, byte coverage)
+    {
+        if (background == null)
+        {
+            var b = foreground.B * coverage / 255;
+            var g = foreground.G * coverage / 255;
+            var r = foreground.R * coverage / 255;
+            return b | (g << 8) | (r << 16) | (coverage << 24);
+        }
+
+        var inverse = 255 - coverage;
+        var blendedB = (foreground.B * coverage + background.B * inverse) / 255;
+        var blendedG = (foreground.G * coverage + background.G * inverse) / 255;
+        var blendedR = (foreground.R * coverage + background.R * inverse) / 255;
+        return blendedB | (blendedG << 8) | (blendedR << 16) | unchecked((int)0xff000000);
+    }
+
+    private static int ToBgra(Rgb color) =>
+        color == null ? 0 : color.B | (color.G << 8) | (color.R << 16) | unchecked((int)0xff000000);
+
+    private static void CopyToFramebuffer(int[] source, ILockedFramebuffer destination, int width, int height)
+    {
+        if (destination.RowBytes == width * sizeof(int))
+        {
+            Marshal.Copy(source, 0, destination.Address, source.Length);
+            return;
+        }
+
+        for (var y = 0; y < height; y++)
+            Marshal.Copy(source, y * width, destination.Address + y * destination.RowBytes, width);
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -293,7 +397,6 @@ public partial class ConsoleView : Control
 
     internal string GetMemoryDetails()
     {
-        var lastFrameCells = m_lastFrame == null ? 0L : (long)m_lastFrame.Width * m_lastFrame.Height;
         var pixelBitmapBytes = m_pixelBitmap == null
             ? 0L
             : (long)m_pixelBitmap.PixelSize.Width * m_pixelBitmap.PixelSize.Height * 4;
@@ -301,8 +404,11 @@ public partial class ConsoleView : Control
             ? "none"
             : $"{m_pixelBitmap.PixelSize.Width:N0}x{m_pixelBitmap.PixelSize.Height:N0}/{pixelBitmapBytes.ToSize()}";
         var pixelBufferBytes = (long)(m_pixelBuffer?.Length ?? 0) * sizeof(int);
-        return $"render caches brushes={m_brushCache.Count:N0}, geometries={m_geometryCache.Count:N0}; " +
-               $"last frame={lastFrameCells:N0} cells; pixel bitmap={pixelBitmap}, buffer={pixelBufferBytes.ToSize()}";
+        var textBitmapBytes = (long)(m_textBuffer?.Length ?? 0) * sizeof(int);
+        var glyphMaskBytes = (long)m_glyphCache.Count * CharWidth * CharHeight;
+        return $"render caches brushes={m_brushCache.Count:N0}, glyphs={m_glyphCache.Count:N0}/{glyphMaskBytes.ToSize()} (8bpp masks); " +
+               $"text bitmap={textBitmapBytes.ToSize()}, uploads={m_textBitmapUploads:N0}, cells composed={m_cellsComposed:N0}; " +
+               $"pixel bitmap={pixelBitmap}, buffer={pixelBufferBytes.ToSize()}";
     }
 
     private void OnTopLevelKeyDown(object sender, KeyEventArgs e)
@@ -317,43 +423,19 @@ public partial class ConsoleView : Control
         InvalidateVisual();
     }
 
-    private void DrawTextRun(DrawingContext context, StringBuilder s, int xStart, int y, Rgb foreground, Rgb background)
+    private void DisposeRenderResources()
     {
-        // Draw the background rectangle for the entire text run.
-        var rect = new Rect(
-            xStart * CharWidth + Padding.Left,
-            y * CharHeight + Padding.Top,
-            s.Length * CharWidth,
-            CharHeight
-        );
-        
-        if (background != null)
-            context.FillRectangle(GetBrush(background), rect);
-
-        if (foreground == null)
-            return; // The text is invisible.
-
-        if (foreground == background)
-            return; // Text is same color as the background.
-
-        // Skip invisible characters at the start.
-        var start = 0;
-        var end = s.Length;
-        while (start < end && (s[start] == ' ' || s[start] == '\0'))
-            start++;
-
-        // Skip invisible characters at the end
-        while (start < end && (s[end - 1] == ' ' || s[end - 1] == '\0'))
-            end--;
-
-        if (start == end)
-            return; // Nothing to draw.
-
-        // Draw the text on top of the background.
-        var x = rect.X + start * CharWidth;
-        var textGeometry = GetTextGeometry(s.ToString(start, end - start));
-        using (context.PushTransform(Matrix.CreateTranslation(x, rect.Y)))
-            context.DrawGeometry(GetBrush(foreground), null, textGeometry);
+        m_pixelBitmap?.Dispose();
+        m_pixelBitmap = null;
+        m_pixelBuffer = null;
+        m_textBitmap?.Dispose();
+        m_textBitmap = null;
+        m_textBuffer = null;
+        m_lastCells = null;
+        m_glyphPaint?.Dispose();
+        m_glyphPaint = null;
+        m_glyphTypeface?.Dispose();
+        m_glyphTypeface = null;
     }
 
     private static void OnDragOver(object sender, DragEventArgs e)
@@ -365,7 +447,17 @@ public partial class ConsoleView : Control
     private void OnDrop(object sender, DragEventArgs e)
     {
         var items = e.Data.GetFiles()?.Select(storageItem => storageItem.Path.LocalPath).ToArray();
-        if (items?.Any() == true)
+        if (items is { Length: > 0 })
             WindowManager.QueueEvent(new PasteEvent(items));
+    }
+
+    private sealed record GlyphMask(byte[] Coverage);
+
+    private readonly record struct CellSnapshot(char Ch, int Foreground, int Background, bool IsInitialized = true)
+    {
+        public static CellSnapshot Uninitialized { get; } = new('\0', 0, 0, false);
+
+        public bool Matches(char ch, int foreground, int background) =>
+            IsInitialized && Ch == ch && Foreground == foreground && Background == background;
     }
 }
