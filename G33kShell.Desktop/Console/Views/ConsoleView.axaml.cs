@@ -306,20 +306,7 @@ public partial class ConsoleView : Control
     private GlyphMask RasterizeGlyph(char ch)
     {
         EnsureGlyphPaint();
-        using var bitmap = new SKBitmap(new SKImageInfo(CharWidth, CharHeight, SKColorType.Alpha8, SKAlphaType.Unpremul));
-        using var canvas = new SKCanvas(bitmap);
-        canvas.Clear(SKColors.Transparent);
-        canvas.DrawText(ch.ToString(), 0, CharHeight - 1, m_glyphPaint);
-
-        var pixels = bitmap.Bytes;
-        var coverage = new byte[CharWidth * CharHeight];
-        for (var y = 0; y < CharHeight; y++)
-        {
-            for (var x = 0; x < CharWidth; x++)
-                coverage[y * CharWidth + x] = pixels[y * bitmap.RowBytes + x];
-        }
-
-        return new GlyphMask(coverage);
+        return new GlyphMask(ConsoleGlyphRasterizer.Rasterize(m_glyphPaint, ch));
     }
 
     private void EnsureGlyphPaint()

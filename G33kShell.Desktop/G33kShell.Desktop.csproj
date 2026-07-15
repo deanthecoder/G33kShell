@@ -39,6 +39,9 @@
     </ItemGroup>
     
     <ItemGroup>
+      <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+        <_Parameter1>G33kShell.Desktop.Tests</_Parameter1>
+      </AssemblyAttribute>
       <Compile Update="Views\App.axaml.cs">
         <DependentUpon>App.axaml</DependentUpon>
         <SubType>Code</SubType>
