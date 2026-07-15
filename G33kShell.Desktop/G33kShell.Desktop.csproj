@@ -28,13 +28,15 @@
         <PackageReference Include="JetBrains.Annotations" Version="2024.3.0" />
         <PackageReference Include="Microsoft.Win32.SystemEvents" Version="8.0.0" />
         <PackageReference Include="NClap" Version="3.0.0" />
+        <PackageReference Include="OpenCvSharp4" Version="4.10.0.20240616" />
+        <PackageReference Include="OpenCvSharp4.runtime.osx.10.15-universal" Version="4.7.0.20230224" />
+        <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.10.0.20240616" />
         <PackageReference Include="PeNet" Version="4.1.1" />
         <PackageReference Include="System.Linq.Async" Version="6.0.1" />
         <PackageReference Include="TextCopy" Version="6.2.1" />
     </ItemGroup>
     
     <ItemGroup>
-      <ProjectReference Include="..\DTC.Core\DTC.Core\DTC.Core.csproj" />
       <ProjectReference Include="..\DTC.Core\DTC.Core\DTC.Core.csproj" />
     </ItemGroup>
     

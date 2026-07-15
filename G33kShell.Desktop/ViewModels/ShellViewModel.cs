@@ -21,6 +21,7 @@ using DTC.Core.ViewModels;
 using G33kShell.Desktop.Console;
 using G33kShell.Desktop.Console.Controls;
 using G33kShell.Desktop.Console.Screensavers;
+using G33kShell.Desktop.Services;
 using G33kShell.Desktop.Skins;
 using G33kShell.Desktop.Terminal;
 using G33kShell.Desktop.Terminal.Controls;
