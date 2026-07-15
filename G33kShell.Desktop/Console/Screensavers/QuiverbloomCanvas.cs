@@ -90,7 +90,7 @@ public class QuiverbloomCanvas : PixelScreensaverBase
         for (var i = PointCount - 2; i >= 0; i--)
         {
             var current = CalculatePoint(i, time, scale, offsetX, offsetY);
-            screen.DrawAntialiasedLine(previous.X, previous.Y, current.X, current.Y, LineShade);
+            screen.DrawAntialiasedLine(previous.X, PixelHeight - previous.Y, current.X, PixelHeight - current.Y, LineShade);
             previous = current;
         }
     }
