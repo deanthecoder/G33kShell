@@ -324,7 +324,7 @@ public class TextBox : TextBlock, ICursorHost
     public void Append(string s)
     {
         lock (m_s)
-            m_s.Append(s);
+            m_s.Append(s.ReplaceLineEndings("\n"));
         SetCursor(m_s.Length);
         InvalidateVisual();
     }
