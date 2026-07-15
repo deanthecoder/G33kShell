@@ -53,6 +53,7 @@ Cycle anything you like with `screensaver -l` and `screensaver <name>` - add `_t
 | `pipes` | Chunky monochrome 3D pipes grow through a shaded pixel grid. |
 | `plasma` | Old-school plasma waves. |
 | `pong` | AI pong duel; add `_train` to coach it. |
+| `quiverbloom` | A luminous parametric creature blooms and quivers in monochrome. |
 | `sand` | Sand pours over your last screen and settles. |
 | `science` | A roaming glass lens refracts a snapshot of your terminal. |
 | `scroller` | Retro text scroller for demo vibes. |
@@ -70,6 +71,8 @@ Cycle anything you like with `screensaver -l` and `screensaver <name>` - add `_t
 | `xenon` | Xenon 2 shopkeeper cameo. |
 
 AI-enabled screensavers (`asciiroids`, `pong`, `snake`) store their trained neural weights between runs so you can pick up right where your last session left off.
+
+The `quiverbloom` screensaver is inspired by [Vitaliy Kaurov's Wolfram Community visualization](https://community.wolfram.com/groups/-/m/t/3516580) and the equations shared there by Daniel Sanchez.
 
 ### Bad Apple compression notes
 
