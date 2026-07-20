@@ -29,13 +29,20 @@ public class WeirdScienceCanvas : PixelScreensaverBase
     private const double HoldSeconds = 6.0;
     private const double FadeSeconds = 2.0;
     private const double CycleSeconds = HoldSeconds + FadeSeconds;
+    private const int ShapeCount = 3;
     private const float SphereRadius = 1.0f;
     private const float CylinderRadius = SphereRadius / 5.0f;
     private const float TriangleSide = 5.0f;
     private const float FocalLength = 295.0f;
-    private const float TranslationSpeed = 1.8f;
-    private const byte SphereShade = 15;
-    private const byte CylinderShade = 7;
+    private const float TranslationSpeed = 1.44f;
+    private const float NearDepth = 8.5f;
+    private const float FarDepth = 40.0f;
+    private const float FarBrightness = 0.20f;
+    private const float SpawnJitterX = 18.0f;
+    private const float SpawnJitterY = 12.0f;
+    private const int PaletteSize = 64;
+    private const byte SphereShade = PaletteSize - 1;
+    private const byte CylinderShade = 29;
     private const int SphereLongitudes = 8;
     private const int SphereLatitudes = 5;
     private const int SphereRingSegments = 20;
@@ -52,10 +59,17 @@ public class WeirdScienceCanvas : PixelScreensaverBase
         new Vector3(TriangleSide * 0.5f, -MathF.Sqrt(3.0f), 0.0f)
     ];
     private static readonly (int Start, int End)[] s_cylinderConnections = [(0, 1), (1, 2), (2, 0)];
+    private static readonly Vector2[] s_shapeScreenOffsets =
+    [
+        new Vector2(-85.0f, 30.0f),
+        new Vector2(0.0f, -45.0f),
+        new Vector2(85.0f, 30.0f)
+    ];
 
     private readonly List<WireSegment> m_segments = new List<WireSegment>(1800);
-    private Shape m_currentShape;
+    private readonly Shape[] m_shapes = new Shape[ShapeCount];
     private Shape m_nextShape;
+    private int m_transitionShapeIndex;
     private double m_cycleTime;
 
     public WeirdScienceCanvas(int screenWidth, int screenHeight) : base(screenWidth, screenHeight, targetFps: SceneFps)
@@ -94,22 +108,26 @@ public class WeirdScienceCanvas : PixelScreensaverBase
     private void ResetScene()
     {
         m_cycleTime = 0.0;
-        m_currentShape = Shape.CreateRandom();
-        m_nextShape = Shape.CreateRandom();
+        m_transitionShapeIndex = 0;
+        for (var i = 0; i < m_shapes.Length; i++)
+            m_shapes[i] = Shape.CreateRandom(i);
+        m_nextShape = Shape.CreateRandom(m_transitionShapeIndex);
     }
 
     private void AdvanceScene(double elapsedSeconds)
     {
         m_cycleTime += elapsedSeconds;
-        m_currentShape.Advance(elapsedSeconds);
+        foreach (var shape in m_shapes)
+            shape.Advance(elapsedSeconds);
         m_nextShape.Advance(elapsedSeconds);
 
         if (m_cycleTime < CycleSeconds)
             return;
 
         m_cycleTime %= CycleSeconds;
-        m_currentShape = m_nextShape;
-        m_nextShape = Shape.CreateRandom();
+        m_shapes[m_transitionShapeIndex] = m_nextShape;
+        m_transitionShapeIndex = (m_transitionShapeIndex + 1) % m_shapes.Length;
+        m_nextShape = Shape.CreateRandom(m_transitionShapeIndex);
     }
 
     private void DrawScene(PixelScreenData screen)
@@ -118,7 +136,8 @@ public class WeirdScienceCanvas : PixelScreensaverBase
         m_segments.Clear();
 
         var fadeAmount = Math.Clamp((m_cycleTime - HoldSeconds) / FadeSeconds, 0.0, 1.0);
-        AddShape(m_currentShape, 1.0 - fadeAmount);
+        for (var i = 0; i < m_shapes.Length; i++)
+            AddShape(m_shapes[i], i == m_transitionShapeIndex ? 1.0 - fadeAmount : 1.0);
         AddShape(m_nextShape, fadeAmount);
 
         // The wireframe has no solid surfaces, so depth-sorted line fragments give the intended
@@ -130,8 +149,15 @@ public class WeirdScienceCanvas : PixelScreensaverBase
             var b = Project(segment.End);
             if (!a.IsVisible || !b.IsVisible)
                 continue;
-            screen.DrawAntialiasedLine(a.X, a.Y, b.X, b.Y, segment.Shade);
+            screen.DrawAntialiasedLine(a.X, a.Y, b.X, b.Y, ApplyDepthShading(segment));
         }
+    }
+
+    private static byte ApplyDepthShading(WireSegment segment)
+    {
+        var depthAmount = Math.Clamp((segment.Depth - NearDepth) / (FarDepth - NearDepth), 0.0f, 1.0f);
+        var brightness = 1.0f - depthAmount * (1.0f - FarBrightness);
+        return (byte)Math.Clamp((int)MathF.Round(segment.Shade * brightness), 1, segment.Shade);
     }
 
     private void AddShape(Shape shape, double opacity)
@@ -240,7 +266,7 @@ public class WeirdScienceCanvas : PixelScreensaverBase
 
     private static Rgb[] CreateBasePalette()
     {
-        var palette = new Rgb[16];
+        var palette = new Rgb[PaletteSize];
         for (var i = 0; i < palette.Length; i++)
         {
             var value = (byte)Math.Round(255.0 * i / (palette.Length - 1));
@@ -259,7 +285,12 @@ public class WeirdScienceCanvas : PixelScreensaverBase
         private readonly Vector3 m_velocity;
         private float m_rotationAngle;
 
-        private Shape(Vector3 center, Vector3 velocity, Vector3 rotationAxis, float rotationSpeed, float rotationAngle)
+        private Shape(
+            Vector3 center,
+            Vector3 velocity,
+            Vector3 rotationAxis,
+            float rotationSpeed,
+            float rotationAngle)
         {
             Center = center;
             m_velocity = velocity;
@@ -277,18 +308,35 @@ public class WeirdScienceCanvas : PixelScreensaverBase
             m_rotationAngle += m_rotationSpeed * (float)elapsedSeconds;
         }
 
-        public static Shape CreateRandom()
+        public static Shape CreateRandom(int regionIndex)
         {
             var axis = RandomVector(-1.0f, 1.0f);
             if (axis.LengthSquared() < 0.01f)
                 axis = new Vector3(0.4f, 0.8f, 0.3f);
 
+            var zVelocity = TranslationSpeed * RandomSignedFloat(0.30f, 0.65f);
+            var maximumLifetime = (ShapeCount + 1) * CycleSeconds;
+            var depthTravel = MathF.Abs(zVelocity) * (float)maximumLifetime;
+            var z = zVelocity < 0.0f
+                ? RandomFloat(NearDepth + depthTravel, FarDepth)
+                : RandomFloat(NearDepth, FarDepth - depthTravel);
+            var screenOffset = s_shapeScreenOffsets[regionIndex] + new Vector2(
+                RandomFloat(-SpawnJitterX, SpawnJitterX),
+                RandomFloat(-SpawnJitterY, SpawnJitterY));
+            var center = new Vector3(
+                screenOffset.X * z / FocalLength,
+                -screenOffset.Y * z / FocalLength,
+                z);
+            var target = new Vector2(
+                RandomFloat(-1.5f, 1.5f),
+                RandomFloat(-1.0f, 1.0f));
+            var toTarget = target - new Vector2(center.X, center.Y);
+            var horizontalVelocity = Vector2.Normalize(toTarget) *
+                                     (TranslationSpeed * RandomFloat(0.35f, 0.55f));
+
             return new Shape(
-                new Vector3(RandomFloat(-2.8f, 2.8f), RandomFloat(-1.8f, 1.8f), RandomFloat(15.0f, 19.0f)),
-                TranslationSpeed * new Vector3(
-                    RandomFloat(-0.22f, 0.22f),
-                    RandomFloat(-0.16f, 0.16f),
-                    RandomFloat(-0.18f, 0.18f)),
+                center,
+                new Vector3(horizontalVelocity.X, horizontalVelocity.Y, zVelocity),
                 Vector3.Normalize(axis),
                 RandomFloat(0.35f, 0.65f) * (Random.Shared.Next(2) == 0 ? -1.0f : 1.0f),
                 RandomFloat(0.0f, MathF.Tau));
@@ -299,5 +347,8 @@ public class WeirdScienceCanvas : PixelScreensaverBase
 
         private static float RandomFloat(float min, float max) =>
             min + (float)Random.Shared.NextDouble() * (max - min);
+
+        private static float RandomSignedFloat(float minMagnitude, float maxMagnitude) =>
+            RandomFloat(minMagnitude, maxMagnitude) * (Random.Shared.Next(2) == 0 ? -1.0f : 1.0f);
     }
 }
