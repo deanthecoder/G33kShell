@@ -27,6 +27,7 @@ public class WindowManager
     private readonly object m_renderLock = new object();
     private readonly List<ConsoleEvent> m_consoleEvents = new List<ConsoleEvent>();
     private SkinBase m_skin;
+    private double m_scrollRemainder;
     private ConsoleCursor m_cursor;
     internal int OffsetY { get; private set; }
 
@@ -237,6 +238,14 @@ public class WindowManager
             m_consoleEvents.Add(consoleEvent);
     }
 
+    private void ScrollView(int lines)
+    {
+        if (lines == 0)
+            return;
+        OffsetY += lines;
+        Root.InvalidateVisual();
+    }
+
     public void ProcessEvents()
     {
         lock (m_consoleEvents)
@@ -244,6 +253,15 @@ public class WindowManager
             var visualTree = GetVisualTree(Root).ToArray();
             foreach (var consoleEvent in m_consoleEvents.ToArray())
             {
+                if (consoleEvent is ScrollConsoleEvent scrollEvent)
+                {
+                    m_scrollRemainder += scrollEvent.DeltaY;
+                    var lines = (int)m_scrollRemainder;
+                    m_scrollRemainder -= lines;
+                    ScrollView(lines);
+                    continue;
+                }
+
                 if (consoleEvent is KeyConsoleEvent keyEvent && keyEvent.Direction == KeyConsoleEvent.KeyDirection.Down)
                 {
                     if ((keyEvent.Modifiers & KeyModifiers.Control) != KeyModifiers.None)
@@ -251,21 +269,20 @@ public class WindowManager
                         switch (keyEvent.Key)
                         {
                             case Key.Up:
-                                OffsetY++;
-                                Root.InvalidateVisual();
+                                ScrollView(1);
                                 continue;
                             case Key.Down:
-                                OffsetY--;
-                                Root.InvalidateVisual();
+                                ScrollView(-1);
                                 continue;
                         }
                     }
                     
                     // Any other key resets scroll offset.
-                    if (OffsetY != 0 && keyEvent.Modifiers == KeyModifiers.None)
+                    if (keyEvent.Modifiers == KeyModifiers.None)
                     {
                         Root.InvalidateVisual();
                         OffsetY = 0;
+                        m_scrollRemainder = 0;
                     }
                 }
                 

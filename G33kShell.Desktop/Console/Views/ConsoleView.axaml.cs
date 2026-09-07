@@ -370,6 +370,7 @@ public partial class ConsoleView : Control
         m_topLevel = topLevel;
         m_topLevel.KeyDown += OnTopLevelKeyDown;
         m_topLevel.KeyUp += OnTopLevelKeyUp;
+        m_topLevel.PointerWheelChanged += OnTopLevelPointerWheelChanged;
     }
 
     private void DetachTopLevelHandlers()
@@ -379,6 +380,7 @@ public partial class ConsoleView : Control
 
         m_topLevel.KeyDown -= OnTopLevelKeyDown;
         m_topLevel.KeyUp -= OnTopLevelKeyUp;
+        m_topLevel.PointerWheelChanged -= OnTopLevelPointerWheelChanged;
         m_topLevel = null;
     }
 
@@ -396,6 +398,14 @@ public partial class ConsoleView : Control
         return $"render caches brushes={m_brushCache.Count:N0}, glyphs={m_glyphCache.Count:N0}/{glyphMaskBytes.ToSize()} (8bpp masks); " +
                $"text bitmap={textBitmapBytes.ToSize()}, uploads={m_textBitmapUploads:N0}, cells composed={m_cellsComposed:N0}; " +
                $"pixel bitmap={pixelBitmap}, buffer={pixelBufferBytes.ToSize()}";
+    }
+
+    private void OnTopLevelPointerWheelChanged(object sender, PointerWheelEventArgs e)
+    {
+        if (e.Delta.Y == 0)
+            return;
+        m_windowManager?.QueueEvent(new ScrollConsoleEvent(e.Delta.Y));
+        InvalidateVisual();
     }
 
     private void OnTopLevelKeyDown(object sender, KeyEventArgs e)

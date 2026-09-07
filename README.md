@@ -24,6 +24,7 @@
 Tip: run `man <command>` for auto-generated manual pages, or `help` to see every command and alias.
 
 ## Useful Command Tips
+- Scroll the terminal with the mouse wheel or Ctrl-Up/Down. Typing returns to the current view.
 - Reuse lines from the previous command's output with `$<n>` (for example, `cat $4`).
 - Copy the last command output to the clipboard with `clip` (use `clip -n` to show line numbers or `clip 4` for a single line).
 

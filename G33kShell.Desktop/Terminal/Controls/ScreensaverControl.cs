@@ -124,11 +124,17 @@ public class ScreensaverControl : Visual
         }, cancellationToken);
 
         if (m_topLevel != null)
+        {
             m_topLevel.KeyDown -= OnTopLevelKeyDown;
+            m_topLevel.PointerWheelChanged -= OnTopLevelPointerWheelChanged;
+        }
 
         m_topLevel = TopLevel.GetTopLevel(Application.Current.GetMainWindow());
         if (m_topLevel != null)
+        {
             m_topLevel.KeyDown += OnTopLevelKeyDown;
+            m_topLevel.PointerWheelChanged += OnTopLevelPointerWheelChanged;
+        }
         
         ResetTimer();
     }
@@ -138,6 +144,7 @@ public class ScreensaverControl : Visual
         if (m_topLevel != null)
         {
             m_topLevel.KeyDown -= OnTopLevelKeyDown;
+            m_topLevel.PointerWheelChanged -= OnTopLevelPointerWheelChanged;
             m_topLevel = null;
         }
 
@@ -171,6 +178,12 @@ public class ScreensaverControl : Visual
         IsVisible = false;
         m_windowManager.Cursor.IsVisible = true;
         m_secondsUntilDisplay = m_timeToSleepSecs;
+    }
+
+    private void OnTopLevelPointerWheelChanged(object sender, PointerWheelEventArgs e)
+    {
+        if (e.Delta.Y != 0)
+            ResetTimer();
     }
 
     private void OnTopLevelKeyDown(object sender, KeyEventArgs e) =>
