@@ -59,5 +59,25 @@ public class WindowManagerTests
         Assert.That(manager.OffsetY, Is.Zero);
     }
 
+    [TestCase(3.5)]
+    [TestCase(-3.5)]
+    [TestCase(0.5)]
+    public void ResetViewScrollClearsOffsetAndPartialMovement(double delta)
+    {
+        var manager = CreateManager();
+        manager.QueueEvent(new ScrollConsoleEvent(delta));
+        manager.ProcessEvents();
+        manager.Render();
+
+        manager.ResetViewScroll();
+
+        Assert.That(manager.OffsetY, Is.Zero);
+        if ((int)delta != 0)
+            Assert.That(manager.Root.IsInvalidatedVisual, Is.True);
+        manager.QueueEvent(new ScrollConsoleEvent(delta > 0 ? 0.5 : -0.5));
+        manager.ProcessEvents();
+        Assert.That(manager.OffsetY, Is.Zero);
+    }
+
     private static WindowManager CreateManager() => new WindowManager(80, 25, new RetroMonoDos());
 }

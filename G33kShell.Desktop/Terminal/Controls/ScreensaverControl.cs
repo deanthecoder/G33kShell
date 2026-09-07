@@ -108,6 +108,10 @@ public class ScreensaverControl : Visual
                 if (m_secondsUntilDisplay > 0)
                     continue; // Not ready yet...
 
+                // Restore the current view before capturing it or showing the screensaver.
+                windowManager.ResetViewScroll();
+                windowManager.Render();
+
                 // Take a snapshot of the current shell screen (in case the screensaver wants it).
                 ScreenData shellScreen;
                 using (windowManager.Screen.Lock(out var screenData))

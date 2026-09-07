@@ -238,6 +238,16 @@ public class WindowManager
             m_consoleEvents.Add(consoleEvent);
     }
 
+    /// <summary>Returns to the current terminal view, discarding partial wheel movement.</summary>
+    public void ResetViewScroll()
+    {
+        m_scrollRemainder = 0;
+        if (OffsetY == 0)
+            return;
+        OffsetY = 0;
+        Root.InvalidateVisual();
+    }
+
     private void ScrollView(int lines)
     {
         if (lines == 0)
@@ -279,11 +289,7 @@ public class WindowManager
                     
                     // Any other key resets scroll offset.
                     if (keyEvent.Modifiers == KeyModifiers.None)
-                    {
-                        Root.InvalidateVisual();
-                        OffsetY = 0;
-                        m_scrollRemainder = 0;
-                    }
+                        ResetViewScroll();
                 }
                 
                 foreach (var visual in visualTree)
