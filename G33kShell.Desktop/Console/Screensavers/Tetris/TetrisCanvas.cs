@@ -62,6 +62,7 @@ public class TetrisCanvas : AiGameCanvasBase
             DrawGame(screen, m_game, showGameOver: true);
             if (m_gameOverFrames == 0)
             {
+                OnCycleCompleted();
                 m_activeMove = null;
                 m_game.ResetGame();
             }

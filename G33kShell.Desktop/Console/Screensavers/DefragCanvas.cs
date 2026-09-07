@@ -155,7 +155,10 @@ public class DefragCanvas : ScreensaverBase
             case Action.Complete:
                 m_restartStopwatch ??= Stopwatch.StartNew();
                 if (m_restartStopwatch != null && m_restartStopwatch.ElapsedMilliseconds >= 5000)
+                {
+                    OnCycleCompleted();
                     InitDrive(screen);
+                }
 
                 break;
             default:

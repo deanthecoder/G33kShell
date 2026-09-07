@@ -54,7 +54,10 @@ public class PongCanvas : AiGameCanvasBase
 
         m_game.Tick();
         if (m_game.IsGameOver)
+        {
+            OnCycleCompleted();
             m_game.ResetGame();
+        }
     }
 
     private void DrawGame(ScreenData screen, AiGameBase aiGame)

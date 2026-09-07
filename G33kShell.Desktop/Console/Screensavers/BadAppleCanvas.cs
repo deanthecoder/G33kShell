@@ -66,6 +66,8 @@ public class BadAppleCanvas : PixelScreensaverBase
 
         using (PixelScreen.Lock(out var pixels))
             DecodeFrame(FrameNumber % m_movie.FrameCount, pixels);
+        if (FrameNumber % m_movie.FrameCount == m_movie.FrameCount - 1)
+            OnCycleCompleted();
     }
 
     protected override Rgb[] GetPixelPalette()

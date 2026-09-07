@@ -138,6 +138,7 @@ public class HeistCanvas : ScreensaverBase
             candidates = m_blocks.Where(b => b.IsRemoved && !b.IsMoving).ToList();
             if (candidates.Count == 0)
             {
+                OnCycleCompleted();
                 // Everything is back in place – restart the heist loop.
                 m_isReassembling = false;
                 m_removedBlockCount = 0;

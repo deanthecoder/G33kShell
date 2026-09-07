@@ -21,24 +21,28 @@ namespace G33kShell.Desktop.Console.Controls;
 [UsedImplicitly]
 public class RandomScreensaver : ScreensaverBase
 {
-    private readonly Type[] m_screenSaverTypes ;
+    private readonly Type[] m_screenSaverTypes;
+    private bool m_cycleCompleted;
     private ScreensaverBase m_active;
     private ScreenData m_shellScreen;
     private int m_frameNumber;
     private int m_activeIndex;
     private WindowManager m_windowManager;
 
-    public RandomScreensaver(int width, int height) : base(width, height)
+    public RandomScreensaver(int width, int height) : this(width, height,
+        typeof(IScreensaver).Assembly.GetTypes()
+            .Where(t => !t.IsAbstract && typeof(ScreensaverBase).IsAssignableFrom(t))
+            .Where(t => t != typeof(RandomScreensaver))
+            .Where(IsScreensaverReadyToRun)
+            .ToArray())
+    {
+        m_screenSaverTypes.Shuffle();
+    }
+
+    internal RandomScreensaver(int width, int height, Type[] screensaverTypes) : base(width, height)
     {
         Name = "random";
-
-        m_screenSaverTypes =
-            typeof(IScreensaver).Assembly.GetTypes()
-                .Where(t => !t.IsAbstract && typeof(ScreensaverBase).IsAssignableFrom(t))
-                .Where(t => t != GetType())
-                .Where(IsScreensaverReadyToRun)
-                .ToArray();
-        m_screenSaverTypes.Shuffle();
+        m_screenSaverTypes = screensaverTypes.ToArray();
     }
 
     public override bool IsReadyToRun => m_screenSaverTypes.Length > 0;
@@ -56,12 +60,14 @@ public class RandomScreensaver : ScreensaverBase
         instance.Foreground = Foreground;
         instance.Background = Background;
         m_frameNumber = 0;
+        m_cycleCompleted = false;
         ActivationName = instance.ActivationName;
         if (m_windowManager != null)
         {
             instance.OnLoaded(m_windowManager);
             instance.Stop();
         }
+        instance.CycleCompleted += OnActiveCycleCompleted;
         TargetFps = instance.TargetFps;
         return instance;
     }
@@ -74,8 +80,7 @@ public class RandomScreensaver : ScreensaverBase
 
     protected override void OnUnloaded()
     {
-        m_active?.StopScreensaver();
-        m_active?.Stop();
+        ReleaseActiveScreensaver();
         m_active = null;
         m_windowManager = null;
         base.OnUnloaded();
@@ -85,8 +90,7 @@ public class RandomScreensaver : ScreensaverBase
     {
         base.BuildScreen(screen);
 
-        m_active?.StopScreensaver();
-        m_active?.Stop();
+        ReleaseActiveScreensaver();
         m_activeIndex = 0;
         if (m_screenSaverTypes.Length == 0)
             return;
@@ -116,16 +120,16 @@ public class RandomScreensaver : ScreensaverBase
             return;
         }
 
-        m_active.FrameNumber = m_frameNumber++;
-        m_active.UpdateFrame(screen);
+        // Wait until the next frame so the completed cycle's final frame can be displayed.
+        if (!m_cycleCompleted && m_frameNumber < TargetFps * 300)
+        {
+            m_active.FrameNumber = m_frameNumber++;
+            m_active.UpdateFrame(screen);
+            return;
+        }
 
-        var timeSecs = m_frameNumber / TargetFps;
-        if (timeSecs <= 300)
-            return; // Not ready to switch screensavers.
-        
-        // Cycle through the screensavers.
-        m_active.StopScreensaver();
-        m_active.Stop();
+        // Cycle through the screensavers, retaining the timeout for continuous effects.
+        ReleaseActiveScreensaver();
         m_activeIndex++;
         if (m_activeIndex >= m_screenSaverTypes.Length)
         {
@@ -140,11 +144,25 @@ public class RandomScreensaver : ScreensaverBase
         StartActiveScreensaver();
     }
 
+    private void OnActiveCycleCompleted(object sender, EventArgs e) => m_cycleCompleted = true;
+
+    private void ReleaseActiveScreensaver()
+    {
+        if (m_active == null)
+            return;
+        m_active.CycleCompleted -= OnActiveCycleCompleted;
+        m_active.StopScreensaver();
+        m_active.Stop();
+    }
+
     private void StartActiveScreensaver()
     {
         if (m_active == null || m_shellScreen == null)
             return;
 
+        m_frameNumber = 0;
+        m_active.FrameNumber = 0;
+        m_cycleCompleted = false;
         System.Console.WriteLine($"Starting screensaver {m_active.Name}");
         m_active.StartScreensaver(m_shellScreen.Clone());
     }

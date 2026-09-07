@@ -8,10 +8,15 @@
 // about your modifications. Your contributions are valued!
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
+using System;
+
 namespace G33kShell.Desktop.Console.Screensavers;
 
 public interface IScreensaver
 {
+    /// <summary>Raised at a natural stopping point, allowing random mode to move on.</summary>
+    event EventHandler CycleCompleted;
+
     string Name { get; }
 
     bool IsReadyToRun { get; }

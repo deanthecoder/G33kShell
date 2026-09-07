@@ -252,7 +252,10 @@ public class SandCanvas : ScreensaverBase
         UpdateFallingSandBrightness();
 
         if (ShouldReset())
+        {
+            OnCycleCompleted();
             ResetState();
+        }
     }
 
     private void StepSandRain()

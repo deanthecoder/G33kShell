@@ -232,6 +232,7 @@ public class MarioCanvas : AiGameCanvasBase
                 m_gameOverHoldFrames--;
                 if (m_gameOverHoldFrames == 0)
                 {
+                    OnCycleCompleted();
                     m_aiGame.ResetGame();
                     m_lastSeenBlockHitTick = 0;
                     m_blockParticles.Clear();

@@ -71,6 +71,8 @@ Cycle anything you like with `screensaver -l` and `screensaver <name>` - add `_t
 | `worms` | Glowing worms wriggle across the grid. |
 | `xenon` | Xenon 2 shopkeeper cameo. |
 
+In `random` mode, screensavers switch at a natural cycle ending when available: the end of Bad Apple, a completed defrag (after its completion message), a reassembled heist, a full sand screen, or the end of an AI game. Other effects, and cycles that run longer, switch after five minutes. Selecting a screensaver directly keeps its normal looping behavior.
+
 AI-enabled screensavers (`asciiroids`, `pong`, `snake`) store their trained neural weights between runs so you can pick up right where your last session left off.
 
 The `quiverbloom` screensaver is inspired by [Vitaliy Kaurov's Wolfram Community visualization](https://community.wolfram.com/groups/-/m/t/3516580) and the equations shared there by Daniel Sanchez.
@@ -103,7 +105,7 @@ G33kShell also monitors its own memory use. It writes a detailed process, manage
 ## Development Notes
 - Run the unit suite with `dotnet test` from the repo root.
 - Avalonia assets live under `G33kShell.Desktop/Assets`; screensavers under `G33kShell.Desktop/Console/Screensavers`.
-- To build your own screensaver, implement `IScreensaver`, expose a unique `Name`, and drop the class into the screensavers folder — `screensaver -l` will pick it up automatically.
+- To build your own screensaver, implement `IScreensaver`, expose a unique `Name`, and drop the class into the screensavers folder — `screensaver -l` will pick it up automatically. Derive from `ScreensaverBase` and call `OnCycleCompleted()` at natural stopping points to support cycle-aware random switching.
 
 ## License
 MIT © Dean Edis. See `LICENSE` for details.

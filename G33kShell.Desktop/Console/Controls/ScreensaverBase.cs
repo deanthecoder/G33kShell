@@ -23,6 +23,11 @@ public abstract class ScreensaverBase : AnimatedCanvas, IScreensaver
     private readonly HashSet<string> m_activationSwitches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     private string m_activationName;
 
+    public event EventHandler CycleCompleted;
+
+    /// <summary>Signals a completed cycle without interrupting standalone playback.</summary>
+    protected void OnCycleCompleted() => CycleCompleted?.Invoke(this, EventArgs.Empty);
+
     public string ActivationName
     {
         get => m_activationName ?? Name;

@@ -56,7 +56,10 @@ public class SnakeCanvas : AiGameCanvasBase
         m_game.Tick();
 
         if (m_game.IsGameOver)
+        {
+            OnCycleCompleted();
             m_game.ResetGame();
+        }
     }
 
     private static void DrawGame(ScreenData screen, AiGameBase aiGame)

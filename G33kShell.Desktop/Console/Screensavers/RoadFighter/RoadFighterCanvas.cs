@@ -59,7 +59,10 @@ public class RoadFighterCanvas : AiGameCanvasBase
         DrawGame(screen, m_game);
 
         if (m_game.IsGameOver)
+        {
+            OnCycleCompleted();
             m_game.ResetGame();
+        }
     }
 
     private void DrawGame(ScreenData screen, Game game)
