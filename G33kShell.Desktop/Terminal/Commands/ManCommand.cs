@@ -27,11 +27,12 @@ public class ManCommand : CommandBase
     {
         var commandEnum =
             CommandsHelper.GetAllCommandTypes()
-                .FirstOrDefault(o => CommandsHelper.GetCommandNames(o)
+                .Cast<MyCommandType?>()
+                .FirstOrDefault(o => CommandsHelper.GetCommandNames(o.Value)
                     .Any(name => name.Equals(CommandName, StringComparison.OrdinalIgnoreCase)));
 
         // Get the CommandAttribute associated with the enum value
-        var commandAttribute = CommandsHelper.GetCommandAttribute(commandEnum);
+        var commandAttribute = commandEnum.HasValue ? CommandsHelper.GetCommandAttribute(commandEnum.Value) : null;
 
         // Get the command type from the CommandAttribute
         var commandType = commandAttribute?.GetImplementingType(null);
