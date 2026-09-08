@@ -33,6 +33,7 @@ Cycle anything you like with `screensaver -l` and `screensaver <name>` - add `_t
 
 | Screensaver | Description |
 | --- | --- |
+| `aquarium` | Amber pixel aquarium with schooling fish, swaying weed, feeding and fading habitat changes. |
 | `asciiroids` | AI Asteroids in ASCII; add `_train` to teach it. |
 | `badapple` | Mono pixel-art silhouette animation in the Bad Apple style. |
 | `boids` | Flocking boids orbit a wandering sphere. |
@@ -70,6 +71,8 @@ Cycle anything you like with `screensaver -l` and `screensaver <name>` - add `_t
 | `willy` | Miner Willy marches across the screen. |
 | `worms` | Glowing worms wriggle across the grid. |
 | `xenon` | Xenon 2 shopkeeper cameo. |
+
+The `aquarium` screensaver uses a full-buffer palette blended from the active background and foreground colours and an aspect-matched pixel surface (normally 384 pixels wide). Fish school, feed and move between layers of swaying plants. After about two minutes they swim offscreen; the habitat then fades out, regenerates, and fades in. Its fish, rock and weed sprites come from the [Kenney Fish Pack](https://kenney.nl/assets/fish-pack), licensed CC0; the license is included with the assets.
 
 In `random` mode, screensavers switch at a natural cycle ending when available: the end of Bad Apple, a completed defrag (after its completion message), a reassembled heist, a full sand screen, or the end of an AI game. Other effects, and cycles that run longer, switch after five minutes. Selecting a screensaver directly keeps its normal looping behavior.
 
