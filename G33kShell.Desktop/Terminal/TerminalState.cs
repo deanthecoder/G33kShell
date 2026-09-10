@@ -16,6 +16,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using DTC.Core.Extensions;
+using G33kShell.Desktop.Services;
 using G33kShell.Desktop.Console.Controls;
 using G33kShell.Desktop.Skins;
 using G33kShell.Desktop.Terminal.Commands;
@@ -193,7 +194,14 @@ public class TerminalState : ITerminalState, IDisposable
     /// Reveals the current working directory by opening it in the OS's file explorer.
     /// </summary>
     public void RevealCwd() =>
-        Task.Run(() => CurrentDirectory?.Explore());
+        Task.Run(() =>
+        {
+            if (CurrentDirectory == null)
+                return;
+
+            if (!BrowseLauncher.TryLaunch(CurrentDirectory.FullName))
+                CurrentDirectory.Explore();
+        });
 
     public void Dispose()
     {

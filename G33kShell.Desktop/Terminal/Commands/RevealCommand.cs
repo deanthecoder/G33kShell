@@ -12,6 +12,7 @@
 using System;
 using System.Threading.Tasks;
 using DTC.Core.Extensions;
+using G33kShell.Desktop.Services;
 using G33kShell.Desktop.Terminal.Attributes;
 
 namespace G33kShell.Desktop.Terminal.Commands;
@@ -44,14 +45,14 @@ public class RevealCommand : LocationCommand
             var fileInfo = targetPath.ToFile();
             if (fileInfo.Exists)
             {
-                await Task.Run(() => fileInfo.Explore());
+                await Task.Run(() => Reveal(fileInfo));
                 return true;
             }
             
             var directoryInfo = targetPath.ToDir();
             if (directoryInfo.Exists)
             {
-                await Task.Run(() => directoryInfo.Explore());
+                await Task.Run(() => Reveal(directoryInfo));
                 Settings.Instance.AppendPathToHistory(targetPath);
                 return true;
             }
@@ -63,6 +64,22 @@ public class RevealCommand : LocationCommand
         {
             WriteLine($"An error occurred: {ex.Message}");
             return false;
+        }
+    }
+
+    private static void Reveal(System.IO.FileSystemInfo target)
+    {
+        if (BrowseLauncher.TryLaunch(target.FullName))
+            return;
+
+        switch (target)
+        {
+            case System.IO.FileInfo file:
+                file.Explore();
+                break;
+            case System.IO.DirectoryInfo directory:
+                directory.Explore();
+                break;
         }
     }
 }
