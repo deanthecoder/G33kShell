@@ -12,7 +12,6 @@
 using System;
 using System.Threading.Tasks;
 using DTC.Core.Extensions;
-using G33kShell.Desktop.Services;
 using G33kShell.Desktop.Terminal.Attributes;
 
 namespace G33kShell.Desktop.Terminal.Commands;
@@ -69,9 +68,6 @@ public class RevealCommand : LocationCommand
 
     private static void Reveal(System.IO.FileSystemInfo target)
     {
-        if (BrowseLauncher.TryLaunch(target.FullName))
-            return;
-
         switch (target)
         {
             case System.IO.FileInfo file:

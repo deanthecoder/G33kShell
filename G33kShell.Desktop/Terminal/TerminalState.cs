@@ -199,8 +199,7 @@ public class TerminalState : ITerminalState, IDisposable
             if (CurrentDirectory == null)
                 return;
 
-            if (!BrowseLauncher.TryLaunch(CurrentDirectory.FullName))
-                CurrentDirectory.Explore();
+            CurrentDirectory.Explore();
         });
 
     public void Dispose()
