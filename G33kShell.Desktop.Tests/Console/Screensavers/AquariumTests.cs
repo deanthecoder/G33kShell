@@ -93,22 +93,26 @@ public class AquariumTests
     }
 
     [Test]
-    public void TurnNarrowsBeforeChangingVisibleSideThenExpands()
+    public void TurnShrinksThenPeelsTowardTheNewDirection()
     {
         var fish = new AquariumScene.Fish { Size = 24, Velocity = new System.Numerics.Vector2(-10, 0) };
-        fish.UpdateFacing(0.125f);
-        Assert.That(fish.VisualFacing, Is.GreaterThan(0));
-        Assert.That(fish.RenderWidth, Is.EqualTo(12));
-        fish.UpdateFacing(0.125f);
-        Assert.That(fish.RenderWidth, Is.EqualTo(2));
-        fish.UpdateFacing(0.125f);
-        Assert.That(fish.VisualFacing, Is.LessThan(0));
-        Assert.That(fish.RenderWidth, Is.EqualTo(12));
-        fish.UpdateFacing(0.125f);
-        Assert.That(fish.RenderWidth, Is.EqualTo(24));
+        fish.UpdateFacing(0);
+        Assert.That(fish.IsTurning, Is.True);
+        Assert.That(fish.TurnFromRight, Is.True);
+        Assert.That(fish.TurnToRight, Is.False);
+        Assert.That(fish.FacingRight, Is.True, "The visible side changes only after the peel finishes.");
+
+        fish.UpdateFacing(0.65f * 0.35f);
+        Assert.That(fish.TurnProgress, Is.EqualTo(0.35f).Within(0.001));
+        Assert.That(fish.FacingRight, Is.True);
+
+        fish.UpdateFacing(0.65f * 0.65f);
+        Assert.That(fish.IsTurning, Is.False);
+        Assert.That(fish.FacingRight, Is.False);
+
         fish.Velocity = new System.Numerics.Vector2(1, 0);
         fish.UpdateFacing(0.1f);
-        Assert.That(fish.VisualFacing, Is.EqualTo(-1), "Small velocity changes must not trigger another turn.");
+        Assert.That(fish.IsTurning, Is.False, "Small velocity changes must not trigger another turn.");
     }
 
     [Test]

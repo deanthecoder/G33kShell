@@ -143,10 +143,13 @@ internal sealed class AquariumRenderer
                 if (Layer(fish.Depth) != layer) continue;
                 var sprite = m_fish[fish.Species];
                 var height = fish.Size * sprite.Height / sprite.Width;
-                var pitch = Math.Clamp(fish.Velocity.Y / 35, -0.35f, 0.35f) * (fish.VisualFacing >= 0 ? 1 : -1);
-                Blit(screen, sprite, fish.Position.X, fish.Position.Y, fish.RenderWidth, height,
-                    fish.VisualFacing < 0, 0.9f + fish.Depth * 0.1f, pitch,
-                    time * (3 + fish.Velocity.Length() * 0.3f) + fish.Phase);
+                var pitch = Math.Clamp(fish.Velocity.Y / 35, -0.35f, 0.35f) * (fish.FacingRight ? 1 : -1);
+                var tailPhase = time * (3 + fish.Velocity.Length() * 0.3f) + fish.Phase;
+                if (fish.IsTurning)
+                    DrawTurningFish(screen, sprite, fish, height, 0.9f + fish.Depth * 0.1f, pitch, tailPhase);
+                else
+                    Blit(screen, sprite, fish.Position.X, fish.Position.Y, fish.Size, height,
+                        !fish.FacingRight, 0.9f + fish.Depth * 0.1f, pitch, tailPhase);
             }
         }
         foreach (var food in scene.FoodParticles)
@@ -191,17 +194,64 @@ internal sealed class AquariumRenderer
     {
         var w = Math.Max(1, (int)width);
         var h = Math.Max(1, (int)height);
+        // At the edge-on turn, sample the body twice. Sampling the tail and head
+        // independently can leave one column transparent and make a two-pixel fish look one pixel wide.
+        var edgeOn = w == 2;
+        if (edgeOn)
+            pitch = 0;
         for (var y = 0; y < h; y++)
         for (var x = 0; x < w; x++)
         {
-            var sx = (int)(((flip ? w - 1 - x : x) + 0.5f) * sprite.Width / w);
+            var sx = edgeOn ? sprite.Width / 2 : (int)(((flip ? w - 1 - x : x) + 0.5f) * sprite.Width / w);
             var shade = sprite.Pixels[y * sprite.Height / h * sprite.Width + sx];
             if (shade == 0) continue;
             // The source fish face right. Flex the tail more than the body.
             var tail = Math.Max(0, 1 - sx / (float)sprite.Width * 2.5f);
-            var dy = MathF.Sin(tailPhase) * tail * 1.3f;
+            var dy = edgeOn ? 0 : MathF.Sin(tailPhase) * tail * 1.3f;
             screen.SetPixel((int)(cx - w / 2f + x), (int)(cy - h / 2f + y + pitch * (x - w / 2f) + dy),
                 (byte)Math.Clamp((int)(shade * brightness), 1, 31));
+        }
+    }
+
+    private static void DrawTurningFish(PixelScreenData screen, Sprite sprite, AquariumScene.Fish fish,
+        float height, float brightness, float pitch, float tailPhase)
+    {
+        const float shrinkEnd = 0.35f;
+        if (fish.TurnProgress < shrinkEnd)
+        {
+            var amount = fish.TurnProgress / shrinkEnd;
+            var width = fish.Size * (1 - amount * 0.5f);
+            Blit(screen, sprite, fish.Position.X, fish.Position.Y, width, height,
+                !fish.TurnFromRight, brightness, pitch, tailPhase);
+            return;
+        }
+
+        // Unwrap the new-facing fish from its head backwards. The growing strip stays
+        // centred, so the head advances in the new direction while each body column
+        // appears behind it until the complete sprite has peeled into view.
+        var reveal = (fish.TurnProgress - shrinkEnd) / (1 - shrinkEnd);
+        DrawHeadFirstReveal(screen, sprite, fish.Position.X, fish.Position.Y, fish.Size, height,
+            fish.TurnToRight, reveal, brightness);
+    }
+
+    private static void DrawHeadFirstReveal(PixelScreenData screen, Sprite sprite, float cx, float cy,
+        float width, float height, bool facingRight, float reveal, float brightness)
+    {
+        var fullWidth = Math.Max(1, (int)width);
+        var visibleWidth = Math.Clamp((int)Math.Ceiling(fullWidth * reveal), 1, fullWidth);
+        var h = Math.Max(1, (int)height);
+        var sourceWidth = Math.Max(1, (int)Math.Ceiling(sprite.Width * reveal));
+        var left = (int)Math.Round(cx - visibleWidth / 2f);
+        var top = (int)Math.Round(cy - h / 2f);
+
+        for (var y = 0; y < h; y++)
+        for (var x = 0; x < visibleWidth; x++)
+        {
+            var offset = Math.Min(sourceWidth - 1, x * sourceWidth / visibleWidth);
+            var sx = facingRight ? sprite.Width - sourceWidth + offset : sprite.Width - 1 - offset;
+            var shade = sprite.Pixels[y * sprite.Height / h * sprite.Width + sx];
+            if (shade > 0)
+                screen.SetPixel(left + x, top + y, (byte)Math.Clamp((int)(shade * brightness), 1, 31));
         }
     }
 }

@@ -21,15 +21,33 @@ internal sealed class AquariumScene
         public float Depth, Size, Phase, DecisionTime, FeedingTime;
         public int Species, School, ExitDirection;
         public bool FacingRight = true;
-        public float VisualFacing = 1;
-        public float RenderWidth => Math.Max(2, Size * Math.Abs(VisualFacing));
+        public bool TurnFromRight { get; private set; } = true;
+        public bool TurnToRight { get; private set; } = true;
+        public float TurnProgress { get; private set; } = 1;
+        public bool IsTurning => TurnProgress < 1;
 
         public void UpdateFacing(float dt)
         {
-            if (Math.Abs(Velocity.X) > 2)
-                FacingRight = Velocity.X > 0;
-            var target = FacingRight ? 1f : -1f;
-            VisualFacing += Math.Clamp(target - VisualFacing, -4 * dt, 4 * dt);
+            if (IsTurning)
+            {
+                TurnProgress = Math.Min(1, TurnProgress + dt / 0.65f);
+                if (!IsTurning)
+                    FacingRight = TurnToRight;
+                return;
+            }
+
+            if (Math.Abs(Velocity.X) <= 2 || FacingRight == Velocity.X > 0)
+                return;
+
+            TurnFromRight = FacingRight;
+            TurnToRight = !FacingRight;
+            TurnProgress = 0;
+        }
+
+        internal void SetInitialFacing(bool right)
+        {
+            FacingRight = TurnFromRight = TurnToRight = right;
+            TurnProgress = 1;
         }
     }
     internal sealed record Plant(float X, float Height, float Depth, float Phase, int Sprite);
@@ -98,9 +116,10 @@ internal sealed class AquariumScene
                 Velocity = new Vector2(right ? 15 : -15, 0),
                 School = school, Species = species,
                 Size = size, Depth = school >= 0 ? 0.35f + school * 0.3f : Range(0.2f, 0.9f),
-                Phase = Range(0, 6.28f), FacingRight = right, VisualFacing = right ? 1 : -1,
+                Phase = Range(0, 6.28f),
                 DecisionTime = Range(2, 8)
             };
+            fish.SetInitialFacing(right);
             fish.Target = new Vector2(Range(40, Width - 40), fish.Position.Y);
             Fishes.Add(fish);
         }
