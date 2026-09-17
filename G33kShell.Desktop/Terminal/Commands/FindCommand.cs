@@ -39,6 +39,11 @@ public class FindCommand : CommandBase
             var results = new List<FileSystemInfo>();
             await foreach (var fileSystemInfo in SearchDirectory(state.CurrentDirectory, FileMask))
                 results.Add(fileSystemInfo);
+
+            results = results
+                .OrderBy(o => o.FullName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(o => o.FullName, StringComparer.Ordinal)
+                .ToList();
             
             if (results.Count == 0)
             {
