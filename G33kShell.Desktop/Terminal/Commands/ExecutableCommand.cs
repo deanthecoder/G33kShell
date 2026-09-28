@@ -13,7 +13,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using CliWrap;
-using CliWrap.Buffered;
+using CliWrap.EventStream;
 using JetBrains.Annotations;
 using PeNet;
 
@@ -62,17 +62,19 @@ public class ExecutableCommand : CommandBase
                 return true;
             }
             
-            // Execute the command and capture the output.
-            var result = await command.ExecuteBufferedAsync();
-
-            // Output the result to the console.
-            foreach (var s in result.StandardOutput.ReplaceLineEndings("\n").TrimEnd().Split('\n'))
-                WriteLine(s);
-
-            if (!string.IsNullOrWhiteSpace(result.StandardError))
+            // Display each line as it arrives, rather than buffering until the process exits.
+            // Consume both streams together so their writes to the prompt are serialized.
+            await foreach (var commandEvent in command.ListenAsync())
             {
-                foreach (var s in result.StandardError.ReplaceLineEndings("\n").TrimEnd().Split('\n'))
-                    WriteLine(s);
+                switch (commandEvent)
+                {
+                    case StandardOutputCommandEvent output:
+                        WriteLine(output.Text);
+                        break;
+                    case StandardErrorCommandEvent error:
+                        WriteLine(error.Text);
+                        break;
+                }
             }
 
             return true;
