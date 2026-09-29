@@ -13,6 +13,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using DTC.Core;
 using DTC.Core.UI;
 using G33kShell.Desktop.Console.Views;
 using G33kShell.Desktop.Skins;
@@ -60,6 +61,53 @@ public partial class MainWindow : Window
 
     private void OnDoubleTapped(object sender, TappedEventArgs e) =>
         ((ShellViewModel)DataContext)?.RaiseRevealCwdRequested();
+
+    private Point GetConsolePosition(PointerEventArgs e) =>
+        ConsoleView.MapDisplayPosition(e.GetPosition(Shader), Shader.Bounds.Size, Source.Bounds.Size,
+            Source.WindowManager.Skin.EnableSurround);
+
+    private async void OnConsolePointerPressed(object sender, PointerPressedEventArgs e)
+    {
+        var properties = e.GetCurrentPoint((Control)sender).Properties;
+        if (properties.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed)
+        {
+            Source.Focus();
+            if (Source.BeginSelection(GetConsolePosition(e)))
+                e.Pointer.Capture((Control)sender);
+            e.Handled = true;
+        }
+        else if (properties.PointerUpdateKind == PointerUpdateKind.RightButtonPressed)
+        {
+            e.Handled = true;
+            var text = Source.GetSelectionText();
+            if (text == null || Clipboard == null)
+                return;
+            try
+            {
+                await Clipboard.SetTextAsync(text);
+                Source.ClearSelection();
+            }
+            catch (System.Exception exception)
+            {
+                Logger.Instance.Exception("Failed to copy console selection.", exception);
+            }
+        }
+    }
+
+    private void OnConsolePointerMoved(object sender, PointerEventArgs e) =>
+        Source.ExtendSelection(GetConsolePosition(e));
+
+    private void OnConsolePointerReleased(object sender, PointerReleasedEventArgs e)
+    {
+        if (e.InitialPressMouseButton != MouseButton.Left)
+            return;
+        Source.ExtendSelection(GetConsolePosition(e));
+        Source.EndSelection();
+        e.Pointer.Capture(null);
+    }
+
+    private void OnConsolePointerCaptureLost(object sender, PointerCaptureLostEventArgs e) =>
+        Source.EndSelection();
 
     internal string GetMemoryDetails()
     {

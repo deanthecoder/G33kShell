@@ -64,6 +64,7 @@ public partial class ConsoleView : Control
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        ClearSelection();
         DetachTopLevelHandlers();
         DisposeRenderResources();
         base.OnDetachedFromVisualTree(e);
@@ -207,6 +208,8 @@ public partial class ConsoleView : Control
         var changed = false;
         using (m_windowManager.Screen.Lock(out var screen))
         {
+            // This pass already redraws the changed cells; do not invalidate during rendering.
+            ValidateSelection(screen, invalidate: false);
             var screenWidth = screen.Width;
             var screenHeight = screen.Height;
             EnsureTextBitmap(screenWidth, screenHeight);
@@ -220,6 +223,9 @@ public partial class ConsoleView : Control
                     var attr = row[x];
                     var foreground = attr.Foreground;
                     var background = attr.Background;
+                    if (IsSelected(cellIndex))
+                        background = BrightenSelectionBackground(background ?? m_windowManager.Skin.BackgroundColor,
+                            foreground ?? m_windowManager.Skin.ForegroundColor);
                     var foregroundBgra = ToBgra(foreground);
                     var backgroundBgra = ToBgra(background);
                     ref var previous = ref m_lastCells[cellIndex];
@@ -241,6 +247,8 @@ public partial class ConsoleView : Control
                 var animFrame = (int)((Environment.TickCount64 / 100) % animChars.Length);
                 var foreground = m_windowManager.Skin.ForegroundColor;
                 var background = screen.Chars[cursorY][cursor.X].Background;
+                if (IsSelected(cursorY * screenWidth + cursor.X))
+                    background = BrightenSelectionBackground(background ?? m_windowManager.Skin.BackgroundColor, foreground);
                 ComposeCell(cursor.X, cursorY, animChars[animFrame], foreground, background, ToBgra(foreground), ToBgra(background));
                 m_lastCells[cursorY * screenWidth + cursor.X] = CellSnapshot.Uninitialized;
                 changed = true;
@@ -410,6 +418,13 @@ public partial class ConsoleView : Control
 
     private void OnTopLevelKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && (m_hasSelection || m_selecting))
+        {
+            ClearSelection();
+            e.Handled = true;
+            return;
+        }
+
         m_windowManager?.QueueEvent(new KeyConsoleEvent(e.Key, e.KeyModifiers, KeyConsoleEvent.KeyDirection.Down, e.KeySymbol));
         InvalidateVisual();
     }
