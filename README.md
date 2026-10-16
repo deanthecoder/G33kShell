@@ -26,6 +26,7 @@ Tip: run `man <command>` for auto-generated manual pages, or `help` to see every
 ## Useful Command Tips
 - Scroll the terminal with the mouse wheel or Ctrl-Up/Down. Typing returns to the current view.
 - Reuse lines from the previous command's output with `$<n>` (for example, `cat $4`).
+- Manage environment variables with `set` (list all), `set path` (case-insensitive prefix), `set foo=bar` (set for this session), or `set foo=` (remove). Use `set -u foo=bar` to also save for your Windows user, or `set -u foo=` to remove from both scopes. `set -u` lists saved user variables. Quote values containing spaces, for example `set foo="hello world"`. Saved changes apply to future processes; existing applications keep their own environment.
 - Copy the last command output to the clipboard with `clip` (use `clip -n` to show line numbers or `clip 4` for a single line).
 
 ## Screensavers

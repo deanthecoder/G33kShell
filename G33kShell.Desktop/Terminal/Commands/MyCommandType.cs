@@ -129,6 +129,10 @@ public enum MyCommandType
     [CommandCategory(CommandType.System)]
     Screensaver,
 
+    [Command(typeof(SetCommand), LongName = "set", Description = "List, set, or remove environment variables.")]
+    [CommandCategory(CommandType.System)]
+    Set,
+
     [Command(typeof(SkinCommand), LongName = "skin", Description = "List or change the current Terminal skin.")]
     [CommandCategory(CommandType.System)]
     Skin,

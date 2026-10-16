@@ -78,7 +78,7 @@ public class TerminalState : ITerminalState, IDisposable
         BeginCommandExecution();
 
         // Execute the command.
-        var args = cmdString.ToArgumentArray();
+        var args = CommandLineTokenizer.Tokenize(cmdString);
         args = ExpandOutputLineReferences(args);
         CommandBase command;
         if (!CommandLineParser.TryParse(args, out ProgramArguments parsedCommand))
