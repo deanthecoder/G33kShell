@@ -37,7 +37,8 @@ public class PixelScreenData
         Width = width;
         Height = height;
         Pixels = new byte[width * height];
-        Palette = palette;
+        // Palette fades belong to this surface, not to the reusable source artwork.
+        Palette = (Rgb[])palette.Clone();
     }
 
     public void Clear(byte colorIndex = 0) =>

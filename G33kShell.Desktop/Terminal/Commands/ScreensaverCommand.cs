@@ -27,6 +27,7 @@ namespace G33kShell.Desktop.Terminal.Commands;
     "  screensaver snake",
     "  screensaver snake_train",
     "  screensaver mario_color",
+    "  screensaver goldenaxe_play_color",
     "  screensaver mario_train_color")]
 public class ScreensaverCommand : CommandBase
 {

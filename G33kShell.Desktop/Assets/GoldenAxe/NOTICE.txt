@@ -1,0 +1,30 @@
+Golden Axe private reference data
+
+Source: https://github.com/atomic14/golden-axe
+Reference revision: f669472505444939e11c66bb0d33a7469e282787
+Target: Golden Axe (1989), arcade System 16B, MAME goldnaxe set 6 (US).
+Original game, artwork and data: Sega. They are not covered by the source-code header.
+
+The local files were copied from the reference's public/assets directory:
+  sprites.json, sprites-0.png, tiles.png, magic.json
+  areas/0.json -> level1.json
+  areas/1.json -> level2.json (Turtle Village)
+  areas/2.json -> level3.json (third main area, arcade stage 5)
+  areas/3.json -> level4.json (fourth main area, arcade stage 7)
+  areas/4.json -> level5.json (final main area, arcade stage 9)
+
+The first four area files also supply the camp spawn lists and night palettes.
+
+The eagle area's drifting feathers use original atlas frames 1024-1041.
+Their drift timing, placement and palette selection are native approximations.
+
+The loader fills uncaptured background cells using the nearest captured tile.
+This hides gaps at camera edges; it is a visual approximation, not recovered ROM
+data. Captured tiles, foreground transparency and the source JSON remain unchanged.
+
+These extracted JSON/PNG assets are bundled with the repository and copied into
+build and publish output. No upstream TypeScript source is included in the
+application. Native code uses the documented extracted format.
+
+The original Sega assets remain separate from this repository's source-code license.
+There is no runtime download or browser dependency.

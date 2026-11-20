@@ -15,6 +15,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using DTC.Core;
 using DTC.Core.Extensions;
 using G33kShell.Desktop.Console;
@@ -130,6 +131,10 @@ public class ScreensaverControl : Visual
         if (m_topLevel != null)
         {
             m_topLevel.KeyDown -= OnTopLevelKeyDown;
+            m_topLevel.RemoveHandler(InputElement.KeyDownEvent, OnInteractiveKeyDown);
+            m_topLevel.RemoveHandler(InputElement.KeyUpEvent, OnInteractiveKeyUp);
+            if (m_topLevel is Window oldWindow)
+                oldWindow.Deactivated -= OnWindowDeactivated;
             m_topLevel.PointerWheelChanged -= OnTopLevelPointerWheelChanged;
         }
 
@@ -137,6 +142,10 @@ public class ScreensaverControl : Visual
         if (m_topLevel != null)
         {
             m_topLevel.KeyDown += OnTopLevelKeyDown;
+            m_topLevel.AddHandler(InputElement.KeyDownEvent, OnInteractiveKeyDown, RoutingStrategies.Tunnel);
+            m_topLevel.AddHandler(InputElement.KeyUpEvent, OnInteractiveKeyUp, RoutingStrategies.Tunnel);
+            if (m_topLevel is Window window)
+                window.Deactivated += OnWindowDeactivated;
             m_topLevel.PointerWheelChanged += OnTopLevelPointerWheelChanged;
         }
         
@@ -148,6 +157,10 @@ public class ScreensaverControl : Visual
         if (m_topLevel != null)
         {
             m_topLevel.KeyDown -= OnTopLevelKeyDown;
+            m_topLevel.RemoveHandler(InputElement.KeyDownEvent, OnInteractiveKeyDown);
+            m_topLevel.RemoveHandler(InputElement.KeyUpEvent, OnInteractiveKeyUp);
+            if (m_topLevel is Window oldWindow)
+                oldWindow.Deactivated -= OnWindowDeactivated;
             m_topLevel.PointerWheelChanged -= OnTopLevelPointerWheelChanged;
             m_topLevel = null;
         }
@@ -186,10 +199,40 @@ public class ScreensaverControl : Visual
 
     private void OnTopLevelPointerWheelChanged(object sender, PointerWheelEventArgs e)
     {
-        if (e.Delta.Y != 0)
+        if (e.Delta.Y != 0 && ActiveInteractive == null)
             ResetTimer();
     }
 
+    private IInteractiveScreensaver ActiveInteractive => IsVisible && Children.FirstOrDefault() is IInteractiveScreensaver { IsInteractive: true } interactive
+        ? interactive : null;
+
+    private void OnInteractiveKeyDown(object sender, KeyEventArgs e)
+    {
+        var interactive = ActiveInteractive;
+        if (interactive == null)
+            return;
+
+        // Tunnel routing keeps Ctrl/arrows and Tab away from terminal scrolling and focus navigation.
+        e.Handled = true;
+        if (e.Key == Key.Escape)
+        {
+            interactive.ClearInput();
+            ResetTimer();
+        }
+        else
+            interactive.SetKey(e.Key, true);
+    }
+
+    private void OnInteractiveKeyUp(object sender, KeyEventArgs e)
+    {
+        var interactive = ActiveInteractive;
+        if (interactive == null)
+            return;
+        e.Handled = true;
+        interactive.SetKey(e.Key, false);
+    }
+
+    private void OnWindowDeactivated(object sender, EventArgs e) => ActiveInteractive?.ClearInput();
     private void OnTopLevelKeyDown(object sender, KeyEventArgs e) =>
         ResetTimer();
 

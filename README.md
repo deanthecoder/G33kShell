@@ -113,3 +113,97 @@ G33kShell also monitors its own memory use. It writes a detailed process, manage
 
 ## License
 MIT © Dean Edis. See `LICENSE` for details.
+
+### Golden Axe (private exercise)
+
+Special thanks to **[atomic14](https://github.com/atomic14)** for
+**[golden-axe](https://github.com/atomic14/golden-axe)**. That project's arcade data
+extraction, technical documentation and TypeScript implementation were substantial
+references for this native C# recreation. We directly reuse its extracted sprites,
+palettes, animation scripts, level layouts, height maps, enemy spawn data and magic
+effects. G33kShell's simulation, renderer and coded player controller were written
+in C#, informed by that work. Golden Axe and its original artwork and game data
+belong to **Sega**. See the [asset provenance notice](G33kShell.Desktop/Assets/GoldenAxe/NOTICE.txt)
+for the reference revision and file sources.
+
+This version also corrects rider positioning on the Chicken Leg mount: rider
+offsets include the mount's per-frame animation offsets, keeping characters seated
+over its body instead of too far forward while standing, walking and attacking.
+
+`screensaver goldenaxe` plays a native C# recreation of all five main arcade areas with
+skin-tinted monochrome graphics. Use `screensaver goldenaxe_color` for color.
+Add `_play` to take control: `screensaver goldenaxe_play_color` (color) or
+`screensaver goldenaxe_play` (mono). Use the arrow keys to move, hold **Ctrl** to
+attack, press **Tab** for magic and **Space** to jump (or dismount). **Ctrl+Space** performs a
+back attack; double-tap Left or Right to run, then attack for a shoulder charge.
+**Escape** returns to the console. Held keys clear when the window loses focus.
+Press **1** for Ax Battler, **2** for Tyris Flare, or **3** for Gilius Thunderhead
+(the dwarf). Selection is saved across runs and app restarts. A switch preserves
+health and position and waits for an active move or spell to finish. Each hero uses
+their own attacks, magic, portrait and mounted animations.
+Clearing each area continues through the campaign, preserving the selected hero,
+health, remaining lives and potions. Fresh starts and respawns grant one magic potion.
+Four playable camp bonus rounds separate the five main areas, so the arcade stage
+counter advances through stages 1 to 9. To start directly
+in Turtle Village, use `screensaver goldenaxe_area2_play_color` (omit `_play` for
+the coded player, or `_color` for monochrome). Use `screensaver goldenaxe_area3_play_color`
+for the third area, with its broken bridge, red dragon and armoured knight.
+`screensaver goldenaxe_area4_play_color` and `screensaver goldenaxe_area5_play_color`
+start the last two areas directly, including skeletons, stronger soldier variants,
+additional knights and the final Death Adder fight with his skeleton guards.
+On the eagle's back in the fourth area, original feather sprites tumble past behind
+and in front of the fighters. The effect works in color and mono, stops during camp,
+and uses approximate drift timing, placement and palette selection.
+After recovering from a knockdown, Death Adder winds up a cast and sends a lightning
+bolt along the floor. It uses the extracted casting frames and projectile damage
+boxes, deals one health bar of damage, and can be jumped. The recovery trigger,
+travel speed and gentle depth tracking are approximations. The coded player attempts
+to jump incoming bolts.
+
+At camp, carried potions are visible beside the sleeping hero from the start.
+Blue thieves steal them before the hero wakes to give chase; hitting them drops
+potions to recover. Green thieves drop food that restores one health bar, up to
+full health. Thieves carry a finite supply and run off when empty.
+The night palettes and camp spawn lists come from the extracted data.
+Camp placements are adjusted to keep the group above the HUD. The coded player
+chases thieves, prioritises food when hurt, and carries the collected supplies into
+the next area. The round ends after the chase and remaining drops, with a time limit
+to prevent a stranded thief from blocking progression. Manual controls work as usual;
+magic is disabled during camp.
+
+Without `_play`, the coded player controls the selected hero, fights the enemy waves and Bad Brothers,
+collects potions, casts magic and rides Chicken Leg, the fire-breathing blue dragon or
+the red dragon, which shoots travelling fireballs. Riderless beasts sit in their extracted resting pose for
+five seconds, then run off if nobody mounts them. The coded player waits at the
+screen edge while scrolling is locked, then resumes when the GO prompt appears.
+Turtle Village includes its scrolling camera path, Amazon enemies and original spawn waves. Close attacks on ordinary
+soldiers become knee-and-throw combos, and the hero uses back attacks against enemies
+behind them. Dropped potions arc onto the ground; spell damage follows the peak
+of the recorded effect. Grounded enemies collapse when the spell ends, then recover
+or die according to their remaining health. The hero mixes walking, running, running jumps and shoulder
+charges. Running jumps cross the broken bridge; missing a jump costs a life and
+respawns the hero on safe ground. The HUD includes the hero's portrait, three health
+bars and potion icons aligned within their slots;
+each area and camp fades in and fades out. Defeating Death Adder and clearing his
+guards shows a victory message. Completing the campaign or losing all lives starts
+another run after a short pause; random mode receives a cycle event then.
+The coded player routes around holes and rocks. Potion thieves now check terrain,
+jump onto low ledges and turn away from walls or holes instead of walking through rock.
+Stepping off a ledge now falls under gravity, including while mounted; downward
+movement keeps the hero's feet above the HUD. Ordinary enemies seek out unoccupied
+Chicken Legs and dragons and can reclaim them after being knocked off. They
+wait about one second within mounting range before climbing aboard; getting hit
+interrupts the attempt.
+Riderless Chicken Legs and dragons wait five seconds, then run towards the nearer
+screen edge and leave. Remounting resets that wait; fleeing beasts cannot be mounted.
+A flashing **GO ->** prompt appears while the route ahead is clear and scrolling is
+available. Palette fades use a private display copy, so death/restart and area
+transitions preserve the original artwork colors.
+
+The set-6 assets are bundled in `G33kShell.Desktop/Assets/GoldenAxe` and included
+in build and publish output. See `NOTICE.txt` there for their source and Sega attribution;
+the game assets are not covered by the source-code license. Rendering uses extracted sprites, animation timing, tile layers,
+height data and spawn positions with a stable 256-color palette. Simulation runs
+at 60 Hz independently of rendering; the coded input policy is separate from it.
+Enemy decisions and some behaviours remain approximations. The original map and
+ending cinematics are not reproduced; sound, music and trained AI remain future work.

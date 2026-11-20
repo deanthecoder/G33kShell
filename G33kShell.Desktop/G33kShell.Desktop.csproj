@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <OutputType>WinExe</OutputType>
         <TargetFramework>net8.0</TargetFramework>
@@ -76,6 +76,10 @@
       </None>
       <None Update="Assets\BadApple\**\*">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <None Update="Assets\GoldenAxe\**\*">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       </None>
       <Content Include="Assets\Fonts\VGA\PxPlus_IBM_VGA8.ttf">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

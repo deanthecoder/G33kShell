@@ -94,6 +94,12 @@ public class Settings : UserSettingsBase
         set => Set(value);
     }
 
+    public int GoldenAxeCharacter
+    {
+        get => Get<int>();
+        set => Set(value);
+    }
+
     public byte[] MarioBrain
     {
         get => Get<byte[]>();
