@@ -63,7 +63,7 @@ internal sealed class CodedController
         var item = game.Actors.Where(a => !a.IsGone && (a.Kind == ActorKind.Potion && needsMagic || a.Kind == ActorKind.Food && needsFood))
             .Where(a => game.IsCamp
                 ? game.Project(a.X, a.Z, a.Y).X is >= 12 and <= 305
-                : Math.Abs(a.X - hero.X) < 100)
+                : a.X >= game.Progress && Math.Abs(a.X - hero.X) < 100)
             .OrderBy(a => a.Kind == ActorKind.Food && needsFood ? 0 : 1)
             .ThenBy(a => Math.Abs(a.X - hero.X) + Math.Abs(a.Z - hero.Z) * 3).FirstOrDefault();
         if (game.IsCamp && needsFood && target?.FoodThief == true && item?.Kind == ActorKind.Potion)

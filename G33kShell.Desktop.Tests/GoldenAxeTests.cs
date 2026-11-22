@@ -752,6 +752,26 @@ public class GoldenAxeTests
     }
 
     [Test]
+    public void UncollectedCampPotionStillExpiresAndLetsTheRoundEnd()
+    {
+        var game = ReachFirstCamp(new ArcadeData(ArcadeData.AssetDirectory));
+        var potion = game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, game.Hero.X - 40, game.Hero.Z);
+        while (game.Camp.Ticks < 600)
+        {
+            game.Actors.RemoveAll(actor => actor.Kind == ActorKind.Thief);
+            game.Tick(default);
+        }
+
+        Assert.That(game.Actors, Does.Contain(potion));
+        Assert.That(game.Complete, Is.False);
+        game.Tick(default);
+        Assert.That(game.Actors, Does.Not.Contain(potion));
+        for (var tick = 0; tick < CampRound.ClearHoldTicks; tick++)
+            game.Tick(default);
+        Assert.That(game.Complete, Is.True);
+    }
+
+    [Test]
     public void CampStaysPlayableAfterCollectingTheLastPotion()
     {
         var game = ReachFirstCamp(new ArcadeData(ArcadeData.AssetDirectory));

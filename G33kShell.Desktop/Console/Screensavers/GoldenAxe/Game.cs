@@ -1311,6 +1311,7 @@ internal sealed class Game
         }
         if (actor.Kind is ActorKind.Potion or ActorKind.Food)
         {
+            var persistentPotion = !IsCamp && actor.Kind == ActorKind.Potion;
             actor.Y += actor.Vy;
             actor.Vy += 0.25;
             var floor = Ground(actor.X, actor.Z);
@@ -1321,10 +1322,14 @@ internal sealed class Game
                 actor.Vx = 0;
             }
             var nextFloor = Ground(actor.X + actor.Vx, actor.Z);
-            if (nextFloor > 3840 && nextFloor < 5248)
+            // Settled potions stay where they landed as the camera scrolls past.
+            if ((!persistentPotion || actor.Vx != 0) && nextFloor > 3840 && nextFloor < 5248)
                 actor.X = Math.Clamp(actor.X + actor.Vx, Progress + 16, Progress + 296);
-            if (actor.Age > 600)
+            if (persistentPotion ? actor.X < Progress - 16 : actor.Age > 600)
+            {
                 actor.SetState(FighterState.Gone);
+                return;
+            }
             if (Hero.Health > 0 && Hero.State != FighterState.Sleeping && Math.Abs(actor.Y - Hero.Y) < 8 && Math.Abs(actor.X - Hero.X) < 16 && Math.Abs(actor.Z - Hero.Z) < 10)
             {
                 if (actor.Kind == ActorKind.Food)

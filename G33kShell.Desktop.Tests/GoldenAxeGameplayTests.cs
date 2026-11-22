@@ -56,6 +56,39 @@ public class GoldenAxeGameplayTests
         Assert.That(withPotion, Is.EqualTo(screen.Pixels[overlap]));
     }
 
+    [Test]
+    public void RegularPotionStaysCollectibleAfterTheOldTimeout()
+    {
+        var game = new Game(m_areas[0]);
+        var potion = game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, game.Hero.X + 30, game.Hero.Z);
+        var food = game.Add(ActorKind.Food, Moves.Thief, 0x7f, 1, potion.X, potion.Z);
+        potion.Age = food.Age = 600;
+        game.Tick(default);
+        Assert.That(game.Actors, Does.Contain(potion));
+        Assert.That(game.Actors, Does.Not.Contain(food));
+
+        game.Hero.X = potion.X;
+        game.Hero.Y = potion.Y;
+        game.Tick(default);
+        Assert.That(game.Potions, Is.EqualTo(2));
+        Assert.That(game.Actors, Does.Not.Contain(potion));
+    }
+
+    [Test]
+    public void SettledPotionStaysInPlaceUntilItScrollsOut()
+    {
+        var game = new Game(m_areas[0]);
+        var potion = game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, game.Hero.X - 35, game.Hero.Z);
+        var x = potion.X;
+        AdvanceTo(game, (int)x - 1, potion);
+        Assert.That(potion.X, Is.EqualTo(x));
+        Assert.That(game.Actors, Does.Contain(potion));
+
+        AdvanceTo(game, (int)x + 20, potion);
+        game.Tick(default);
+        Assert.That(game.Actors, Does.Not.Contain(potion));
+    }
+
     [TestCase(false)]
     [TestCase(true)]
     public void HeningerFinishesHisSwingWithoutRepeatingTheStrikePose(bool strong)
@@ -1250,11 +1283,11 @@ public class GoldenAxeGameplayTests
         Assert.That(game.Progress, Is.EqualTo(data.Stops[^1]));
     }
 
-    private static void AdvanceTo(Game game, int progress)
+    private static void AdvanceTo(Game game, int progress, Fighter preservedActor = null)
     {
         for (var tick = 0; tick < 2000 && game.Progress < progress; tick++)
         {
-            game.Actors.RemoveAll(a => a != game.Hero);
+            game.Actors.RemoveAll(a => a != game.Hero && a != preservedActor);
             game.Hero.X = game.Progress + 180;
             game.Hero.Z = game.FindFloor(game.Hero.X, 4240, keepVisible: true);
             game.Hero.Y = game.Ground(game.Hero.X, game.Hero.Z);
@@ -1263,6 +1296,6 @@ public class GoldenAxeGameplayTests
             game.Tick(default);
         }
         Assert.That(game.Progress, Is.GreaterThanOrEqualTo(progress));
-        game.Actors.RemoveAll(a => a != game.Hero);
+        game.Actors.RemoveAll(a => a != game.Hero && a != preservedActor);
     }
 }
