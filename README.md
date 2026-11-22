@@ -136,6 +136,10 @@ Add `_fx` for soft ground shadows, softened sprite outlines, campfire effects, d
 Use `screensaver goldenaxe_color_fx` for autoplay or `screensaver goldenaxe_play_color_fx` to play.
 The effects mode adds distance shading and soft ground shadows near ledges in the main areas.
 Add `_ao` to inspect the terrain shading mask. White means no adjustment and darker tones show stronger shading.
+For short effect clips, run `python3 tools/capture-golden-axe.py --output ~/Movies/GoldenAxe --gif` with the .NET SDK and FFmpeg installed.
+It renders the shadows, campfire, dragon fire and magic scenes headlessly to silent MP4s, with optional looping GIF previews.
+Use `--scene campfire` to regenerate a single clip.
+Use `--ffmpeg /path/to/ffmpeg` to select a specific encoder executable.
 An optional `GoldenAxe/title.png` in the application's user settings directory displays
 for 2½ seconds before play starts automatically.
 Optional `GoldenAxe/map1.gmap` through `map4.gmap` recordings play after the corresponding
