@@ -855,7 +855,6 @@ internal sealed class ArcadeRenderer
             var end = tier + 1 < hero.MagicLevels ? hero.MagicThresholds[tier + 1] - 1 : hero.PotionCapacity;
             var x = left + start * slotWidth + 1;
             Fill(screen, x, top + 1, (end - start) * slotWidth - 1, height - 2, m_darkRed);
-            Text(screen, (tier + 1).ToString(), x, top + 1, m_yellow);
         }
 
         var potionIndex = m_data.Animations[0x1870a][0].Frame;
@@ -864,6 +863,9 @@ internal sealed class ArcadeRenderer
             Sprite(screen, potionIndex, 0x4a,
                 left + slot * slotWidth + (slotWidth + 1 - potion.Width / 2) / 2 - potion.Ox / 2.0,
                 top + height - 1 - potion.Height / 2 - potion.Oy / 2.0, false, divisor: 2);
+
+        for (var tier = 0; tier < hero.MagicLevels; tier++)
+            Text(screen, (tier + 1).ToString(), left + (hero.MagicThresholds[tier] - 1) * slotWidth + 1, top + 1, m_yellow);
     }
 
     private static void Fill(PixelScreenData screen, int left, int top, int width, int height, byte color)

@@ -33,6 +33,29 @@ public class GoldenAxeGameplayTests
     [OneTimeSetUp]
     public void LoadAreas() => m_areas = Enumerable.Range(0, ArcadeData.AreaCount).Select(i => new ArcadeData(ArcadeData.AssetDirectory, i)).ToArray();
 
+    [Test]
+    public void FullMagicMeterKeepsNumbersInFrontOfPotions()
+    {
+        var data = m_areas[0];
+        var game = new Game(data, character: 1);
+        for (var i = game.Potions; i < game.Character.PotionCapacity; i++)
+            game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, game.Hero.X, game.Hero.Z);
+        game.Tick(default);
+        Assert.That(game.Potions, Is.EqualTo(9));
+
+        var renderer = new ArcadeRenderer(data);
+        var screen = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
+        // The lower stroke of the first tier number overlaps the first potion's neck.
+        var overlap = 9 * screen.Width + 108;
+        renderer.Draw(screen, game);
+        var withPotion = screen.Pixels[overlap];
+
+        game.Tick(new GameInput(Magic: true));
+        Assert.That(game.Potions, Is.Zero);
+        renderer.Draw(screen, game);
+        Assert.That(withPotion, Is.EqualTo(screen.Pixels[overlap]));
+    }
+
     [TestCase(false)]
     [TestCase(true)]
     public void HeningerFinishesHisSwingWithoutRepeatingTheStrikePose(bool strong)
