@@ -65,6 +65,7 @@ internal sealed class ArcadeData
     public Dictionary<int, int[]> CameraPath { get; }
     public Dictionary<string, uint[]> TileColors { get; }
     public Dictionary<string, byte[]> TilePalettes { get; }
+    public Dictionary<int, byte[]> PortraitPalettes { get; }
     public Rgb[] Palette { get; }
     public byte White { get; }
     public byte Black { get; }
@@ -147,6 +148,7 @@ internal sealed class ArcadeData
         }
         SpritePalette = SpriteColors.Select(p => p.Select(Map).ToArray()).ToArray();
         TilePalettes = TileColors.ToDictionary(p => p.Key, p => p.Value.Select(c => Map((int)c)).ToArray());
+        PortraitPalettes = HeroDefinition.All.ToDictionary(hero => hero.PortraitTile, hero => hero.PortraitColors.Select(Map).ToArray());
         Black = Map(0);
         White = Map(0xffffff);
         FillBackgroundGaps();

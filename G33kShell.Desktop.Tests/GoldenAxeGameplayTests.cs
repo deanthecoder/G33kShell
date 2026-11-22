@@ -33,6 +33,31 @@ public class GoldenAxeGameplayTests
     [OneTimeSetUp]
     public void LoadAreas() => m_areas = Enumerable.Range(0, ArcadeData.AreaCount).Select(i => new ArcadeData(ArcadeData.AssetDirectory, i)).ToArray();
 
+    [TestCase(0, 0x1a0)]
+    [TestCase(1, 0x1a4)]
+    [TestCase(2, 0x1a8)]
+    public void HudUsesTheArcadePortraitTilesAndLetsSceneryShowThrough(int character, int firstTile)
+    {
+        var data = m_areas[0];
+        var game = new Game(data, character);
+        var screen = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
+        new ArcadeRenderer(data).Draw(screen, game);
+        var colors = data.PortraitPalettes[firstTile];
+        var sceneryVisible = false;
+        for (var y = 0; y < 16; y++)
+        for (var x = 0; x < 16; x++)
+        {
+            var tile = firstTile + y / 8 * 2 + x / 8;
+            var pen = data.TilePens[(tile / 128 * 8 + y % 8) * data.TileStride + tile % 128 * 8 + x % 8];
+            var pixel = screen.Pixels[(200 + y) * screen.Width + 136 + x];
+            if (pen == 0)
+                sceneryVisible |= !colors.Contains(pixel);
+            else
+                Assert.That(pixel, Is.EqualTo(colors[pen]), $"Portrait pixel ({x}, {y})");
+        }
+        Assert.That(sceneryVisible, Is.True);
+    }
+
     [Test]
     public void FullMagicMeterKeepsNumbersInFrontOfPotions()
     {

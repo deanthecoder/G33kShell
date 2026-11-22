@@ -837,8 +837,23 @@ internal sealed class ArcadeRenderer
             Fill(screen, 57 + bar * 24, 206, amount * 20 / 16, 6, m_blue);
             Fill(screen, 57 + bar * 24, 206, amount * 20 / 16, 1, m_lightBlue);
         }
-        Text(screen, Math.Max(0, game.Lives).ToString(), 132, 205, m_yellow);
-        Sprite(screen, game.Character.Portrait, game.Character.Palette, 155, 214, false, divisor: 2);
+        Text(screen, Math.Max(0, game.Lives).ToString(), 128, 205, m_yellow);
+        DrawHudPortrait(screen, game.Character.PortraitTile);
+    }
+
+    private void DrawHudPortrait(PixelScreenData screen, int firstTile)
+    {
+        const int left = 136;
+        const int top = 200;
+        var palette = m_data.PortraitPalettes[firstTile];
+        for (var y = 0; y < 16; y++)
+        for (var x = 0; x < 16; x++)
+        {
+            var tile = firstTile + y / 8 * 2 + x / 8;
+            var pen = TilePen(tile, x % 8, y % 8);
+            if (pen != 0)
+                screen.SetPixel(left + x, top + y, palette[pen]);
+        }
     }
 
     private void DrawMagicMeter(PixelScreenData screen, Game game)
@@ -958,9 +973,12 @@ internal sealed class ArcadeRenderer
         for (var x = 0; x < 8; x++)
         {
             var code = text[i];
-            var pen = m_data.TilePens[(code / 128 * 8 + y) * m_data.TileStride + code % 128 * 8 + x];
+            var pen = TilePen(code, x, y);
             if (pen != 0)
                 screen.SetPixel(left + i * 8 + x, top + y, pen == 2 ? m_data.Black : color < 0 ? m_data.White : (byte)color);
         }
     }
+
+    private byte TilePen(int tile, int x, int y) =>
+        m_data.TilePens[(tile / 128 * 8 + y) * m_data.TileStride + tile % 128 * 8 + x];
 }
