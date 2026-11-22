@@ -33,6 +33,7 @@ internal sealed class Fighter
     public bool IsMount => Kind is ActorKind.Chicken or ActorKind.BlueDragon or ActorKind.RedDragon;
     public Moves FreeMoves => Kind is ActorKind.BlueDragon or ActorKind.RedDragon ? Moves.BlueDragon : Moves.Chicken;
     public bool FlameStarted;
+    public bool PotionBounced;
     public FighterState State { get; private set; }
     public HashSet<int> Struck { get; } = [];
     public bool IsEnemy => Kind is ActorKind.Heninger or ActorKind.Longmoan or ActorKind.BadBrother or ActorKind.Amazon or ActorKind.Knight or ActorKind.Skeleton or ActorKind.DeathAdder;

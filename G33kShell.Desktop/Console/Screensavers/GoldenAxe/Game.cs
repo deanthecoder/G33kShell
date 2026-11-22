@@ -1318,8 +1318,17 @@ internal sealed class Game
             if (actor.Y >= floor)
             {
                 actor.Y = floor;
-                actor.Vy = 0;
-                actor.Vx = 0;
+                if (actor.Kind == ActorKind.Potion && !actor.PotionBounced && actor.Vy >= 1.5)
+                {
+                    actor.PotionBounced = true;
+                    actor.Vy = -Math.Min(1.5, actor.Vy * 0.35);
+                    actor.Vx *= 0.55;
+                }
+                else
+                {
+                    actor.Vy = 0;
+                    actor.Vx = 0;
+                }
             }
             var nextFloor = Ground(actor.X + actor.Vx, actor.Z);
             // Settled potions stay where they landed as the camera scrolls past.

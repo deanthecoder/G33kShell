@@ -57,6 +57,31 @@ public class GoldenAxeGameplayTests
     }
 
     [Test]
+    public void DroppedPotionBouncesOnceThenSettles()
+    {
+        var game = new Game(m_areas[0]);
+        var potion = game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, game.Hero.X + 30, game.Hero.Z);
+        var floor = potion.Y;
+        potion.Y -= 20;
+        potion.Vy = -3;
+        var bounces = 0;
+        for (var tick = 0; tick < 90; tick++)
+        {
+            var wasDescending = potion.Vy > 0;
+            game.Tick(default);
+            if (wasDescending && potion.Vy < 0)
+            {
+                bounces++;
+                Assert.That(potion.Y, Is.EqualTo(floor));
+            }
+        }
+
+        Assert.That(bounces, Is.EqualTo(1));
+        Assert.That(potion.Y, Is.EqualTo(floor));
+        Assert.That(potion.Vy, Is.Zero);
+    }
+
+    [Test]
     public void RegularPotionStaysCollectibleAfterTheOldTimeout()
     {
         var game = new Game(m_areas[0]);
