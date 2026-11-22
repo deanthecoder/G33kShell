@@ -12,7 +12,9 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using DTC.Core;
+using DTC.Core.Extensions;
 using Newtonsoft.Json.Linq;
 using SkiaSharp;
 
@@ -31,6 +33,7 @@ internal sealed class ArcadeData
     public const int Width = 320;
     public const int Height = 224;
     public static string AssetDirectory => Path.Combine(AppContext.BaseDirectory, "Assets", "GoldenAxe");
+    public static string LocalAssetDirectory => Path.Combine(Assembly.GetEntryAssembly().GetAppSettingsPath().FullName, "GoldenAxe");
     public static readonly string[] RequiredFiles = ["sprites.json", "sprites-0.png", "tiles.png", "level1.json", "level2.json", "level3.json", "level4.json", "level5.json", "magic.json"];
     public static bool IsAvailable => RequiredFiles.All(f => File.Exists(Path.Combine(AssetDirectory, f)));
 

@@ -136,6 +136,13 @@ Add `_fx` for soft ground shadows, softened sprite outlines, campfire effects, d
 Use `screensaver goldenaxe_color_fx` for autoplay or `screensaver goldenaxe_play_color_fx` to play.
 The effects mode adds distance shading and soft ground shadows near ledges in the main areas.
 Add `_ao` to inspect the terrain shading mask. White means no adjustment and darker tones show stronger shading.
+An optional `GoldenAxe/title.png` in the application's user settings directory displays
+for 2½ seconds before play starts automatically.
+Optional `GoldenAxe/map1.gmap` through `map4.gmap` recordings play after the corresponding
+camp. The encoder uses one optimized 256-color palette per recording, stores deltas only across
+the changed scanlines, and retains the source timing.
+To convert local MP4 recordings, install Python's `av`, `brotli`, and `numpy` packages and run
+`python tools/encode-golden-axe-maps.py --output <settings-directory>/GoldenAxe <map-files>`.
 Add `_play` to take control: `screensaver goldenaxe_play_color` (color) or
 `screensaver goldenaxe_play` (mono). Use the arrow keys to move, hold **Ctrl** to
 attack, press **Tab** for magic and **Space** to jump. Magic and jumping work on foot

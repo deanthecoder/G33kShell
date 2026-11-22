@@ -28,6 +28,8 @@ namespace G33kShell.Desktop.Console.Screensavers.GoldenAxe;
 [UsedImplicitly]
 public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensaver
 {
+    private const int EndFadeTicks = 45;
+    private const int StageEndTicks = 180;
     private readonly ArcadeData[] m_areas = new ArcadeData[ArcadeData.AreaCount];
     private ArcadeData m_data;
     private Game m_game;
@@ -39,10 +41,17 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
     private int m_endTicks;
     private int m_requestedCharacter = -1;
     private Rgb[][] m_fadePalettes;
+    private ArcadeTitleCard m_title;
+    private Rgb[] m_titlePalette;
+    private int m_titleTicks;
+    private ArcadeMapRecording m_map;
+    private int[] m_mapTint;
+    private double m_mapSeconds;
 
     public GoldenAxeCanvas(int width, int height) : base(width, height, 60) => Name = "goldenaxe";
     public override bool IsReadyToRun => ArcadeData.IsAvailable;
     private int StartingArea => Enumerable.Range(0, ArcadeData.AreaCount).LastOrDefault(i => HasSwitch($"area{i + 1}"));
+    private int EndDelayTicks => m_game.IsCamp && m_game.Complete ? EndFadeTicks : StageEndTicks;
     public bool IsInteractive => HasSwitch("play");
     public void SetKey(Key key, bool down)
     {
@@ -94,10 +103,11 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
         if (m_data == null || WindowManager == null)
             return;
         ClearInput();
-        LoadArea(StartingArea);
-        m_game = new Game(m_data, Settings.Instance.GoldenAxeCharacter);
-        m_endTicks = 0;
-        m_fadePalettes = null;
+        m_map?.Dispose();
+        m_map = null;
+        m_title = ArcadeTitleCard.LoadLocal(m_data.Palette.Length);
+        m_titlePalette = null;
+        StartCycle();
         m_lastTime = Time;
         m_accumulator = 0;
         StartPixelScreen(ArcadeData.Width, ArcadeData.Height, reduceCrtGlow: HasSwitch("color"));
@@ -108,16 +118,39 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
         if (!IsPixelScreenActive || PixelScreen == null || m_game == null)
             return;
         var now = Time;
-        m_accumulator += Math.Clamp(now - m_lastTime, 0, 0.1);
+        var elapsed = now - m_lastTime;
         m_lastTime = now;
-        while (m_accumulator >= 1.0 / 60)
+        if (m_map == null)
+            m_accumulator += Math.Clamp(elapsed, 0, 0.1);
+        else
+        {
+            m_mapSeconds += Math.Max(0, elapsed);
+            if (!m_map.AdvanceTo(m_mapSeconds))
+            {
+                using (PixelScreen.Lock(out var mapEnd))
+                    m_map.Draw(mapEnd, null, double.PositiveInfinity);
+                m_map.Dispose();
+                m_map = null;
+                ClearInput();
+                AdvanceArea();
+                return;
+            }
+        }
+        while (m_map == null && m_accumulator >= 1.0 / 60)
         {
             m_accumulator -= 1.0 / 60;
+            if (m_titleTicks > 0)
+            {
+                if (--m_titleTicks == 0)
+                    ClearInput();
+                continue;
+            }
+
             var requested = Interlocked.Exchange(ref m_requestedCharacter, -1);
             if (requested >= 0)
                 m_game.SelectCharacter(requested);
             m_game.Tick(IsInteractive ? m_keyboard.Read() : m_controller.Read(m_game));
-            if ((m_game.Complete || m_game.GameOver) && ++m_endTicks >= 180)
+            if ((m_game.Complete || m_game.GameOver) && ++m_endTicks >= EndDelayTicks)
             {
                 ClearInput();
                 if (m_game.Complete && m_game.AreaIndex + 1 < m_areas.Length)
@@ -129,26 +162,65 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
                     }
                     else
                     {
-                        LoadArea(m_game.AreaIndex + 1);
-                        m_game = m_game.ContinueIn(m_data);
+                        m_map = ArcadeMapRecording.LoadLocal(m_game.AreaIndex);
+                        if (m_map == null)
+                            AdvanceArea();
+                        else
+                        {
+                            m_mapSeconds = 0;
+                            m_accumulator = 0;
+                            m_lastTime = Time;
+                        }
                     }
                 }
                 else
                 {
                     OnCycleCompleted();
-                    LoadArea(StartingArea);
-                    m_game = new Game(m_data, Settings.Instance.GoldenAxeCharacter);
+                    StartCycle();
                 }
                 m_endTicks = 0;
             }
         }
         using (PixelScreen.Lock(out var pixels))
         {
-            var fade = m_endTicks > 135 ? Math.Clamp((180 - m_endTicks) * 30 / 45, 0, 30) : Math.Min(30, m_game.TickCount);
+            if (m_map != null)
+            {
+                if (!HasSwitch("color"))
+                    m_mapTint ??= ArcadeMapRecording.CreateTint(Background ?? Rgb.Black, Foreground ?? Rgb.White);
+                m_map.Draw(pixels, HasSwitch("color") ? null : m_mapTint, m_mapSeconds);
+                return;
+            }
+
+            if (m_titleTicks > 0)
+            {
+                m_titlePalette ??= HasSwitch("color") ? m_title.Palette :
+                    PixelScreenData.CreateGreyscalePalette(m_title.Palette, Background ?? Rgb.Black, Foreground ?? Rgb.White);
+                pixels.SetPalette(m_titlePalette);
+                pixels.Clear();
+                m_title.Pixels.CopyTo(pixels.Pixels, 0);
+                return;
+            }
+
+            var fadeTicks = EndDelayTicks - m_endTicks;
+            var fade = fadeTicks < EndFadeTicks ? Math.Clamp(fadeTicks * 30 / EndFadeTicks, 0, 30) : Math.Min(30, m_game.TickCount);
             pixels.SetPalette(GetFadePalette(fade));
             m_renderer.Draw(pixels, m_game, HasSwitch("fx"), HasSwitch("color") ? null : Foreground, (byte)(255 * fade / 30),
                 showTerrainShade: HasSwitch("ao"));
         }
+    }
+
+    private void AdvanceArea()
+    {
+        LoadArea(m_game.AreaIndex + 1);
+        m_game = m_game.ContinueIn(m_data);
+    }
+
+    private void StartCycle()
+    {
+        LoadArea(StartingArea);
+        m_game = new Game(m_data, Settings.Instance.GoldenAxeCharacter);
+        m_endTicks = 0;
+        m_titleTicks = m_title == null ? 0 : ArcadeTitleCard.DurationTicks;
     }
 
     private void LoadArea(int area)
@@ -161,6 +233,8 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
     public override void OnSkinChanged(SkinBase skin)
     {
         m_fadePalettes = null;
+        m_titlePalette = null;
+        m_mapTint = null;
         base.OnSkinChanged(skin);
     }
 

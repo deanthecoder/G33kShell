@@ -9,6 +9,7 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using DTC.Core;
 using G33kShell.Desktop.Console;
@@ -40,6 +41,176 @@ public class GoldenAxeTests
         Assert.That(ArcadeRenderer.DimMagicSprites(recording, 2).Single(), Is.SameAs(sprite));
         Assert.That(ArcadeRenderer.DimMagicSprites(recording, 3), Is.Empty);
         Assert.That(ArcadeRenderer.DimMagicSprites(recording, 4), Is.Empty);
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void IndexedMapUsesTheFullPaletteAndCanChangePixelsBackToBlack(bool bounded)
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            const int row = ArcadeData.Height - 1;
+            const int pixel = row * ArcadeData.Width;
+            var delta = new byte[ArcadeData.Width * (bounded ? 1 : ArcadeData.Height)];
+            using (var file = File.Create(path))
+            {
+                using (var header = new BinaryWriter(file, System.Text.Encoding.UTF8, leaveOpen: true))
+                {
+                    header.Write(bounded ? "G33KMAP3"u8 : "G33KMAP2"u8);
+                    header.Write((ushort)ArcadeData.Width);
+                    header.Write((ushort)ArcadeData.Height);
+                }
+                using var writer = new BinaryWriter(new BrotliStream(file, CompressionLevel.Fastest));
+                var palette = new byte[256 * 3];
+                palette[^3] = 0x12;
+                palette[^2] = 0x34;
+                palette[^1] = 0x56;
+                writer.Write(palette);
+                if (bounded)
+                {
+                    writer.Write(10_000u);
+                    writer.Write((byte)ArcadeData.Height);
+                    writer.Write((byte)0);
+                }
+                delta[bounded ? 0 : pixel] = 255;
+                writer.Write(33_333u);
+                if (bounded)
+                {
+                    writer.Write((byte)row);
+                    writer.Write((byte)row);
+                }
+                writer.Write(delta);
+                writer.Write(100_000u);
+                if (bounded)
+                {
+                    writer.Write((byte)row);
+                    writer.Write((byte)row);
+                }
+                writer.Write(delta);
+                writer.Write(0u);
+            }
+
+            using var map = ArcadeMapRecording.TryLoad(path);
+            Assert.That(map, Is.Not.Null);
+            var screen = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, [Rgb.Black]);
+            var pixels = new int[screen.Pixels.Length];
+            if (bounded)
+            {
+                map.Draw(screen, null);
+                screen.CopyToBgra(pixels);
+                Assert.That(pixels[pixel], Is.EqualTo(unchecked((int)0xff000000)));
+            }
+            Assert.That(map.AdvanceTo(0.011), Is.True);
+            map.Draw(screen, null);
+            screen.CopyToBgra(pixels);
+            Assert.That(pixels[pixel], Is.EqualTo(unchecked((int)0xff563412)));
+            Assert.That(pixels[pixel - 1], Is.EqualTo(unchecked((int)0xff000000)));
+
+            Assert.That(map.AdvanceTo(0.05), Is.True);
+            map.Draw(screen, null);
+            screen.CopyToBgra(pixels);
+            Assert.That(pixels[pixel], Is.EqualTo(unchecked((int)0xff000000)));
+            Assert.That(map.AdvanceTo(0.1), Is.False);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Test]
+    public void MapRecordingKeepsFrameDurationsAndRestoresSharedPixels()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            var delta = new byte[ArcadeData.Width * ArcadeData.Height * 3];
+            using (var writer = new BinaryWriter(new GZipStream(File.Create(path), CompressionLevel.Fastest)))
+            {
+                writer.Write("G33KMAP1"u8);
+                writer.Write((ushort)ArcadeData.Width);
+                writer.Write((ushort)ArcadeData.Height);
+                delta[0] = 0x12;
+                delta[1] = 0x34;
+                delta[2] = 0x56;
+                writer.Write(66_667u);
+                writer.Write(delta);
+                Array.Clear(delta);
+                delta[3] = 0x65;
+                writer.Write(1_000_000u);
+                writer.Write(delta);
+                writer.Write(0u);
+            }
+
+            using var map = ArcadeMapRecording.TryLoad(path);
+            Assert.That(map, Is.Not.Null);
+            var screen = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, [Rgb.Black]);
+            var pixels = new int[screen.Pixels.Length];
+            Assert.That(map.AdvanceTo(0.066), Is.True);
+            map.Draw(screen, null);
+            screen.CopyToBgra(pixels);
+            Assert.That(pixels[0], Is.EqualTo(unchecked((int)0xff563412)));
+            Assert.That(pixels[1], Is.EqualTo(unchecked((int)0xff000000)));
+
+            Assert.That(map.AdvanceTo(0.067), Is.True);
+            map.Draw(screen, null);
+            screen.CopyToBgra(pixels);
+            Assert.That(pixels[0], Is.EqualTo(unchecked((int)0xff563412)));
+            Assert.That(pixels[1], Is.EqualTo(unchecked((int)0xff000065)));
+            Assert.That(map.AdvanceTo(0.5), Is.True);
+            map.Draw(screen, null, 0.5);
+            screen.CopyToBgra(pixels);
+            Assert.That(pixels[0], Is.EqualTo(unchecked((int)0xff563412)));
+
+            Assert.That(map.AdvanceTo(0.75), Is.True);
+            map.Draw(screen, null, 0.75);
+            screen.CopyToBgra(pixels);
+            Assert.That(pixels[0], Is.EqualTo(unchecked((int)0xff2b1a09)));
+
+            var tint = ArcadeMapRecording.CreateTint(new Rgb(0x20, 0x40, 0x60), new Rgb(0x20, 0x40, 0x60));
+            map.Draw(screen, tint, 0.75);
+            screen.CopyToBgra(pixels);
+            Assert.That(pixels[0], Is.EqualTo(unchecked((int)0xff102030)));
+
+            Assert.That(map.AdvanceTo(1), Is.False);
+            map.Draw(screen, tint, 1);
+            screen.CopyToBgra(pixels);
+            Assert.That(pixels.All(pixel => pixel == unchecked((int)0xff000000)), Is.True);
+            screen.Clear();
+            screen.CopyToBgra(pixels);
+            Assert.That(pixels[0], Is.EqualTo(unchecked((int)0xff000000)));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Test]
+    public void OptionalTitlePreservesSourceColors()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            using var bitmap = new SKBitmap(ArcadeData.Width, ArcadeData.Height);
+            var left = new SKColor(26, 62, 92);
+            var right = new SKColor(244, 184, 63);
+            bitmap.Erase(left);
+            bitmap.SetPixel(ArcadeData.Width - 1, ArcadeData.Height - 1, right);
+            using var png = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+            File.WriteAllBytes(path, png.ToArray());
+
+            var title = ArcadeTitleCard.TryLoad(path, 256);
+            Assert.That(title, Is.Not.Null);
+            Assert.That(title.Palette[title.Pixels[0]], Is.EqualTo(new Rgb(left.Red, left.Green, left.Blue)));
+            Assert.That(title.Palette[title.Pixels[^1]], Is.EqualTo(new Rgb(right.Red, right.Green, right.Blue)));
+            Assert.That(ArcadeTitleCard.TryLoad(path + ".missing", 256), Is.Null);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 
     [TestCase("goldenaxe_play_color_fx", true, true)]
