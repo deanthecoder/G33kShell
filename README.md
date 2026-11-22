@@ -134,7 +134,9 @@ over its body instead of too far forward while standing, walking and attacking.
 skin-tinted monochrome graphics. Use `screensaver goldenaxe_color` for color.
 Add `_play` to take control: `screensaver goldenaxe_play_color` (color) or
 `screensaver goldenaxe_play` (mono). Use the arrow keys to move, hold **Ctrl** to
-attack, press **Tab** for magic and **Space** to jump (or dismount). **Ctrl+Space** performs a
+attack, press **Tab** for magic and **Space** to jump. Magic and jumping work on foot
+and in the saddle. Press
+**Shift+Space** to dismount. **Ctrl+Space** performs a
 back attack; double-tap Left or Right to run, then attack for a shoulder charge.
 **Escape** returns to the console. Held keys clear when the window loses focus.
 Press **1** for Ax Battler, **2** for Tyris Flare, or **3** for Gilius Thunderhead
@@ -163,12 +165,12 @@ to jump incoming bolts.
 At camp, carried potions are visible beside the sleeping hero from the start.
 Blue thieves steal them before the hero wakes to give chase; hitting them drops
 potions to recover. Green thieves drop food that restores one health bar, up to
-full health. Thieves carry a finite supply and run off when empty.
+full health. Thieves carry a finite supply and run off when empty or when time expires.
 The night palettes and camp spawn lists come from the extracted data.
 Camp placements are adjusted to keep the group above the HUD. The coded player
 chases thieves, prioritises food when hurt, and carries the collected supplies into
-the next area. The round ends after the chase and remaining drops, with a time limit
-to prevent a stranded thief from blocking progression. Manual controls work as usual;
+the next area. The round ends once the thieves have left and remaining drops have
+been collected or expired. Manual controls work as usual;
 magic is disabled during camp.
 
 Without `_play`, the coded player controls the selected hero, fights the enemy waves and Bad Brothers,

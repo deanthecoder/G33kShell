@@ -49,4 +49,16 @@ public class GoldenAxeInputTests
         keyboard.Clear();
         Assert.That(keyboard.Read(), Is.EqualTo(default(GameInput)));
     }
+
+    [Test]
+    public void ShiftSpaceRequestsDismountInsteadOfJump()
+    {
+        var keyboard = new KeyboardController();
+        keyboard.SetKey(Key.LeftShift, true);
+        keyboard.SetKey(Key.Space, true);
+        keyboard.SetKey(Key.Space, false);
+        keyboard.SetKey(Key.LeftShift, false);
+        Assert.That(keyboard.Read(), Is.EqualTo(new GameInput(Dismount: true)));
+        Assert.That(keyboard.Read(), Is.EqualTo(default(GameInput)));
+    }
 }

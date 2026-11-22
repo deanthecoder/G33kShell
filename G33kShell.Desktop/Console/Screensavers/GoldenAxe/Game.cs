@@ -22,7 +22,18 @@ namespace G33kShell.Desktop.Console.Screensavers.GoldenAxe;
 /// </remarks>
 internal sealed class Game
 {
+    internal const int FireballImpactTicks = 14;
+    internal const int LandingDustTicks = 84;
+    private const double JumpVelocity = -5.75;
+    private const double RunningJumpVelocity = -7.875;
+    private const int KnockdownTicks = 36;
+    private const int EnemyKnockdownVariation = 2;
+    private const int ArcadeLightHitTicks = 81;
+    internal readonly record struct DustPuff(double X, double Z, double Y, double Spread, int Tick, bool Heavy);
+
     private readonly ArcadeData m_data;
+    private readonly Random m_random;
+    private readonly List<DustPuff> m_landingDust = [];
     private int m_nextId;
     private int m_spawnIndex;
     private int m_stopIndex;
@@ -32,6 +43,7 @@ internal sealed class Game
     public HeroDefinition Character { get; private set; }
     public int[][][][] MagicEffects => m_data.Magic[Character.MagicKey];
     public List<Fighter> Actors { get; } = [];
+    public IReadOnlyList<DustPuff> LandingDust => m_landingDust;
     public Fighter Hero { get; }
     public int TickCount { get; private set; }
     public double CameraX { get; private set; }
@@ -48,13 +60,16 @@ internal sealed class Game
     public bool GameOver { get; private set; }
     public int MagicTick { get; private set; } = -1;
     public int MagicLevel { get; private set; }
-    public bool CanAdvance => !IsCamp && !Complete && !GameOver && Hero.Health > 0 && Progress < m_data.Stops[m_stopIndex] &&
+    public int[][][] ActiveMagicEffects { get; private set; } = [];
+    private bool FinalWaveSpawned => m_stopIndex == m_data.Stops.Length - 1 && m_spawnIndex == m_data.Spawns.Length;
+    public bool CanAdvance => !IsCamp && !Complete && !GameOver && Hero.Health > 0 && !FinalWaveSpawned && Progress < m_data.Stops[m_stopIndex] &&
         !Actors.Any(a => a.IsEnemy && !a.IsGone);
     public bool Boss => Progress >= m_data.Stops[^1];
 
-    public Game(ArcadeData data, int character = 0)
+    public Game(ArcadeData data, int character = 0, Random random = null)
     {
         m_data = data;
+        m_random = random ?? Random.Shared;
         Character = HeroDefinition.All[Math.Clamp(character, 0, 2)];
         CameraX = data.InitialCameraX;
         CameraY = CameraRange()[0];
@@ -66,7 +81,7 @@ internal sealed class Game
 
     public Game ContinueIn(ArcadeData nextArea)
     {
-        var next = new Game(nextArea, Array.IndexOf(HeroDefinition.All, Character));
+        var next = new Game(nextArea, Array.IndexOf(HeroDefinition.All, Character), m_random);
         next.Hero.Health = Hero.Health;
         next.Lives = Lives;
         next.Potions = Potions;
@@ -77,9 +92,11 @@ internal sealed class Game
     {
         if (!Complete || IsCamp || AreaIndex == ArcadeData.AreaCount - 1)
             return;
+        CameraX = 4096 - 7 - m_data.Stops[^1];
         Camp = new CampRound(this, m_data);
         Complete = false;
         TickCount = 0;
+        m_landingDust.Clear();
         var range = CameraRange();
         CameraY = Math.Clamp(150 - (Project(Hero.X, Hero.Z, Hero.Y).Y - CameraY), range[0], range[1]);
     }
@@ -98,7 +115,7 @@ internal sealed class Game
         Hero.Palette = Character.Palette;
         Hero.Combo = Hero.ComboTimer = 0;
         Hero.SetState(FighterState.Idle, Character.Moves.Idle);
-        Potions = Math.Min(Potions, Character.MagicLevels);
+        Potions = Math.Min(Potions, Character.PotionCapacity);
         if (Hero.Mount != null)
         {
             body.Moves = Character.RidingMoves(body.Kind);
@@ -145,6 +162,8 @@ internal sealed class Game
         if (Complete || GameOver)
             return;
         TickCount++;
+        if (m_landingDust.Count > 0)
+            m_landingDust.RemoveAll(puff => TickCount - puff.Tick >= LandingDustTicks);
         Camp?.BeforeTick();
         if (MagicTick >= 0)
         {
@@ -164,15 +183,27 @@ internal sealed class Game
                     }
                 }
             }
-            if (MagicTick >= Math.Max(60, MagicEffects[MagicLevel - 1].Length))
+            if (MagicTick >= Math.Max(60, ActiveMagicEffects.Length))
             {
                 MagicTick = -1;
+                ActiveMagicEffects = [];
                 Hero.SetState(FighterState.Idle, Hero.Moves.Idle);
             }
             return;
         }
+        if (Hero.Mount is { IsFree: true } mount && TryCastMagic(input))
+        {
+            mount.Vx = 0;
+            mount.SetState(FighterState.Idle, mount.Moves.Idle);
+            return;
+        }
         while (!IsCamp && m_spawnIndex < m_data.Spawns.Length && m_data.Spawns[m_spawnIndex].Trigger <= Progress)
             Spawn(m_data.Spawns[m_spawnIndex++]);
+        if (!IsCamp && AreaIndex == 0 && m_stopIndex == 0 && !Actors.Any(a => a.IsEnemy && !a.IsGone && a.State != FighterState.Sleeping))
+        {
+            foreach (var enemy in Actors.Where(a => a.IsEnemy && a.State == FighterState.Sleeping))
+                enemy.SetState(FighterState.Idle, enemy.Moves.Idle);
+        }
         foreach (var actor in Actors.ToArray())
         {
             if (actor.IsGone || actor.Mount != null)
@@ -230,6 +261,8 @@ internal sealed class Game
         Actors.RemoveAll(a => a.IsGone && a != Hero);
         var body = Hero.Mount ?? Hero;
         body.X = Math.Clamp(body.X, Progress + 12, Progress + 305);
+        if (Hero.Mount != null)
+            Hero.X = body.X;
         if (IsCamp)
         {
             Camp.AfterTick();
@@ -245,13 +278,13 @@ internal sealed class Game
         var desiredY = 150 - (z - Math.Floor(z / 4) + Math.Min(body.Y, Ground(body.X, body.Z)) - 4096);
         CameraY += Math.Clamp(Math.Clamp(desiredY, cameraRange[0], cameraRange[1]) - CameraY, -2, 2);
         var enemies = Actors.Any(a => a.IsEnemy && !a.IsGone);
-        if (Progress >= stop && !enemies)
+        if (!enemies && (Progress >= stop || FinalWaveSpawned))
         {
             if (++m_clearTicks > 30)
             {
                 if (m_stopIndex < m_data.Stops.Length - 1)
                     m_stopIndex++;
-                else if (m_spawnIndex == m_data.Spawns.Length)
+                else if (FinalWaveSpawned)
                     Complete = true;
                 m_clearTicks = 0;
             }
@@ -269,6 +302,7 @@ internal sealed class Game
             case 0x1b454: Add(ActorKind.Heninger, Moves.StrongHeninger, 0x1c, 16, spawn.X, spawn.Z); break;
             case 0x20414: Add(ActorKind.Longmoan, Moves.StrongLongmoan, 0x7a, 16, spawn.X, spawn.Z); break;
             case 0x23bda: Add(ActorKind.Skeleton, Moves.Skeleton, 0x73, 16, spawn.X, spawn.Z); break;
+            case 0x2536e: Add(ActorKind.Skeleton, Moves.Skeleton, 0x6f, 24, spawn.X, spawn.Z); break;
             case 0x2538a: Add(ActorKind.Skeleton, Moves.Skeleton, 0x6f, 16, spawn.X, spawn.Z); break;
             case 0x25352:
                 if (spawn.Parameter == 0x1005)
@@ -282,16 +316,17 @@ internal sealed class Game
             case 0x1f016: Add(ActorKind.Longmoan, Moves.FastLongmoan, 0x7b, 16, spawn.X, spawn.Z); break;
             case 0x21854: Add(ActorKind.Amazon, Moves.Amazon, 0x63, 16, spawn.X, spawn.Z); break;
             case 0x21876: Add(ActorKind.Amazon, Moves.Amazon, 0x64, 16, spawn.X, spawn.Z); break;
-            case 0x229c8: case 0x2536e: Add(ActorKind.Amazon, Moves.Amazon, 0x65, 16, spawn.X, spawn.Z); break;
+            case 0x229c8: Add(ActorKind.Amazon, Moves.Amazon, 0x65, 16, spawn.X, spawn.Z); break;
             case 0x2f60a: case 0x2f61c: SpawnMount(ActorKind.BlueDragon, spawn); break;
             case 0x306aa: SpawnMount(ActorKind.RedDragon, spawn); break;
             case 0x2a358: Add(ActorKind.Knight, Moves.Knight, 0x86, 32, spawn.X, spawn.Z); break;
             case 0x18b50: Add(ActorKind.Heninger, Moves.Heninger, 0x1d, 16, spawn.X, spawn.Z); break;
-            case 0x317b8: case 0x18b28: Add(ActorKind.Heninger, Moves.Heninger, 0x1b, 16, spawn.X, spawn.Z); break;
-            case 0x18b3c: case 0x18ba6: Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, spawn.X, spawn.Z); break;
+            case 0x18b28: Add(ActorKind.Heninger, Moves.Heninger, 0x1b, AreaIndex == 0 && m_stopIndex == 0 ? 8 : 16, spawn.X, spawn.Z); break;
+            case 0x317b8: Add(ActorKind.Heninger, Moves.Heninger, 0x1b, 16, spawn.X, spawn.Z); break;
+            case 0x18b3c: case 0x18ba6: SpawnForestReinforcement(spawn, ActorKind.Heninger, Moves.Heninger, 0x18); break;
             case 0x1c846: Add(ActorKind.Longmoan, Moves.Longmoan, 0x79, 16, spawn.X, spawn.Z); break;
             case 0x1c868: Add(ActorKind.Longmoan, Moves.Longmoan, 0x78, 16, spawn.X, spawn.Z); break;
-            case 0x1dc3e: Add(ActorKind.Longmoan, Moves.Longmoan, 0x77, 16, spawn.X, spawn.Z); break;
+            case 0x1dc3e: SpawnForestReinforcement(spawn, ActorKind.Longmoan, Moves.FastLongmoan, 0x77); break;
             case 0x282ec: case 0x282d4: Add(ActorKind.BadBrother, Moves.Brother, 0x38, 32, spawn.X, spawn.Z); break;
             case 0x2c264: case 0x2c276: case 0x2b10c: SpawnMount(ActorKind.Chicken, spawn); break;
             case 0x17c7c: case 0x17d00: case 0x17d0e: case 0x17d24:
@@ -311,6 +346,14 @@ internal sealed class Game
         }
     }
 
+    private void SpawnForestReinforcement(SpawnDefinition spawn, ActorKind kind, Moves moves, int palette)
+    {
+        var enemy = Add(kind, moves, palette, 16, spawn.X, spawn.Z);
+        // Both entries at the forest's first stop wait for the preceding enemies to clear.
+        if (!IsCamp && AreaIndex == 0 && spawn.Trigger == m_data.Stops[0] && spawn.Parameter == 0x1002)
+            enemy.SetState(FighterState.Sleeping);
+    }
+
     private void SpawnMount(ActorKind kind, SpawnDefinition spawn)
     {
         var riderKind = AreaIndex switch { 0 => ActorKind.Heninger, 1 or 4 => ActorKind.Amazon, _ => ActorKind.Longmoan };
@@ -327,7 +370,7 @@ internal sealed class Game
         if (fireball.State == FighterState.Dying)
         {
             fireball.Animation.Tick();
-            if (fireball.StateTicks >= 14)
+            if (fireball.StateTicks >= FireballImpactTicks)
                 fireball.SetState(FighterState.Gone);
             return;
         }
@@ -457,13 +500,82 @@ internal sealed class Game
         var ahead = Ground(actor.X + Math.Sign(dx) * 16, actor.Z + Math.Sign(dz) * 4);
         if (actor.IsFree && (Math.Abs(dx) > reach && (ahead < actor.Y - 12 || ahead >= 5248) || Math.Abs(target.Y - actor.Y) > 24))
             return TerrainNavigator.Towards(this, actor, target.X, target.Z);
+        if (EnemyCharge(actor, target, dx, dz) is { } charge)
+            return charge;
+        var attack = actor.IsFree && actor.Cooldown == 0 && Hero.Health > 0 &&
+            Math.Abs(dx) < reach + 6 && Math.Abs(dz) < 6 && HasAttackWindow(actor, target);
         return new GameInput(Math.Abs(dx) > reach ? Math.Sign(dx) : 0, Math.Abs(dz) > 2 ? Math.Sign(dz) : 0,
-            Math.Abs(dx) < reach + 6 && Math.Abs(dz) < 6 && actor.Cooldown == 0 && Hero.Health > 0);
+            attack);
+    }
+
+    internal bool HasImminentStrike(Fighter actor) => actor.State == FighterState.Attacking &&
+        m_data.Attacks.TryGetValue(actor.Animation.Address, out var attack) && actor.Animation.TicksUntilStep(attack[2]) is >= 0 and <= 12;
+
+    private bool HasAttackWindow(Fighter actor, Fighter target)
+    {
+        const int separation = 9;
+        if (actor.Moves.Attacks.Length == 0)
+            return false;
+        var address = actor.Moves.Attacks[actor.Combo % actor.Moves.Attacks.Length];
+        if (!m_data.Attacks.TryGetValue(address, out var attack))
+            return true;
+
+        var steps = m_data.Animations[address];
+        var hitTicks = 1;
+        for (var i = Animation.FirstAttackStep(steps); i < attack[2]; i++)
+            hitTicks += steps[i].Duration;
+
+        foreach (var other in Actors)
+        {
+            if (other == actor || other.State != FighterState.Attacking || !(other.IsEnemy || other.Rider?.IsEnemy == true) ||
+                Math.Abs(other.X - target.X) > 80 || Math.Abs(other.Z - target.Z) > 14 ||
+                !m_data.Attacks.TryGetValue(other.Animation.Address, out var otherAttack))
+                continue;
+
+            var otherHit = other.Animation.TicksUntilStep(otherAttack[2]);
+            if (otherHit >= 0 && Math.Abs(hitTicks - otherHit) < separation)
+                return false;
+        }
+        return true;
+    }
+
+    private GameInput? EnemyCharge(Fighter actor, Fighter target, double dx, double dz)
+    {
+        var distance = Math.Abs(dx);
+        if (!actor.IsEnemy || !actor.IsFree || actor.Cooldown != 0 || !target.Vulnerable ||
+            actor.Moves.Dash == 0 && actor.Moves.JumpAttack == 0 || Math.Abs(dz) > 5 ||
+            Math.Abs(target.Y - actor.Y) > 8 || Project(actor.X, actor.Z, actor.Y).X is < 16 or > 304)
+            return null;
+
+        var running = actor.State == FighterState.Walking && actor.Animation.Address == actor.Moves.Run;
+        var leap = actor.Moves.Dash == 0;
+        var attackRange = leap ? 85 : 48;
+        // Give a distant, stationary target time to react before committing to a rush.
+        if (distance < 32 || !running && (distance < 140 || target.State != FighterState.Idle || target.StateTicks < 36))
+            return null;
+
+        if (!running && Actors.Any(other => other != actor && other.IsEnemy && other.Health > 0 &&
+            (Math.Abs(other.X - target.X) < 56 && Math.Abs(other.Z - target.Z) < 20 ||
+             other.State is FighterState.Dashing or FighterState.Crouching or FighterState.Jumping ||
+             other.State == FighterState.Walking && other.Animation.Address == other.Moves.Run)))
+            return null;
+
+        var direction = Math.Sign(dx);
+        var attack = running && Math.Abs(actor.Vx) >= 2 && distance <= attackRange;
+        var pathLength = attack && leap ? distance + 16 : Math.Min(distance, 48);
+        for (var offset = 8; offset <= pathLength; offset += 8)
+        {
+            var floor = Ground(actor.X + direction * offset, actor.Z);
+            if (floor is <= 3840 or >= 5248 || Math.Abs(floor - actor.Y) > 8)
+                return null;
+        }
+
+        return new GameInput(direction, Attack: attack, Jump: attack && leap, Run: true);
     }
 
     private void UpdateFighter(Fighter actor, GameInput input)
     {
-        if (actor.Rider == Hero && actor.IsFree && input.Jump)
+        if (actor.Rider == Hero && actor.IsFree && input.Dismount)
         {
             actor.Rider = null;
             actor.Moves = actor.FreeMoves;
@@ -475,6 +587,16 @@ internal sealed class Game
             Hero.Vy = -4;
             Hero.SetState(FighterState.Jumping, Hero.Moves.Jump);
             Hero.Animation.Seek(2);
+            return;
+        }
+        if (actor.Rider == Hero && actor.IsFree && input.Jump)
+        {
+            if (input.X != 0)
+                actor.Facing = Math.Sign(input.X);
+            var runningJump = input.Run && input.X != 0;
+            actor.Vx = input.X * (runningJump ? 3 : 1.5);
+            actor.Vy = runningJump ? RunningJumpVelocity : JumpVelocity;
+            actor.SetState(FighterState.Jumping, actor.Moves.Jump);
             return;
         }
         switch (actor.State)
@@ -491,40 +613,48 @@ internal sealed class Game
                 return;
             case FighterState.Hurt:
                 actor.Animation.Tick();
-                if (actor.StateTicks >= 18)
+                if (actor.StateTicks >= (actor.Moves.FollowUpHurt != 0 ? ArcadeLightHitTicks + 1 : 18))
                     actor.SetState(FighterState.Idle, actor.Moves.Idle);
                 return;
             case FighterState.Collapsing:
                 actor.Animation.Tick();
                 if (actor.Animation.Current.Duration == 255)
-                    actor.SetState(FighterState.Down);
+                    LandKnockdown(actor);
                 return;
             case FighterState.Flying:
                 var knockedX = Math.Clamp(actor.X + actor.Vx, Progress + 12, Progress + 296);
-                if (Ground(knockedX, actor.Z) > 3840 && Ground(knockedX, actor.Z) < 5248)
+                if (Ground(knockedX, actor.Z) > 3840)
                     actor.X = knockedX;
                 actor.Y += actor.Vy;
                 actor.Vy += 0.25;
+                if (FellIntoPit(actor))
+                    return;
                 if (actor.StateTicks % 8 == 0)
                     actor.Animation.Seek(Math.Min(actor.Animation.Index + 1, actor.Animation.Steps.Length - 2));
-                if (actor.Y >= Ground(actor.X, actor.Z))
+                var knockdownFloor = Ground(actor.X, actor.Z);
+                if (knockdownFloor < 5248 && actor.Y >= knockdownFloor)
                 {
-                    actor.Y = Ground(actor.X, actor.Z);
+                    actor.Y = knockdownFloor;
                     actor.Animation.Seek(actor.Animation.Steps.Length - 1);
-                    actor.SetState(FighterState.Down);
+                    LandKnockdown(actor);
                 }
                 return;
             case FighterState.Down:
-                if (actor.StateTicks > 35)
+                if (actor.StateTicks >= KnockdownTicks + (actor.Health > 0 ? actor.KnockdownVariation : 0))
                 {
                     if (actor.Health <= 0)
                         Die(actor);
                     else
+                    {
                         actor.SetState(FighterState.GettingUp, actor.Moves.GetUp);
+                        if (actor.IsEnemy)
+                            actor.Animation.Seek(2);
+                    }
                 }
                 return;
             case FighterState.GettingUp:
-                actor.Animation.Tick();
+                if (!actor.IsEnemy || actor.Animation.Index < actor.Animation.Steps.Length - 1)
+                    actor.Animation.Tick();
                 if (actor.StateTicks >= 24)
                 {
                     actor.Invulnerable = actor == Hero ? 70 : 20;
@@ -612,10 +742,13 @@ internal sealed class Game
             case FighterState.Crouching:
                 if (actor.StateTicks >= 12)
                 {
-                    actor.Vy = Math.Abs(actor.Vx) > 2 ? -7.875 : -5.75;
-                    actor.SetState(FighterState.Jumping, actor.Moves.Jump);
+                    var jumpAttack = actor.IsEnemy && actor.Animation.Address == actor.Moves.JumpAttack;
+                    actor.Vy = jumpAttack ? -4.25 : Math.Abs(actor.Vx) > 2 ? RunningJumpVelocity : JumpVelocity;
+                    actor.SetState(FighterState.Jumping, jumpAttack ? actor.Moves.JumpAttack : actor.Moves.Jump);
                     actor.Animation.Seek(2);
                 }
+                else if (actor.IsEnemy && actor.Animation.Address == actor.Moves.JumpAttack)
+                    actor.Animation.Tick();
                 return;
             case FighterState.Falling:
                 Move(actor, input.X * 1.5, input.Z * 0.5);
@@ -623,15 +756,21 @@ internal sealed class Game
                 actor.Y += actor.Vy;
                 if (FellIntoPit(actor))
                     return;
-                if (actor.Y >= Ground(actor.X, actor.Z))
+                var fallingFloor = Ground(actor.X, actor.Z);
+                if (fallingFloor < 5248 && actor.Y >= fallingFloor)
                 {
-                    actor.Y = Ground(actor.X, actor.Z);
+                    actor.Y = fallingFloor;
+                    if (actor.Vy >= 3)
+                        AddLandingDust(actor);
                     actor.Vy = 0;
                     actor.SetState(FighterState.Idle, actor.Moves.Idle);
                 }
                 return;
             case FighterState.Jumping:
-                Move(actor, Math.Abs(actor.Vx) > 2 ? actor.Vx : input.X, input.Z * 0.5);
+                var dx = Math.Abs(actor.Vx) > 2 ? actor.Vx : input.X;
+                if (actor.IsMount && Math.Abs(actor.Vx) <= 2)
+                    dx = input.X == 0 ? actor.Vx : input.X * 1.5;
+                Move(actor, dx, input.Z * 0.5);
                 actor.Y += actor.Vy;
                 actor.Vy += 0.25;
                 if (FellIntoPit(actor))
@@ -646,23 +785,21 @@ internal sealed class Game
                     ResolveAttack(actor);
                     actor.Animation.Tick();
                 }
-                if (actor.Y >= Ground(actor.X, actor.Z) && actor.Vy > 0)
+                var landingY = Ground(actor.X, actor.Z);
+                if (actor.IsMount)
+                    AdvanceMountedJumpPose(actor, landingY);
+                if (landingY < 5248 && actor.Y >= landingY && actor.Vy > 0)
                 {
-                    actor.Y = Ground(actor.X, actor.Z);
+                    actor.Y = landingY;
+                    AddLandingDust(actor);
+                    if (actor.IsMount)
+                        actor.Vx = actor.Vy = 0;
                     actor.SetState(FighterState.Idle, actor.Moves.Idle);
                 }
                 return;
         }
-        if (actor == Hero && !IsCamp && input.Magic && Potions > 0)
-        {
-            MagicLevel = Math.Min(Character.MagicLevels, Potions);
-            Potions = 0;
-            MagicTick = 0;
-            var effects = MagicEffects[MagicLevel - 1];
-            m_magicPeak = Math.Max(30, Enumerable.Range(0, effects.Length).OrderByDescending(i => effects[i].Length).FirstOrDefault());
-            actor.SetState(FighterState.Magic, Character.Magic);
+        if (actor == Hero && TryCastMagic(input))
             return;
-        }
         if (actor == Hero && input.Attack && input.Jump)
         {
             actor.Facing = -actor.Facing;
@@ -674,6 +811,17 @@ internal sealed class Game
             actor.Facing = Math.Sign(input.X);
         if (input.Attack && actor.Moves.Attacks.Length > 0)
         {
+            if (actor.IsEnemy && input.Run)
+            {
+                actor.Cooldown = 105;
+                actor.Vx = actor.Facing * 2.75;
+                actor.Vy = -2.6;
+                if (input.Jump)
+                    actor.SetState(FighterState.Crouching, actor.Moves.JumpAttack);
+                else
+                    actor.SetState(FighterState.Dashing, actor.Moves.Dash);
+                return;
+            }
             if (actor == Hero && input.Run && Math.Abs(actor.Vx) >= 3)
             {
                 actor.Vy = -2.6;
@@ -694,10 +842,17 @@ internal sealed class Game
             actor.SetState(FighterState.Crouching, actor.Moves.Jump);
             return;
         }
-        var speed = actor == Hero || actor.Rider == Hero ? 1.5 : actor.Kind == ActorKind.BadBrother ? 0.5 : actor.Kind is ActorKind.Knight or ActorKind.DeathAdder ? 0.9 : actor.Kind == ActorKind.Skeleton ? 0.8 : 0.7;
-        if (actor == Hero && input.Run && input.X != 0)
+        var speed = actor == Hero || actor.Rider == Hero ? 1.5 : actor.Kind switch
         {
-            actor.Vx = Math.Sign(input.X) * Math.Min(4, Math.Abs(actor.Vx) + 0.5);
+            ActorKind.BadBrother => 0.5,
+            ActorKind.Knight or ActorKind.DeathAdder => 0.9,
+            ActorKind.Skeleton => 0.8,
+            _ => actor.Moves.WalkSpeed
+        };
+        var run = (actor == Hero || actor.IsEnemy) && input.Run && input.X != 0;
+        if (run)
+        {
+            actor.Vx = Math.Sign(input.X) * Math.Min(actor == Hero ? 4 : actor.Moves.RunSpeed, Math.Abs(actor.Vx) + 0.5);
             speed = Math.Abs(actor.Vx);
         }
         else
@@ -707,7 +862,7 @@ internal sealed class Game
         {
             if (actor.State != FighterState.Walking)
                 actor.SetState(FighterState.Walking);
-            actor.Animation.Play(actor == Hero && input.Run && input.X != 0 ? actor.Moves.Run : input.Z < 0 ? actor.Moves.WalkUp : actor.Moves.Walk);
+            actor.Animation.Play(run ? actor.Moves.Run : input.Z < 0 ? actor.Moves.WalkUp : actor.Moves.Walk);
             actor.Animation.Tick();
         }
         else if (actor.State != FighterState.Idle)
@@ -723,6 +878,36 @@ internal sealed class Game
         }
         actor.Y = floor;
         TryMount(actor);
+    }
+
+    private bool TryCastMagic(GameInput input)
+    {
+        if (IsCamp || !input.Magic || Potions == 0 || Hero.Health <= 0)
+            return false;
+
+        MagicLevel = Character.GetMagicLevel(Potions);
+        // The export indexes recordings by the potion count fed to the arcade.
+        var recordings = MagicEffects;
+        ActiveMagicEffects = recordings[Math.Min(Potions, recordings.Length) - 1];
+        Potions = 0;
+        MagicTick = 0;
+        m_magicPeak = Math.Max(30, Enumerable.Range(0, ActiveMagicEffects.Length)
+            .OrderByDescending(i => ActiveMagicEffects[i].Length).FirstOrDefault());
+        Hero.SetState(FighterState.Magic, Character.Magic);
+        return true;
+    }
+
+    private static void AdvanceMountedJumpPose(Fighter mount, double ground)
+    {
+        // The two long holds in the mount script are the rising and descending poses.
+        if (mount.Animation.Index < 2)
+            mount.Animation.Tick();
+        else if (mount.Vy >= 0)
+        {
+            var pose = ground - mount.Y <= 8 ? 4 : 3;
+            if (mount.Animation.Index != pose)
+                mount.Animation.Seek(pose);
+        }
     }
 
     private static bool CanRide(Fighter actor) => actor.Kind is ActorKind.Hero or ActorKind.Heninger or ActorKind.Longmoan or ActorKind.Amazon;
@@ -874,18 +1059,28 @@ internal sealed class Game
         if (Ground(actor.X, actor.Z) < 5248 || Project(actor.X, actor.Z, actor.Y).Y <= ArcadeData.Height + 40)
             return false;
         actor.Health = 0;
-        Die(actor);
+        if (actor.Rider is { } rider)
+        {
+            actor.Rider = null;
+            rider.Mount = null;
+            rider.Health = 0;
+            actor.SetState(FighterState.Gone);
+            Die(rider);
+        }
+        else
+            Die(actor);
         return true;
     }
 
     private void Move(Fighter actor, double dx, double dz)
     {
         var airborne = actor.State is FighterState.Jumping or FighterState.Falling;
+        var canEnterPit = airborne || !IsCamp && actor.IsFree && (actor == Hero || actor.Rider == Hero);
         var next = Ground(actor.X + dx + Math.Sign(dx) * 8, actor.Z);
-        if (next >= actor.Y - 12 && (next < 5248 || airborne))
+        if (next >= actor.Y - 12 && (next < 5248 || canEnterPit))
             actor.X += dx;
         next = Ground(actor.X, actor.Z + dz);
-        if (next >= actor.Y - 12 && (next < 5248 || airborne) && (dz <= 0 || airborne && next >= 5248 || CanMoveDown(actor, actor.Z + dz, next)))
+        if (next >= actor.Y - 12 && (next < 5248 || canEnterPit) && (dz <= 0 || airborne && next >= 5248 || CanMoveDown(actor, actor.Z + dz, next)))
             actor.Z += dz;
     }
 
@@ -893,9 +1088,24 @@ internal sealed class Game
     {
         if (actor != Hero && actor.Rider != Hero)
             return true;
-        // Leave room above the HUD for the feet, allowing the camera to follow on taller maps.
         var lowestCamera = IsCamp ? CameraY : CameraRange()[0];
-        return Project(actor.X, z, ground).Y + lowestCamera - CameraY <= 196;
+        if (Project(actor.X, z, ground).Y + lowestCamera - CameraY <= 196)
+            return true;
+        if (IsCamp)
+            return false;
+
+        // The opening forest has a wide front lane. Elsewhere, the HUD must not fence off a real drop.
+        if (AreaIndex == 0 && Progress <= m_data.Stops[0] || ground >= 5248)
+            return true;
+        for (var depth = 8; depth <= 64; depth += 8)
+        {
+            var ahead = Ground(actor.X, z + depth);
+            if (ahead <= 3840 || ahead < ground - 12)
+                break;
+            if (ahead >= 5248)
+                return true;
+        }
+        return false;
     }
 
     private void ResolveAttack(Fighter actor)
@@ -909,7 +1119,9 @@ internal sealed class Game
         var friendly = actor == Hero || actor.Rider == Hero || actor.Kind == ActorKind.Fireball && actor.Owner == Hero;
         foreach (var target in Actors.ToArray())
         {
-            if (target == actor || !target.Vulnerable || actor.Struck.Contains(target.Id) || Math.Abs(target.Z - actor.Z) >= 7)
+            // A chicken's tail swipe can catch a thief slightly across the lane.
+            var depthReach = actor.Kind == ActorKind.Chicken && actor.Rider == Hero && target.Kind == ActorKind.Thief ? 14 : 7;
+            if (target == actor || !target.Vulnerable || actor.Struck.Contains(target.Id) || Math.Abs(target.Z - actor.Z) >= depthReach)
                 continue;
             var hostile = target.IsEnemy || target.Kind == ActorKind.Thief || target.Rider?.IsEnemy == true;
             if (friendly ? !hostile : target != Hero && target.Rider != Hero)
@@ -958,7 +1170,7 @@ internal sealed class Game
             potion.Y -= 20;
             potion.Vy = -3;
             potion.Vx = source.Facing * 0.8;
-            target.SetState(FighterState.Hurt, target.Moves.Hurt);
+            target.SetState(FighterState.Hurt, target.Items == 0 ? Moves.ThiefEmptyHurt : target.Moves.Hurt);
             return;
         }
         ReleaseGrab(target);
@@ -977,7 +1189,45 @@ internal sealed class Game
             target.Animation.Seek(1);
         }
         else
-            target.SetState(FighterState.Hurt, target.Moves.Hurt);
+        {
+            var followUp = target.Moves.FollowUpHurt;
+            target.SetState(FighterState.Hurt, followUp != 0 && target.Hits == 2 ? followUp : target.Moves.Hurt);
+            // The long hold at step zero plays after the arcade recoil poses.
+            if (followUp != 0)
+                target.Animation.Seek(1);
+        }
+    }
+
+    private void LandKnockdown(Fighter actor)
+    {
+        if (actor.IsEnemy)
+        {
+            if (actor.Health > 0)
+                actor.KnockdownVariation = m_random.Next(-EnemyKnockdownVariation, EnemyKnockdownVariation + 1);
+            actor.SetState(FighterState.Down, actor.Moves.GetUp);
+            // Enemy recovery scripts hold their grounded back pose in the second frame.
+            actor.Animation.Seek(1);
+        }
+        else
+            actor.SetState(FighterState.Down);
+
+        AddLandingDust(actor, heavy: true);
+    }
+
+    private void AddLandingDust(Fighter actor, bool heavy = false)
+    {
+        if (actor.Y is <= 3840 or >= 5248)
+            return;
+
+        var pose = actor.Animation.Current;
+        var sprite = m_data.Frames[pose.Frame];
+        m_landingDust.Add(new DustPuff(
+            actor.X + (heavy ? pose.Dx * actor.Facing : 0),
+            actor.Z,
+            actor.Y + (heavy ? pose.Dy : 0),
+            heavy ? sprite.Width * 0.34 : 5,
+            TickCount,
+            heavy));
     }
 
     private void Die(Fighter actor)
@@ -991,12 +1241,13 @@ internal sealed class Game
         }
     }
 
-    private void MoveThief(Fighter actor)
+    private void MoveThief(Fighter actor, bool fleeingCamp = false)
     {
         var screenX = Project(actor.X, actor.Z, actor.Y).X;
-        if (actor.Items == 0 && (actor.Facing < 0 && screenX < 24 || actor.Facing > 0 && screenX > 296))
+        var running = actor.Items == 0 || fleeingCamp;
+        if (running && (actor.Facing < 0 && screenX < 24 || actor.Facing > 0 && screenX > 296))
         {
-            // An empty thief must be allowed beyond the captured collision map to leave.
+            // A fleeing thief must be allowed beyond the captured collision map to leave.
             actor.X += actor.Facing * 3;
             return;
         }
@@ -1017,7 +1268,7 @@ internal sealed class Game
             else if (ahead >= 5248)
                 actor.Facing = -actor.Facing;
         }
-        Move(actor, actor.Facing * (actor.Items > 0 ? 1.0 : 3.0), 0);
+        Move(actor, actor.Facing * (running ? 3.0 : 1.0), 0);
         actor.Y += actor.Vy;
         actor.Vy += 0.25;
         ground = Ground(actor.X, actor.Z);
@@ -1026,6 +1277,27 @@ internal sealed class Game
             actor.Y = ground;
             actor.Vy = 0;
         }
+    }
+
+    private void RunThiefOutOfCamp(Fighter actor)
+    {
+        var ticksSinceTimeout = Camp.Ticks - CampRound.TimeLimit;
+        var screenX = Project(actor.X, actor.Z, actor.Y).X;
+        if (actor.State != FighterState.Fleeing || ticksSinceTimeout is 0 or CampRound.ExitRoutingTicks)
+        {
+            actor.Facing = screenX < ArcadeData.Width / 2 ? -1 : 1;
+            actor.SetState(FighterState.Fleeing, actor.Items == 0 ? Moves.ThiefEmptyRun : actor.Moves.Run);
+        }
+
+        if (ticksSinceTimeout < CampRound.ExitRoutingTicks)
+            MoveThief(actor, fleeingCamp: true);
+        else
+            // Finish the exit even if the captured terrain blocked the normal route.
+            actor.X += actor.Facing * 3;
+
+        screenX = Project(actor.X, actor.Z, actor.Y).X;
+        if (screenX < -60 || screenX > ArcadeData.Width + 60)
+            actor.SetState(FighterState.Gone);
     }
 
     private void UpdateProp(Fighter actor)
@@ -1056,16 +1328,21 @@ internal sealed class Game
                 if (actor.Kind == ActorKind.Food)
                     Hero.Health = Math.Min(48, Hero.Health + 16);
                 else
-                    Potions = Math.Min(Character.MagicLevels, Potions + 1);
+                    Potions = Math.Min(Character.PotionCapacity, Potions + 1);
                 actor.SetState(FighterState.Gone);
             }
             return;
         }
         actor.Animation.Tick();
+        if (actor.Kind == ActorKind.Thief && Camp?.TimeExpired == true)
+        {
+            RunThiefOutOfCamp(actor);
+            return;
+        }
         if (actor.State == FighterState.Hurt)
         {
             if (actor.StateTicks > 24)
-                actor.SetState(FighterState.Walking, actor.Moves.Walk);
+                actor.SetState(FighterState.Walking, actor.Kind == ActorKind.Thief && actor.Items == 0 ? Moves.ThiefEmptyRun : actor.Moves.Walk);
             return;
         }
         if (actor.Kind == ActorKind.Thief)
@@ -1073,7 +1350,7 @@ internal sealed class Game
             if (actor.Items == 0 && actor.State != FighterState.Fleeing)
             {
                 actor.Facing = Project(actor.X, actor.Z, actor.Y).X < 160 ? -1 : 1;
-                actor.SetState(FighterState.Fleeing, actor.Moves.Run);
+                actor.SetState(FighterState.Fleeing, Moves.ThiefEmptyRun);
             }
             var jar = IsCamp && !actor.FoodThief && actor.Items > 0
                 ? Actors.FirstOrDefault(a => a.Kind == ActorKind.CampPotion && !a.IsGone) : null;

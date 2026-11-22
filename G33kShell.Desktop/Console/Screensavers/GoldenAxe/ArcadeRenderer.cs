@@ -22,13 +22,12 @@ namespace G33kShell.Desktop.Console.Screensavers.GoldenAxe;
 internal sealed class ArcadeRenderer
 {
     private readonly ArcadeData m_data;
-    private readonly byte m_orange, m_red, m_darkRed, m_blue, m_lightBlue, m_yellow;
+    private readonly byte m_orange, m_darkRed, m_blue, m_lightBlue, m_yellow;
 
     public ArcadeRenderer(ArcadeData data)
     {
         m_data = data;
         m_orange = Color(255, 136, 0);
-        m_red = Color(255, 68, 68);
         m_darkRed = Color(160, 0, 0);
         m_blue = Color(34, 34, 255);
         m_lightBlue = Color(120, 160, 255);
@@ -66,8 +65,8 @@ internal sealed class ArcadeRenderer
                     (rider[1] != 0) ^ actor.Facing < 0);
             }
         }
-        if (game.MagicTick >= 0 && game.MagicTick < game.MagicEffects[game.MagicLevel - 1].Length)
-        foreach (var effect in game.MagicEffects[game.MagicLevel - 1][game.MagicTick])
+        if (game.MagicTick >= 0 && game.MagicTick < game.ActiveMagicEffects.Length)
+        foreach (var effect in game.ActiveMagicEffects[game.MagicTick])
         {
             var point = game.Project(game.Hero.X + effect[3], game.Hero.Z + effect[4], game.Hero.Y + effect[5]);
             Sprite(screen, effect[0], effect[1], point.X, point.Y, effect[2] == 1);
@@ -111,17 +110,7 @@ internal sealed class ArcadeRenderer
     private void DrawHud(PixelScreenData screen, Game game)
     {
         Text(screen, $"STAGE {m_data.StageNumber + (game.IsCamp ? 1 : 0)}", 16, 16, m_orange);
-        Text(screen, "MAGIC", 104, 2, m_red);
-        var potionIndex = m_data.Animations[0x1870a][0].Frame;
-        var potion = m_data.Frames[potionIndex];
-        for (var i = 0; i < game.Character.MagicLevels; i++)
-        {
-            Fill(screen, 104 + i * 10, 12, 7, 10, m_darkRed);
-            if (i < game.Potions)
-                Sprite(screen, potionIndex, 0x4a,
-                    104 + i * 10 + (7 - potion.Width / 2) / 2 - potion.Ox / 2.0,
-                    12 + (10 - potion.Height / 2) / 2 - potion.Oy / 2.0, false, divisor: 2);
-        }
+        DrawMagicMeter(screen, game);
         for (var bar = 0; bar < 3; bar++)
         {
             var amount = Math.Clamp(game.Hero.Health - bar * 16, 0, 16);
@@ -131,6 +120,31 @@ internal sealed class ArcadeRenderer
         }
         Text(screen, Math.Max(0, game.Lives).ToString(), 132, 205, m_yellow);
         Sprite(screen, game.Character.Portrait, game.Character.Palette, 155, 214, false, divisor: 2);
+    }
+
+    private void DrawMagicMeter(PixelScreenData screen, Game game)
+    {
+        const int left = 104;
+        const int top = 2;
+        const int slotWidth = 10;
+        const int height = 18;
+        var hero = game.Character;
+        Fill(screen, left, top, hero.PotionCapacity * slotWidth + 1, height, m_data.White);
+        for (var tier = 0; tier < hero.MagicLevels; tier++)
+        {
+            var start = hero.MagicThresholds[tier] - 1;
+            var end = tier + 1 < hero.MagicLevels ? hero.MagicThresholds[tier + 1] - 1 : hero.PotionCapacity;
+            var x = left + start * slotWidth + 1;
+            Fill(screen, x, top + 1, (end - start) * slotWidth - 1, height - 2, m_darkRed);
+            Text(screen, (tier + 1).ToString(), x, top + 1, m_yellow);
+        }
+
+        var potionIndex = m_data.Animations[0x1870a][0].Frame;
+        var potion = m_data.Frames[potionIndex];
+        for (var slot = 0; slot < game.Potions; slot++)
+            Sprite(screen, potionIndex, 0x4a,
+                left + slot * slotWidth + (slotWidth + 1 - potion.Width / 2) / 2 - potion.Ox / 2.0,
+                top + height - 1 - potion.Height / 2 - potion.Oy / 2.0, false, divisor: 2);
     }
 
     private static void Fill(PixelScreenData screen, int left, int top, int width, int height, byte color)

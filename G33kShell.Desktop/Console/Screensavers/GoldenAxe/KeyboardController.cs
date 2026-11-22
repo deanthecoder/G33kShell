@@ -19,7 +19,7 @@ internal sealed class KeyboardController
 {
     private readonly object m_lock = new();
     private readonly HashSet<Key> m_held = [];
-    private bool m_attack, m_jump, m_magic;
+    private bool m_attack, m_jump, m_magic, m_dismount;
     private Key m_lastDirection;
     private Key m_runDirection;
     private long m_lastDirectionTime;
@@ -44,7 +44,10 @@ internal sealed class KeyboardController
                     m_attack = true;
                     break;
                 case Key.Space:
-                    m_jump = true;
+                    if (m_held.Contains(Key.LeftShift) || m_held.Contains(Key.RightShift))
+                        m_dismount = true;
+                    else
+                        m_jump = true;
                     break;
                 case Key.Tab:
                     m_magic = true;
@@ -68,8 +71,8 @@ internal sealed class KeyboardController
             var z = (m_held.Contains(Key.Down) ? 1 : 0) - (m_held.Contains(Key.Up) ? 1 : 0);
             var attack = m_attack || m_held.Contains(Key.LeftCtrl) || m_held.Contains(Key.RightCtrl);
             var run = x != 0 && m_runDirection == (x < 0 ? Key.Left : Key.Right);
-            var input = new GameInput(x, z, attack, m_jump, m_magic, run);
-            m_attack = m_jump = m_magic = false;
+            var input = new GameInput(x, z, attack, m_jump, m_magic, run, m_dismount);
+            m_attack = m_jump = m_magic = m_dismount = false;
             return input;
         }
     }
@@ -79,7 +82,7 @@ internal sealed class KeyboardController
         lock (m_lock)
         {
             m_held.Clear();
-            m_attack = m_jump = m_magic = false;
+            m_attack = m_jump = m_magic = m_dismount = false;
             m_lastDirection = m_runDirection = Key.None;
             m_lastDirectionTime = 0;
         }

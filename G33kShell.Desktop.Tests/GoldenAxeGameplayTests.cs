@@ -8,6 +8,7 @@
 //
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.IO;
 using SkiaSharp;
@@ -31,6 +32,181 @@ public class GoldenAxeGameplayTests
 
     [OneTimeSetUp]
     public void LoadAreas() => m_areas = Enumerable.Range(0, ArcadeData.AreaCount).Select(i => new ArcadeData(ArcadeData.AssetDirectory, i)).ToArray();
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void HeningerFinishesHisSwingWithoutRepeatingTheStrikePose(bool strong)
+    {
+        var game = new Game(m_areas[0]);
+        var hero = game.Hero;
+        var moves = strong ? Moves.StrongHeninger : Moves.Heninger;
+        var enemy = game.Add(ActorKind.Heninger, moves, 0x18, 16, hero.X + 24, hero.Z);
+        enemy.Cooldown = 0;
+        game.Tick(default);
+        Assert.That(enemy.State, Is.EqualTo(FighterState.Attacking));
+
+        var frames = new List<int>();
+        for (var tick = 0; tick < 100 && enemy.State == FighterState.Attacking; tick++)
+        {
+            var frame = enemy.Animation.Current.Frame;
+            if (frames.Count == 0 || frames[^1] != frame)
+                frames.Add(frame);
+            game.Tick(default);
+        }
+
+        Assert.That(frames, Is.EqualTo(new[] { 124, 125, 126, 127, 125, 124 }));
+        Assert.That(hero.Health, Is.EqualTo(46));
+    }
+
+    [Test]
+    public void LongmoanSwingsWithoutFlashingHisIdlePoseOrRepeatingTheStrike()
+    {
+        var game = new Game(m_areas[0], 2);
+        var hero = game.Hero;
+        var enemy = game.Add(ActorKind.Longmoan, Moves.Longmoan, 0x77, 16, hero.X + 23, hero.Z);
+        enemy.Cooldown = 0;
+        game.Tick(default);
+        Assert.That(enemy.State, Is.EqualTo(FighterState.Attacking));
+
+        var frames = new List<int>();
+        for (var tick = 0; tick < 100 && enemy.State == FighterState.Attacking; tick++)
+        {
+            var frame = enemy.Animation.Current.Frame;
+            if (frames.Count == 0 || frames[^1] != frame)
+                frames.Add(frame);
+            game.Tick(default);
+        }
+
+        Assert.That(frames, Is.EqualTo(new[] { 1009, 1010, 1011, 1012, 1010, 1009 }));
+        Assert.That(hero.Health, Is.EqualTo(46));
+    }
+
+    [Test]
+    public void DistantEnemyRunsAndUsesItsClosingAttack([Values(false, true)] bool leap)
+    {
+        var game = new Game(m_areas[0], 2);
+        var hero = game.Hero;
+        var moves = leap ? Moves.Longmoan : Moves.Heninger;
+        var enemy = game.Add(leap ? ActorKind.Longmoan : ActorKind.Heninger, moves, 0x18, 16, hero.X + 175, hero.Z);
+        enemy.Cooldown = 0;
+        var ran = false;
+        var topSpeed = 0.0;
+        var usedClosingAttack = false;
+
+        for (var tick = 0; tick < 130 && hero.Health == 48; tick++)
+        {
+            game.Tick(default);
+            ran |= enemy.Animation.Address == moves.Run && Math.Abs(enemy.Vx) > 2;
+            if (enemy.Animation.Address == moves.Run)
+                topSpeed = Math.Max(topSpeed, Math.Abs(enemy.Vx));
+            usedClosingAttack |= leap
+                ? enemy.State == FighterState.Jumping && enemy.Animation.Address == moves.JumpAttack
+                : enemy.State == FighterState.Dashing && enemy.Animation.Address == moves.Dash;
+        }
+
+        Assert.That(ran, Is.True);
+        if (leap)
+            Assert.That(topSpeed, Is.EqualTo(3));
+        Assert.That(usedClosingAttack, Is.True);
+        Assert.That(hero.Health, Is.EqualTo(44));
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void OpeningSoldierWalksAndRecoversFromALightHitAtArcadePace(bool longmoan)
+    {
+        var game = new Game(m_areas[0]);
+        var kind = longmoan ? ActorKind.Longmoan : ActorKind.Heninger;
+        var moves = longmoan ? Moves.Longmoan : Moves.Heninger;
+        var hero = game.Hero;
+        var enemy = game.Add(kind, moves, longmoan ? 0x78 : 0x18, 16, hero.X + 39, hero.Z);
+        enemy.Cooldown = 1000;
+        var startX = enemy.X;
+        game.Tick(default);
+        Assert.That(enemy.X, Is.EqualTo(startX - 0.5));
+
+        for (var tick = 0; tick < 50 && enemy.State != FighterState.Hurt; tick++)
+            game.Tick(new GameInput(Attack: true));
+        Assert.That(enemy.Health, Is.LessThan(16));
+        Assert.That(enemy.State, Is.EqualTo(FighterState.Hurt));
+        Assert.That(enemy.Animation.Index, Is.EqualTo(1));
+        var hitX = enemy.X;
+        var hitZ = enemy.Z;
+        for (var tick = 1; tick < 81; tick++)
+        {
+            game.Tick(default);
+            Assert.That(enemy.State, Is.EqualTo(FighterState.Hurt));
+            Assert.That((enemy.X, enemy.Z), Is.EqualTo((hitX, hitZ)));
+        }
+        Assert.That(enemy.Animation.Index, Is.Zero);
+        game.Tick(default);
+        Assert.That(enemy.State, Is.EqualTo(FighterState.Idle));
+    }
+
+    [Test]
+    public void AutoplaySidestepsAnEnemyBarge()
+    {
+        var game = new Game(m_areas[0], 2);
+        var hero = game.Hero;
+        var enemy = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, hero.X + 175, hero.Z);
+        enemy.Cooldown = 0;
+        for (var tick = 0; tick < 120 && enemy.State != FighterState.Dashing; tick++)
+            game.Tick(default);
+        Assert.That(enemy.State, Is.EqualTo(FighterState.Dashing));
+
+        var controller = new CodedController();
+        var sidestep = 0.0;
+        while (enemy.State == FighterState.Dashing && enemy.StateTicks < 18)
+        {
+            game.Tick(controller.Read(game));
+            sidestep = Math.Max(sidestep, Math.Abs(hero.Z - enemy.Z));
+        }
+
+        Assert.That(sidestep, Is.GreaterThanOrEqualTo(7));
+        Assert.That(hero.Health, Is.EqualTo(48));
+    }
+
+    [Test]
+    public void AutoplayStepsOutOfTheCrowdedAttackLane()
+    {
+        var data = m_areas[0];
+        var game = new Game(data);
+        var hero = game.Hero;
+        var attacker = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, hero.X + 24, hero.Z + 1);
+        attacker.SetState(FighterState.Attacking, attacker.Moves.Attacks[0], true);
+        attacker.Animation.Seek(data.Attacks[attacker.Animation.Address][2]);
+        game.Add(ActorKind.Longmoan, Moves.Longmoan, 0x78, 16, hero.X + 35, hero.Z + 2);
+        game.Add(ActorKind.Longmoan, Moves.Longmoan, 0x78, 16, hero.X + 45, hero.Z + 3);
+
+        var input = new CodedController().Read(game);
+
+        Assert.That(input, Is.EqualTo(new GameInput(Z: -1)));
+    }
+
+    [Test]
+    public void NearbyEnemiesStaggerHitsWhenTheyAreReadyTogether()
+    {
+        var game = new Game(m_areas[0], 2);
+        var hero = game.Hero;
+        var first = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, hero.X + 24, hero.Z);
+        var second = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, hero.X + 25, hero.Z + 1);
+        first.Cooldown = second.Cooldown = 0;
+
+        var hitTicks = new List<int>();
+        for (var tick = 0; tick < 90 && hitTicks.Count < 2; tick++)
+        {
+            var health = hero.Health;
+            game.Tick(default);
+            if (hero.Health < health)
+            {
+                Assert.That(health - hero.Health, Is.EqualTo(2));
+                hitTicks.Add(game.TickCount);
+            }
+        }
+
+        Assert.That(hitTicks, Has.Count.EqualTo(2));
+        Assert.That(hitTicks[1] - hitTicks[0], Is.GreaterThanOrEqualTo(8));
+    }
 
     [Test]
     public void EagleFeathersDriftOnlyOverTheEaglesBackAndStopDuringCamp()
@@ -172,18 +348,97 @@ public class GoldenAxeGameplayTests
         Assert.That(body.Vy, Is.Zero);
     }
 
+    [Test]
+    public void ForestFrontLaneReachesTheTerrainBoundary()
+    {
+        var game = new Game(m_areas[0]);
+        var hero = game.Hero;
+        for (var tick = 0; tick < 100; tick++)
+            game.Tick(new GameInput(Z: 1));
+
+        Assert.That(hero.Z, Is.InRange(4302.5, 4304.0));
+        Assert.That(hero.Health, Is.EqualTo(48));
+        Assert.That(hero.State, Is.EqualTo(FighterState.Walking));
+        Assert.That(game.Lives, Is.EqualTo(2));
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void WalkingOffTheTurtleVillageFrontEdgeCostsOneLife(bool mounted)
+    {
+        var game = new Game(m_areas[1]);
+        AdvanceTo(game, 4185);
+        var hero = game.Hero;
+        hero.X = 4333;
+        hero.Z = 4264;
+        hero.Y = game.Ground(hero.X, hero.Z);
+        var body = hero;
+        if (mounted)
+        {
+            body = game.Add(ActorKind.Chicken, game.Character.MountedMoves, 0x23, 99, hero.X, hero.Z);
+            body.Rider = hero;
+            hero.Mount = body;
+        }
+
+        for (var tick = 0; tick < 70 && body.State != FighterState.Falling; tick++)
+            game.Tick(new GameInput(Z: 1));
+        Assert.That(body.State, Is.EqualTo(FighterState.Falling));
+        Assert.That(game.Ground(body.X, body.Z), Is.GreaterThanOrEqualTo(5248));
+        Assert.That(hero.Health, Is.EqualTo(48));
+
+        for (var tick = 0; tick < 240 && game.Lives == 2; tick++)
+            game.Tick(default);
+        Assert.That(game.Lives, Is.EqualTo(1));
+        Assert.That(hero.Health, Is.EqualTo(48));
+        Assert.That(hero.Mount, Is.Null);
+        Assert.That(game.Ground(hero.X, hero.Z), Is.InRange(3841, 5247));
+    }
+
+    [Test]
+    public void ShoulderBargeKnocksAnEnemyOverTheTurtleVillageEdge()
+    {
+        var game = new Game(m_areas[1]);
+        AdvanceTo(game, 4220);
+        var hero = game.Hero;
+        hero.X = 4415;
+        hero.Z = 4312;
+        hero.Y = game.Ground(hero.X, hero.Z);
+        var enemy = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, 4438, hero.Z);
+        enemy.Cooldown = 1000;
+
+        for (var tick = 0; tick < 6; tick++)
+            game.Tick(new GameInput(X: 1, Run: true));
+        game.Tick(new GameInput(X: 1, Attack: true, Run: true));
+        Assert.That(hero.State, Is.EqualTo(FighterState.Dashing));
+        for (var tick = 0; tick < 8 && enemy.State != FighterState.Flying; tick++)
+            game.Tick(default);
+        Assert.That(enemy.State, Is.EqualTo(FighterState.Flying));
+        Assert.That(enemy.Health, Is.EqualTo(12));
+
+        for (var tick = 0; tick < 160 && !enemy.IsGone; tick++)
+            game.Tick(default);
+        Assert.That(enemy.IsGone, Is.True);
+        Assert.That(game.Ground(enemy.X, enemy.Z), Is.GreaterThanOrEqualTo(5248));
+        Assert.That(game.Kills, Is.EqualTo(1));
+    }
+
     [TestCase(0)]
     [TestCase(1)]
     [TestCase(2)]
     [TestCase(3)]
     [TestCase(4)]
-    public void HoldingDownKeepsFeetAboveHudAcrossArea(int area)
+    public void HoldingDownKeepsFeetAboveHudAwayFromDropOffs(int area)
     {
         var game = new Game(m_areas[area], 2);
         Assert.That(game.Project(game.Hero.X, game.Hero.Z, game.Hero.Y).Y, Is.InRange(48, 196), "The player must spawn on screen.");
         foreach (var progress in new[] { 4200, 4500, 4800, 5100 })
         {
+            if (area == 0 && progress <= m_areas[0].Stops[0])
+                continue;
             AdvanceTo(game, progress);
+            // At these positions, a mapped pit can intentionally extend the lane below the HUD.
+            if (Enumerable.Range(0, 20).Any(row => game.Ground(game.Hero.X, game.Hero.Z + row * 8) >= 5248))
+                continue;
             for (var tick = 0; tick < 300; tick++)
             {
                 game.Actors.RemoveAll(a => a != game.Hero);
@@ -261,6 +516,34 @@ public class GoldenAxeGameplayTests
         Assert.That(next.Lives, Is.EqualTo(game.Lives));
     }
 
+    [TestCase(0, -11, true)]
+    [TestCase(1, 11, true)]
+    [TestCase(2, 11, true)]
+    [TestCase(2, 18, false)]
+    public void ChickenTailSwipeCanCatchThiefInAnAdjacentLane(int character, int depthOffset, bool expectHit)
+    {
+        var game = new Game(m_areas[0], character);
+        var hero = game.Hero;
+        var chicken = game.Add(ActorKind.Chicken, game.Character.MountedMoves, 0x23, 99, hero.X, hero.Z);
+        hero.Mount = chicken;
+        chicken.Rider = hero;
+        chicken.Facing = 1;
+        var thief = game.Add(ActorKind.Thief, Moves.Thief, 0x3d, 99, chicken.X + 30, chicken.Z + depthOffset);
+        thief.Items = 3;
+
+        game.Tick(new GameInput(Attack: true));
+        Assert.That(chicken.State, Is.EqualTo(FighterState.Attacking));
+        for (var tick = 0; tick < 120 && chicken.State == FighterState.Attacking; tick++)
+        {
+            thief.X = chicken.X + 30;
+            thief.Z = chicken.Z + depthOffset;
+            thief.Y = game.Ground(thief.X, thief.Z);
+            game.Tick(default);
+        }
+
+        Assert.That(thief.Items, Is.EqualTo(expectHit ? 2 : 3));
+    }
+
     [TestCase(false, -1)]
     [TestCase(false, 1)]
     [TestCase(true, -1)]
@@ -279,11 +562,16 @@ public class GoldenAxeGameplayTests
             game.Tick(new GameInput(Attack: true));
         }
         Assert.That(thief.Items, Is.Zero);
+        Assert.That(thief.Animation.Address, Is.EqualTo(Moves.ThiefEmptyHurt));
         var loot = game.Actors.Where(a => a.Kind == (food ? ActorKind.Food : ActorKind.Potion)).ToArray();
         Assert.That(loot, Has.Length.EqualTo(3));
         thief.X = game.Progress + (direction < 0 ? 40 : 280);
         for (var tick = 0; tick < 120 && !thief.IsGone; tick++)
+        {
             game.Tick(new GameInput(Attack: true));
+            if (thief.State == FighterState.Fleeing)
+                Assert.That(thief.Animation.Current.Frame, Is.InRange(494, 498));
+        }
         Assert.That(thief.IsGone, Is.True, "An empty thief must leave instead of bouncing off the screen edge.");
         Assert.That(thief.Facing, Is.EqualTo(direction));
         Assert.That(game.Actors.Where(a => a.Kind == (food ? ActorKind.Food : ActorKind.Potion)), Is.EquivalentTo(loot));
@@ -307,7 +595,7 @@ public class GoldenAxeGameplayTests
         game.Hero.Health = 16;
         game.Hero.X = game.Progress + 60;
         game.Hero.Y = game.Ground(game.Hero.X, game.Hero.Z);
-        while (game.Potions < game.Character.MagicLevels)
+        while (game.Potions < game.Character.PotionCapacity)
         {
             game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, game.Hero.X, game.Hero.Z);
             game.Tick(default);
@@ -322,7 +610,7 @@ public class GoldenAxeGameplayTests
         for (var tick = 0; tick < 400 && game.Hero.Health == 16; tick++)
             game.Tick(controller.Read(game));
         Assert.That(game.Hero.Health, Is.EqualTo(32));
-        Assert.That(game.Potions, Is.EqualTo(game.Character.MagicLevels));
+        Assert.That(game.Potions, Is.EqualTo(game.Character.PotionCapacity));
     }
 
     [TestCase(0, -1)]
@@ -376,7 +664,7 @@ public class GoldenAxeGameplayTests
         for (var tick = 0; tick < 350; tick++)
             game.Tick(default);
         Assert.That(game.Hero.Mount, Is.SameAs(beast));
-        game.Tick(new GameInput(Jump: true));
+        game.Tick(new GameInput(Dismount: true));
         game.Hero.MountCooldown = 10000;
         Assert.That(beast.Rider, Is.Null);
         Assert.That(beast.Animation.Current.Frame, Is.EqualTo(kind == 0 ? 203 : 637), "Dismounting restores the seated pose.");
@@ -385,6 +673,99 @@ public class GoldenAxeGameplayTests
         Assert.That(beast.State, Is.EqualTo(FighterState.Idle));
         game.Tick(default);
         Assert.That(beast.State, Is.EqualTo(FighterState.Fleeing));
+    }
+
+    [Test]
+    public void MountedJumpUsesBothAirbornePosesAndKeepsTheRider(
+        [Range(0, 2)] int character, [Range(0, 2)] int mount)
+    {
+        var data = m_areas[0];
+        var game = new Game(data, character);
+        var hero = game.Hero;
+        var kind = new[] { ActorKind.Chicken, ActorKind.BlueDragon, ActorKind.RedDragon }[mount];
+        var beast = game.Add(kind, kind == ActorKind.Chicken ? Moves.Chicken : Moves.BlueDragon, 0x23, 99, hero.X, hero.Z);
+        game.Tick(default);
+        Assert.That(hero.Mount, Is.SameAs(beast));
+
+        var poses = new HashSet<int>();
+        var startX = beast.X;
+        var startY = beast.Y;
+        var highestY = startY;
+        game.Tick(new GameInput(X: 1, Jump: true));
+        for (var tick = 0; tick < 60 && beast.State == FighterState.Jumping; tick++)
+        {
+            Assert.That(beast.Animation.Address, Is.EqualTo(beast.Moves.Jump));
+            Assert.That(data.Riders[beast.Moves.Jump].Length, Is.EqualTo(beast.Animation.Steps.Length));
+            Assert.That(hero.Mount, Is.SameAs(beast));
+            Assert.That((hero.X, hero.Z, hero.Y), Is.EqualTo((beast.X, beast.Z, beast.Y)));
+            poses.Add(beast.Animation.Current.Frame);
+            highestY = Math.Min(highestY, beast.Y);
+            game.Tick(default);
+        }
+
+        Assert.That(poses, Does.Contain(kind == ActorKind.Chicken ? 0xc8 : 0x27a));
+        Assert.That(poses, Does.Contain(kind == ActorKind.Chicken ? 0xc9 : 0x27b));
+        Assert.That(highestY, Is.LessThan(startY - 20));
+        Assert.That(beast.X, Is.GreaterThan(startX));
+        Assert.That(beast.State, Is.EqualTo(FighterState.Idle));
+        Assert.That(beast.Rider, Is.SameAs(hero));
+        Assert.That(beast.Y, Is.EqualTo(game.Ground(beast.X, beast.Z)));
+        Assert.That(game.LandingDust, Has.Count.EqualTo(1));
+    }
+
+    [TestCase(0)]
+    [TestCase(1)]
+    [TestCase(2)]
+    public void MountedJumpClearsTheHighLedgeInTheWoods(int mount)
+    {
+        var game = new Game(m_areas[0], 2);
+        AdvanceTo(game, 4800);
+        var hero = game.Hero;
+        hero.X = 4819;
+        hero.Z = 4168;
+        hero.Y = game.Ground(hero.X, hero.Z);
+        var top = game.Ground(4832, hero.Z);
+        Assert.That(hero.Y - top, Is.EqualTo(48));
+
+        var kind = new[] { ActorKind.Chicken, ActorKind.BlueDragon, ActorKind.RedDragon }[mount];
+        var beast = game.Add(kind, kind == ActorKind.Chicken ? Moves.Chicken : Moves.BlueDragon, 0x23, 99, hero.X, hero.Z);
+        game.Tick(default);
+        Assert.That(hero.Mount, Is.SameAs(beast));
+        game.Tick(new GameInput(X: 1, Jump: true));
+        for (var tick = 0; tick < 60 && beast.State == FighterState.Jumping; tick++)
+            game.Tick(new GameInput(X: 1));
+
+        Assert.That(beast.State, Is.EqualTo(FighterState.Idle));
+        Assert.That(beast.X, Is.GreaterThanOrEqualTo(4832));
+        Assert.That(beast.Y, Is.EqualTo(top));
+        Assert.That(hero.Mount, Is.SameAs(beast));
+    }
+
+    [Test]
+    public void MountedMagicSpendsPotionsAndKeepsTheRiderSeated(
+        [Range(0, 2)] int character, [Range(0, 2)] int mount)
+    {
+        var game = new Game(m_areas[0], character);
+        var hero = game.Hero;
+        var kind = new[] { ActorKind.Chicken, ActorKind.BlueDragon, ActorKind.RedDragon }[mount];
+        var beast = game.Add(kind, kind == ActorKind.Chicken ? Moves.Chicken : Moves.BlueDragon, 0x23, 99, hero.X, hero.Z);
+        game.Tick(default);
+        Assert.That(hero.Mount, Is.SameAs(beast));
+        var enemy = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, hero.X + 28, hero.Z);
+        enemy.Cooldown = 0;
+        game.Tick(new GameInput(Magic: true));
+        Assert.That((game.MagicTick, game.MagicLevel, game.Potions), Is.EqualTo((0, 1, 0)));
+        Assert.That(hero.State, Is.EqualTo(FighterState.Magic));
+        Assert.That(beast.Animation.Address, Is.EqualTo(beast.Moves.Idle));
+
+        for (var tick = 0; tick < 500 && game.MagicTick >= 0; tick++)
+            game.Tick(default);
+        Assert.That(game.MagicTick, Is.EqualTo(-1));
+        Assert.That(enemy.Health, Is.EqualTo(12));
+        Assert.That(hero.Health, Is.EqualTo(48));
+        Assert.That(hero.Mount, Is.SameAs(beast));
+        game.Tick(new GameInput(X: 1));
+        Assert.That(beast.State, Is.EqualTo(FighterState.Walking));
     }
 
     [TestCase(0, false)]
@@ -530,7 +911,7 @@ public class GoldenAxeGameplayTests
     [TestCase(2, true)]
     public void MagicVictimsCollapseThenRecoverOrDie(int character, bool lethal)
     {
-        var game = new Game(m_areas[0], character);
+        var game = new Game(m_areas[0], character, new Random(0));
         var enemies = new[]
         {
             (ActorKind.Heninger, Moves.Heninger), (ActorKind.Heninger, Moves.StrongHeninger),
@@ -557,17 +938,81 @@ public class GoldenAxeGameplayTests
         for (var tick = 0; tick < 60; tick++)
             game.Tick(default);
         Assert.That(enemies.All(enemy => enemy.State == FighterState.Down), Is.True, "Every enemy must visibly land and lie down.");
-        var waiting = enemies.ToList();
-        for (var tick = 0; tick < 36; tick++)
+        Assert.That(enemies.All(enemy => enemy.Animation.Address == enemy.Moves.GetUp && enemy.Animation.Index == 1), Is.True,
+            "Every enemy must hold its grounded pose while down.");
+        var waiting = enemies.ToDictionary(enemy => enemy, enemy => enemy.StateTicks);
+        var recoveryTimes = new HashSet<int>();
+        for (var tick = 1; tick <= 38; tick++)
         {
             game.Tick(default);
-            foreach (var enemy in waiting.Where(enemy => enemy.State != FighterState.Down).ToArray())
+            foreach (var enemy in waiting.Keys.Where(enemy => enemy.State != FighterState.Down).ToArray())
             {
                 Assert.That(enemy.State, Is.EqualTo(lethal ? FighterState.Dying : FighterState.GettingUp));
+                var duration = waiting[enemy] + tick;
+                Assert.That(duration, Is.InRange(lethal ? 36 : 34, lethal ? 36 : 38));
+                recoveryTimes.Add(duration);
                 waiting.Remove(enemy);
             }
         }
         Assert.That(waiting, Is.Empty);
+        if (!lethal)
+            Assert.That(recoveryTimes.Count, Is.GreaterThan(1));
+    }
+
+    [Test]
+    public void FullGiliusMagicKillsTheAmazonButNotTheTurtleVillageSkeleton()
+    {
+        var data = m_areas[1];
+        var game = new Game(data, character: 2);
+        var hero = game.Hero;
+        for (var i = game.Potions; i < game.Character.PotionCapacity; i++)
+            game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, hero.X, hero.Z);
+        game.Tick(default);
+        Assert.That(game.Potions, Is.EqualTo(4));
+
+        var wave = data.Spawns.Where(spawn => spawn.Trigger == data.Stops[^1] && spawn.Routine is 0x229c8 or 0x2536e);
+        foreach (var spawn in wave)
+            game.Spawn(spawn with { X = (int)hero.X + 70, Z = (int)hero.Z });
+        var amazon = game.Actors.Single(actor => actor.Kind == ActorKind.Amazon);
+        var skeleton = game.Actors.Single(actor => actor.Kind == ActorKind.Skeleton);
+        Assert.That(amazon.Health, Is.EqualTo(16));
+        Assert.That(skeleton.Health, Is.EqualTo(24));
+
+        game.Tick(new GameInput(Magic: true));
+        for (var tick = 0; tick < 500 && game.MagicTick >= 0; tick++)
+            game.Tick(default);
+
+        Assert.That(game.MagicTick, Is.EqualTo(-1));
+        Assert.That(amazon.Health, Is.Zero);
+        Assert.That(skeleton.Health, Is.EqualTo(8));
+        Assert.That(skeleton.State, Is.EqualTo(FighterState.Collapsing));
+    }
+
+    [TestCase(0, new int[] { 1, 1, 2, 2, 3, 4 })]
+    [TestCase(1, new int[] { 1, 1, 1, 1, 2, 3, 4, 5, 6 })]
+    [TestCase(2, new int[] { 1, 2, 2, 3 })]
+    public void PotionSlotsUnlockTheCorrectSpellTiers(int character, int[] tiers)
+    {
+        for (var potions = 1; potions <= tiers.Length + 1; potions++)
+        {
+            var game = new Game(m_areas[0], character);
+            for (var i = 1; i < potions; i++)
+            {
+                game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, game.Hero.X, game.Hero.Z);
+                game.Tick(default);
+            }
+
+            var collected = Math.Min(potions, tiers.Length);
+            Assert.That(game.Potions, Is.EqualTo(collected));
+            game.Tick(new GameInput(Magic: true));
+            Assert.That(game.MagicLevel, Is.EqualTo(tiers[collected - 1]));
+            Assert.That(game.Potions, Is.Zero);
+            Assert.That(game.ActiveMagicEffects, Is.SameAs(game.MagicEffects[Math.Min(collected, game.MagicEffects.Length) - 1]));
+
+            for (var tick = 0; tick <= game.ActiveMagicEffects.Length && game.MagicTick >= 0; tick++)
+                game.Tick(default);
+            Assert.That(game.MagicTick, Is.EqualTo(-1));
+        }
     }
 
     [TestCase(0)]
@@ -688,6 +1133,72 @@ public class GoldenAxeGameplayTests
             game.Tick(default);
         renderer.Draw(screen, game);
         Assert.That(PromptPixels(), Is.Not.EqualTo(visible));
+    }
+
+    [Test]
+    public void ForestReinforcementsHoldUntilTheFirstFightersAreCleared()
+    {
+        var data = m_areas[0];
+        var game = new Game(data);
+        AdvanceTo(game, 4173);
+        game.Tick(default);
+        Assert.That(game.Actors.Single(actor => actor.Kind == ActorKind.Heninger).Health, Is.EqualTo(8));
+
+        for (var tick = 0; tick < 100 && game.Progress < data.Stops[0]; tick++)
+        {
+            game.Hero.X = game.Progress + 180;
+            game.Tick(default);
+        }
+        Assert.That(game.Progress, Is.EqualTo(data.Stops[0]));
+        game.Tick(default);
+        var reinforcements = game.Actors.Where(actor => actor.IsEnemy && actor.State == FighterState.Sleeping).ToArray();
+        Assert.That(reinforcements, Has.Length.EqualTo(2));
+        Assert.That(reinforcements.Any(actor => actor.Moves == Moves.FastLongmoan), Is.True);
+
+        foreach (var actor in game.Actors.Where(actor => actor.IsEnemy && actor.State != FighterState.Sleeping))
+            actor.SetState(FighterState.Gone);
+        game.Tick(default);
+
+        Assert.That(reinforcements.All(actor => actor.IsFree), Is.True);
+    }
+
+    [Test]
+    public void FirstAreaClearsAfterTheTwoBadBrothersWithoutFurtherScrolling()
+    {
+        var data = m_areas[0];
+        var game = new Game(data);
+        var bossSpawns = data.Spawns.Where(spawn => spawn.Routine == 0x282d4).ToArray();
+        AdvanceTo(game, bossSpawns.Min(spawn => spawn.Trigger) - 4);
+        for (var tick = 0; tick < 30 && game.Progress < bossSpawns.Max(spawn => spawn.Trigger); tick++)
+        {
+            game.Hero.X = game.Progress + 180;
+            game.Tick(default);
+        }
+
+        game.Hero.X = game.Progress + 120;
+        game.Tick(default);
+        var bosses = game.Actors.Where(actor => actor.Kind == ActorKind.BadBrother).ToArray();
+        Assert.That(bosses, Has.Length.EqualTo(2));
+        var progress = game.Progress;
+        Assert.That(progress, Is.LessThan(data.Stops[^1]));
+        Assert.That(game.Complete, Is.False);
+
+        foreach (var boss in bosses)
+        {
+            boss.Health = 0;
+            boss.SetState(FighterState.Dying, boss.Moves.GetUp);
+        }
+        for (var tick = 0; tick < 100 && !game.Complete; tick++)
+        {
+            game.Tick(default);
+            Assert.That(game.CanAdvance, Is.False);
+        }
+        Assert.That(game.Complete, Is.True);
+        Assert.That(game.Progress, Is.EqualTo(progress));
+
+        game.StartCamp();
+        Assert.That(game.IsCamp, Is.True);
+        Assert.That(game.Progress, Is.EqualTo(data.Stops[^1]));
     }
 
     private static void AdvanceTo(Game game, int progress)

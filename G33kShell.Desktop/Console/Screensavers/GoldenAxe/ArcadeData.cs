@@ -74,6 +74,7 @@ internal sealed class ArcadeData
         Frames = sprites["frames"].Select(f => new SpriteFrame((int)f[1], (int)f[2], (int)f[3], (int)f[4], (int)f[5], (int)f[6])).ToArray();
         Animations = ((JObject)sprites["anims"]).Properties().ToDictionary(p => Hex(p.Name), p => p.Value.Select(s =>
             new AnimationStep((int)s[0], Math.Max(1, (int)s[1]), (int)s[2], (int)s[3], (int)s[4], s[5].ToObject<int[]>())).ToArray());
+        FixMaceSwingPoses();
         Attacks = ((JObject)sprites["attacks"]).Properties().ToDictionary(p => Hex(p.Name), p => p.Value.ToObject<int[]>());
         Riders = ((JObject)sprites["riders"]).Properties().ToDictionary(p => Hex(p.Name), p => p.Value.ToObject<int[][]>());
         SpriteColors = sprites["palettes"].Select(p => Enumerable.Range(0, 16).Select(i => Hex(p.ToString().Substring(i * 6, 6))).ToArray()).ToArray();
@@ -146,6 +147,28 @@ internal sealed class ArcadeData
         Black = Map(0);
         White = Map(0xffffff);
         FillBackgroundGaps();
+    }
+
+    private void FixMaceSwingPoses()
+    {
+        // Hold the follow-through where these scripts briefly replay the strike.
+        HoldPreviousPose(Moves.Heninger.Attacks[0], 7, 126, 127);
+        HoldPreviousPose(Moves.StrongHeninger.Attacks[0], 7, 126, 127);
+
+        foreach (var moves in new[] { Moves.Longmoan, Moves.FastLongmoan, Moves.StrongLongmoan })
+        {
+            var address = moves.Attacks[0];
+            // The idle pose interrupts Longmoan's wind-up for two ticks.
+            HoldPreviousPose(address, 1, 985, 1009);
+            HoldPreviousPose(address, 9, 1011, 1012);
+        }
+    }
+
+    private void HoldPreviousPose(int address, int index, int frame, int previousFrame)
+    {
+        if (Animations.TryGetValue(address, out var steps) && steps.Length > index &&
+            steps[index].Frame == frame && steps[index - 1].Frame == previousFrame)
+            steps[index] = steps[index - 1] with { Duration = steps[index].Duration };
     }
 
     private void FillBackgroundGaps()

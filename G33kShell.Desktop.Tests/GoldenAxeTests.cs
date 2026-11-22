@@ -11,6 +11,7 @@ using System;
 using System.IO;
 using System.Linq;
 using DTC.Core;
+using G33kShell.Desktop.Console;
 using G33kShell.Desktop.Console.Screensavers.GoldenAxe;
 using NUnit.Framework;
 using SkiaSharp;
@@ -26,6 +27,89 @@ namespace G33kShell.Desktop.Tests;
 [TestFixture]
 public class GoldenAxeTests
 {
+    internal static Game ReachFirstCamp(ArcadeData data)
+    {
+        var game = new Game(data, random: new Random(0));
+        var controller = new CodedController();
+        while (game.TickCount < 18_000 && !game.Complete && !game.GameOver)
+            game.Tick(controller.Read(game));
+        game.StartCamp();
+        Assert.That(game.IsCamp, Is.True);
+        return game;
+    }
+
+    [Test]
+    public void CampStaysPlayableAfterCollectingTheLastPotion()
+    {
+        var game = ReachFirstCamp(new ArcadeData(ArcadeData.AssetDirectory));
+        var potion = game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, game.Hero.X, game.Hero.Z);
+        // Keep the final drop out of reach until the thieves have left and the hero has woken.
+        potion.X = game.Progress + 295;
+        while (game.Camp.Ticks < 480)
+        {
+            game.Actors.RemoveAll(actor => actor.Kind == ActorKind.Thief);
+            game.Tick(default);
+        }
+
+        Assert.That(game.Complete, Is.False);
+        var potionsBefore = game.Potions;
+        potion.X = game.Hero.X;
+        potion.Z = game.Hero.Z;
+        potion.Y = game.Hero.Y;
+        game.Tick(default);
+        Assert.That(game.Potions, Is.EqualTo(potionsBefore + 1));
+
+        var fire = game.Actors.Single(actor => actor.Kind == ActorKind.Campfire);
+        var fireFrame = fire.Animation.Index;
+        var fireAnimated = false;
+        for (var tick = 0; tick < CampRound.ClearHoldTicks - 1; tick++)
+        {
+            game.Tick(default);
+            fireAnimated |= fire.Animation.Index != fireFrame;
+        }
+        Assert.That(game.Complete, Is.False);
+        Assert.That(fireAnimated, Is.True);
+        game.Tick(default);
+        Assert.That(game.Complete, Is.True);
+    }
+
+    [Test]
+    public void CampTimeoutLetsLoadedThievesRunOffBothEdges()
+    {
+        var game = ReachFirstCamp(new ArcadeData(ArcadeData.AssetDirectory));
+        var fire = game.Actors.Single(actor => actor.Kind == ActorKind.Campfire);
+        var left = game.Add(ActorKind.Thief, Moves.Thief, 0x3d, 99, fire.X - 34, fire.Z);
+        var right = game.Add(ActorKind.Thief, Moves.Thief, 0x3c, 99, fire.X + 34, fire.Z);
+        left.Items = right.Items = 3;
+        right.FoodThief = true;
+        var leftStart = left.X;
+        var rightStart = right.X;
+
+        while (game.Camp.Ticks < CampRound.TimeLimit - 1 && !game.Complete)
+        {
+            game.Actors.RemoveAll(actor => actor.Kind == ActorKind.Thief && actor != left && actor != right);
+            left.X = leftStart;
+            right.X = rightStart;
+            game.Tick(default);
+        }
+
+        game.Tick(default);
+        Assert.That(game.Camp.TimeExpired, Is.True);
+        Assert.That(game.Complete, Is.False);
+        Assert.That(game.Actors, Does.Contain(left).And.Contain(right));
+        Assert.That(left.State, Is.EqualTo(FighterState.Fleeing));
+        Assert.That(right.State, Is.EqualTo(FighterState.Fleeing));
+        Assert.That(left.Animation.Current.Frame, Is.InRange(489, 493));
+        Assert.That(right.Animation.Current.Frame, Is.InRange(489, 493));
+
+        while (!game.Complete && game.Camp.Ticks < CampRound.TimeLimit + 250 + CampRound.ClearHoldTicks)
+            game.Tick(default);
+
+        Assert.That(game.Project(left.X, left.Z, left.Y).X, Is.LessThan(-60));
+        Assert.That(game.Project(right.X, right.Z, right.Y).X, Is.GreaterThan(ArcadeData.Width + 60));
+        Assert.That(left.IsGone && right.IsGone && game.Complete, Is.True);
+    }
+
     [TestCase(4824, 1)]
     [TestCase(5208, -1)]
     public void PotionThiefJumpsOntoRockWithoutWalkingThroughIt(int startX, int facing)
@@ -121,7 +205,7 @@ public class GoldenAxeTests
         if (!ArcadeData.IsAvailable)
             Assert.Ignore("Bundled Golden Axe data is missing.");
         var data = new ArcadeData(ArcadeData.AssetDirectory, area);
-        var game = new Game(data, character);
+        var game = new Game(data, character, new Random(0));
         var controller = new CodedController();
         var renderer = new ArcadeRenderer(data);
         var screen = new G33kShell.Desktop.Console.PixelScreenData(320, 224, data.Palette);
@@ -161,7 +245,7 @@ public class GoldenAxeTests
             game.StartCamp();
             Assert.That(game.IsCamp, Is.True);
             Assert.That(game.Complete, Is.False);
-            for (var tick = 0; tick < 1400 && !game.Complete; tick++)
+            for (var tick = 0; tick < 1400 + CampRound.ClearHoldTicks && !game.Complete; tick++)
             {
                 game.Tick(controller.Read(game));
                 if (tick is 0 or 150 or 450 or 900)

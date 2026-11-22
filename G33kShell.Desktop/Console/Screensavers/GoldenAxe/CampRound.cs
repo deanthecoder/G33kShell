@@ -17,11 +17,16 @@ namespace G33kShell.Desktop.Console.Screensavers.GoldenAxe;
 /// </remarks>
 internal sealed class CampRound
 {
+    internal const int TimeLimit = 1050;
+    internal const int ExitRoutingTicks = 90;
+    internal const int ClearHoldTicks = 150;
     private readonly Game m_game;
     private readonly ArcadeData m_data;
     private readonly int m_startingPotions;
     private int m_wakeTick;
+    private int? m_clearedAt;
     public int Ticks { get; private set; }
+    public bool TimeExpired => Ticks >= TimeLimit;
     public int DepthOffset { get; }
     public bool Complete { get; private set; }
 
@@ -75,10 +80,10 @@ internal sealed class CampRound
 
     public void AfterTick()
     {
-        // Bound the bonus round even if a fleeing thief meets an impassable map edge.
-        if (Ticks >= 1050)
-            m_game.Actors.RemoveAll(a => a.Kind == ActorKind.Thief);
-        var lootRemaining = m_game.Actors.Any(a => !a.IsGone && a.Kind is ActorKind.Thief or ActorKind.Potion or ActorKind.Food);
-        Complete = Ticks >= 1300 || Ticks > 400 && !lootRemaining;
+        if (m_clearedAt == null && Ticks > 400 && !m_game.Actors.Any(a => a.Kind == ActorKind.Thief && !a.IsGone) &&
+            (Ticks >= 1300 || !m_game.Actors.Any(a => !a.IsGone && a.Kind is ActorKind.Potion or ActorKind.Food)))
+            m_clearedAt = Ticks;
+
+        Complete = Ticks - m_clearedAt >= ClearHoldTicks;
     }
 }

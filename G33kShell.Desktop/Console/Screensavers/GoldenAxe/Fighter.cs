@@ -28,6 +28,7 @@ internal sealed class Fighter
     public int Facing = 1, Palette, Health, Age, StateTicks, Invulnerable, Cooldown, Hits, Combo, Items, Flash, Knees, HitTimer, ComboTimer, MountCooldown, MountWaitTicks;
     public bool Connected, Entered, FoodThief;
     public int UnmountedTicks, EscapeDirection, EscapeBlockedTicks;
+    public int KnockdownVariation;
     public Fighter Mount, Rider, Victim, HeldBy, Owner, PendingMount;
     public bool IsMount => Kind is ActorKind.Chicken or ActorKind.BlueDragon or ActorKind.RedDragon;
     public Moves FreeMoves => Kind is ActorKind.BlueDragon or ActorKind.RedDragon ? Moves.BlueDragon : Moves.Chicken;

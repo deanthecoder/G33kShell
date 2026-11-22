@@ -25,16 +25,22 @@ internal sealed class CodedController
     {
         var hero = game.Hero.Mount ?? game.Hero;
         var needsFood = game.Hero.Health < 48;
-        var needsMagic = game.Potions < game.Character.MagicLevels;
+        var needsMagic = game.Potions < game.Character.PotionCapacity;
         if (!game.IsCamp && game.Boss && !game.Actors.Any(a => a.IsEnemy && a.Health > 0))
             return default;
         if (hero.IsFree && game.Actors.Any(a => a.Kind == ActorKind.Lightning && !a.IsGone &&
             (hero.X - a.X) * a.Facing is > 0 and < 80 && Math.Abs(a.Z - hero.Z) < 14))
             return new GameInput(Jump: true);
+        if (hero.IsFree && AvoidCharge(game, hero) is { } sidestep)
+            return sidestep;
+        bool CloseThreat(Fighter a) => (a.IsEnemy || a.Rider?.IsEnemy == true) && a.Vulnerable && a.State != FighterState.Hurt &&
+            Math.Abs(a.X - hero.X) < 48 && Math.Abs(a.Z - hero.Z) < 10 && Math.Abs(a.Y - hero.Y) < 12;
+        var hasCloseThreat = !game.IsCamp && game.Actors.Any(CloseThreat);
         var target = game.Actors.Where(a => (a.IsEnemy || a.Rider?.IsEnemy == true || a.Kind == ActorKind.Thief && a.Items > 0) && a.Vulnerable)
             .Where(a => !game.IsCamp || game.Project(a.X, a.Z, a.Y).X is >= 24 and <= 296)
             .Where(a => !game.IsCamp || a.Kind != ActorKind.Thief || (a.FoodThief ? needsFood : needsMagic))
             .OrderBy(a => game.IsCamp && needsFood && a.FoodThief ? 0 : 1)
+            .ThenBy(a => hasCloseThreat && !CloseThreat(a) ? 1 : 0)
             .ThenBy(a => Math.Abs(a.X - hero.X) + Math.Abs(a.Z - hero.Z) * 3).FirstOrDefault();
         if (hero.State == FighterState.Jumping)
         {
@@ -42,11 +48,21 @@ internal sealed class CodedController
                 return default;
             return new GameInput(hero.Facing, Attack: target != null && Math.Abs(target.X - hero.X) < 55);
         }
-        if (!game.IsCamp && game.Potions >= 2 && game.Actors.Count(a => a.IsEnemy && a.Health > 0) >= 2 && hero == game.Hero)
-            return new GameInput(Magic: true);
-        var item = game.Actors.Where(a => !a.IsGone && a.Kind is ActorKind.Potion or ActorKind.Food)
+        if (!game.IsCamp && hero == game.Hero && game.Potions >= 2)
+        {
+            var enemies = game.Actors.Count(a => a.IsEnemy && a.Health > 0);
+            // Tyris needs more potions to unlock stronger magic, so save it for larger groups or bosses.
+            var cast = game.Character.MagicKey == "tyris"
+                ? game.Boss || game.Potions >= 3 && enemies >= 3
+                : enemies >= 2;
+            if (cast)
+                return new GameInput(Magic: true);
+        }
+        if (hero.IsFree && AvoidCrowd(game, hero) is { } escape)
+            return escape;
+        var item = game.Actors.Where(a => !a.IsGone && (a.Kind == ActorKind.Potion && needsMagic || a.Kind == ActorKind.Food && needsFood))
             .Where(a => game.IsCamp
-                ? game.Project(a.X, a.Z, a.Y).X is >= 12 and <= 305 && (a.Kind == ActorKind.Food ? needsFood : needsMagic)
+                ? game.Project(a.X, a.Z, a.Y).X is >= 12 and <= 305
                 : Math.Abs(a.X - hero.X) < 100)
             .OrderBy(a => a.Kind == ActorKind.Food && needsFood ? 0 : 1)
             .ThenBy(a => Math.Abs(a.X - hero.X) + Math.Abs(a.Z - hero.Z) * 3).FirstOrDefault();
@@ -68,7 +84,7 @@ internal sealed class CodedController
             var retreatFloor = game.Ground(hero.X + retreat * 16, hero.Z);
             if (hero.X + retreat * 32 < game.Progress + 12 || hero.X + retreat * 32 > game.Progress + 305 ||
                 retreatFloor < hero.Y - 12 || retreatFloor >= 5248)
-                return hero.IsMount ? new GameInput(Jump: true) : new GameInput(-retreat);
+                return hero.IsMount ? new GameInput(Dismount: true) : new GameInput(-retreat);
             return new GameInput(retreat);
         }
         if (item == null && target != null && hero == game.Hero && target.State == FighterState.Hurt &&
@@ -86,16 +102,52 @@ internal sealed class CodedController
         if (x != 0 && ahead >= 5248 && Enumerable.Range(3, 10).Any(step =>
                 game.Ground(hero.X + x * step * 8, hero.Z) is > 3840 and < 5248 &&
                 Math.Abs(game.Ground(hero.X + x * step * 8, hero.Z) - hero.Y) <= 32))
-            return hero.IsMount ? new GameInput(Jump: true) : new GameInput(x, Jump: true, Run: true);
+            return new GameInput(x, Jump: true, Run: true);
         if (x != 0 && (ahead < hero.Y - 12 || ahead >= 5248) ||
             z != 0 && (game.Ground(hero.X, hero.Z + z * 8) < hero.Y - 12 || game.Ground(hero.X, hero.Z + z * 8) >= 5248))
         {
             var route = TerrainNavigator.Towards(game, hero, tx, tz);
-            // A beast cannot jump ledges; continue on foot if it has no walking route.
-            return hero.IsMount && route == default ? new GameInput(Jump: true) : route;
+            return hero.IsMount && route == default ? new GameInput(Dismount: true) : route;
         }
         var run = hero == game.Hero && (target == null || target.Id % 2 == 0) && Math.Abs(dx) > 55 && Math.Abs(dz) < 5 &&
             Math.Abs(game.Ground(hero.X + x * 32, hero.Z) - hero.Y) < 8;
         return new GameInput(x, z, Run: run);
+    }
+
+    private static GameInput? AvoidCharge(Game game, Fighter hero)
+    {
+        var attacker = game.Actors.FirstOrDefault(a => a.IsEnemy &&
+            (hero.X - a.X) * a.Facing is > -4 and < 90 && Math.Abs(hero.Z - a.Z) < 20 &&
+            (a.State == FighterState.Dashing && a.StateTicks < 18 ||
+             a.State is FighterState.Crouching or FighterState.Jumping && a.Animation.Address == a.Moves.JumpAttack));
+        if (attacker == null)
+            return null;
+
+        var depth = hero.Z - attacker.Z;
+        if (Math.Abs(depth) >= 9)
+            return default(GameInput);
+
+        var direction = depth > 0 ? 1 : -1;
+        if (Math.Abs(game.Ground(hero.X, attacker.Z + direction * 10) - hero.Y) <= 8)
+            return new GameInput(Z: direction);
+        if (Math.Abs(game.Ground(hero.X, attacker.Z - direction * 10) - hero.Y) <= 8)
+            return new GameInput(Z: -direction);
+        return null;
+    }
+
+    private static GameInput? AvoidCrowd(Game game, Fighter hero)
+    {
+        var threats = game.Actors.Where(a => (a.IsEnemy && a.Mount == null || a.Rider?.IsEnemy == true) && a.Health > 0 &&
+            Math.Abs(a.X - hero.X) < 65 && Math.Abs(a.Z - hero.Z) < 8 && Math.Abs(a.Y - hero.Y) < 12 &&
+            a.State is FighterState.Idle or FighterState.Walking or FighterState.Attacking).ToArray();
+        if (!threats.Any(a => (threats.Length >= 3 || a.Kind == ActorKind.DeathAdder) && game.HasImminentStrike(a)))
+            return null;
+        foreach (var direction in new[] { -1, 1 }.OrderBy(d => threats.Count(a => (a.Z - hero.Z) * d > 0)))
+        {
+            var ground = game.Ground(hero.X, hero.Z + direction * 12);
+            if (Math.Abs(ground - hero.Y) <= 8 && (direction < 0 || game.Project(hero.X, hero.Z + 12, ground).Y <= 196))
+                return new GameInput(Z: direction);
+        }
+        return null;
     }
 }
