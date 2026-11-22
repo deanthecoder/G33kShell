@@ -170,11 +170,7 @@ public partial class ConsoleView : Control
                 m_pixelBuffer = new int[pixelScreen.Width * pixelScreen.Height];
             }
 
-            for (var i = 0; i < pixelScreen.Pixels.Length; i++)
-            {
-                var color = pixelScreen.Palette[pixelScreen.Pixels[i]];
-                m_pixelBuffer[i] = color.B | (color.G << 8) | (color.R << 16) | unchecked((int)0xff000000);
-            }
+            pixelScreen.CopyToBgra(m_pixelBuffer);
 
             using (var frameBuffer = m_pixelBitmap.Lock())
             {

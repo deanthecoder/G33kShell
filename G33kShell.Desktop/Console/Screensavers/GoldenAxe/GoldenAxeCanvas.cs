@@ -144,9 +144,9 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
         }
         using (PixelScreen.Lock(out var pixels))
         {
-            m_renderer.Draw(pixels, m_game);
             var fade = m_endTicks > 135 ? Math.Clamp((180 - m_endTicks) * 30 / 45, 0, 30) : Math.Min(30, m_game.TickCount);
             pixels.SetPalette(GetFadePalette(fade));
+            m_renderer.Draw(pixels, m_game, HasSwitch("fx"), HasSwitch("color") ? null : Foreground, (byte)(255 * fade / 30));
         }
     }
 
