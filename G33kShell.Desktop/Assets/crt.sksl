@@ -23,6 +23,7 @@ uniform float enableScanlines;        // 1.0 to enable, 0.0 to disable
 uniform float enableSurround;         // 1.0 to enable, 0.0 to disable
 uniform float enableSignalDistortion; // 1.0 to enable, 0.0 to disable
 uniform float enableShadows;          // 1.0 to enable, 0.0 to disabl
+uniform float reduceCrtGlow;          // 1.0 for colour gameplay that uses reduced bloom and glare.
 
 float smoothstep(float edge0, float edge1, float x)
 {
@@ -81,7 +82,8 @@ float4 main(float2 fragCoord)
         } 
     }
     imageRgb /= ampSum;
-    imageRgb = sample(iImage1, tuv).rgb * 0.7 + 0.5 * imageRgb;
+    float3 sourceRgb = sample(iImage1, tuv).rgb;
+    imageRgb = reduceCrtGlow > 0.5 ? mix(sourceRgb, imageRgb, 0.10) : sourceRgb * 0.7 + 0.5 * imageRgb;
     imageRgb *= fadeOn;
 
     float bev = enableSurround > 0.5 ? (max(abs(st.x), abs(st.y)) - 0.498) / 0.035 : 0.0;
@@ -134,7 +136,10 @@ float4 main(float2 fragCoord)
         lum *= 0.8 + 0.2 * pow(1.0 - (imageRgb.r + imageRgb.g + imageRgb.b) / 3.0, 1.0);
 
     // Apply main text color tint.
-    float3 col = imageRgb * lum * pow(brightnessBoost, 2.0);
+    float gain = pow(brightnessBoost, 2.0);
+    if (reduceCrtGlow > 0.5)
+        gain = min(gain, 1.08);
+    float3 col = imageRgb * lum * gain;
 
     if (enableShadows > 0.5)
     {
@@ -145,7 +150,8 @@ float4 main(float2 fragCoord)
         col *= min(1.0, 0.3 + 0.7 * (bright + clamp(max(max(col.r, col.g), col.b), 0.0, 1.0)));
 
         // Glare.
-        col = mix(col, float3(0.5 + 0.5 * ns), bright * 0.25 * smoothstep(0.7, 0.0, length((uv - float2(0.15, -0.3)) * float2(1.0, 2.0))));
+        float glare = reduceCrtGlow > 0.5 ? 0.045 : 0.25;
+        col = mix(col, float3(0.5 + 0.5 * ns), bright * glare * smoothstep(0.7, 0.0, length((uv - float2(0.15, -0.3)) * float2(1.0, 2.0))));
 
         // Vignette.
         col *= 1.0 - 1.2 * dot(uv, uv);

@@ -100,7 +100,7 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
         m_fadePalettes = null;
         m_lastTime = Time;
         m_accumulator = 0;
-        StartPixelScreen(ArcadeData.Width, ArcadeData.Height);
+        StartPixelScreen(ArcadeData.Width, ArcadeData.Height, reduceCrtGlow: HasSwitch("color"));
     }
 
     public override void UpdateFrame(ScreenData screen)

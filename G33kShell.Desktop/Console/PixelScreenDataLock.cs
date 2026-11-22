@@ -23,13 +23,15 @@ public class PixelScreenDataLock : IDisposable
     private readonly object m_lock = new object();
     private readonly PixelScreenData m_screenData;
 
-    public PixelScreenDataLock(int width, int height, Rgb[] palette)
+    public PixelScreenDataLock(int width, int height, Rgb[] palette, bool reduceCrtGlow = false)
     {
         m_screenData = new PixelScreenData(width, height, palette);
+        ReduceCrtGlow = reduceCrtGlow;
     }
 
     public int Width => m_screenData.Width;
     public int Height => m_screenData.Height;
+    internal bool ReduceCrtGlow { get; }
 
     public PixelScreenDataLock Lock(out PixelScreenData screenData)
     {

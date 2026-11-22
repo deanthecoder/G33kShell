@@ -60,7 +60,7 @@ public abstract class PixelScreensaverBase : ScreensaverBase
     public override void BuildScreen(ScreenData screen) =>
         ClearTextOverlay(screen);
 
-    protected void StartPixelScreen(int width, int height)
+    protected void StartPixelScreen(int width, int height, bool reduceCrtGlow = false)
     {
         if (WindowManager == null)
             return;
@@ -70,7 +70,7 @@ public abstract class PixelScreensaverBase : ScreensaverBase
         InvalidateVisual();
 
         IsPixelScreenActive = true;
-        PixelScreen = WindowManager.SetPixelScreen(width, height, GetPixelPalette());
+        PixelScreen = WindowManager.SetPixelScreen(width, height, GetPixelPalette(), reduceCrtGlow);
     }
 
     protected virtual void ClearPixelScreen()

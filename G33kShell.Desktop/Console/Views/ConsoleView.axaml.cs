@@ -40,6 +40,7 @@ public partial class ConsoleView : Control
     private TopLevel m_topLevel;
     private WriteableBitmap m_pixelBitmap;
     private int[] m_pixelBuffer;
+    private volatile bool m_reduceCrtGlow;
     private WriteableBitmap m_textBitmap;
     private int[] m_textBuffer;
     private CellSnapshot[] m_lastCells;
@@ -47,6 +48,8 @@ public partial class ConsoleView : Control
     private SKPaint m_glyphPaint;
     private long m_textBitmapUploads;
     private long m_cellsComposed;
+
+    internal bool ReduceCrtGlow => m_reduceCrtGlow;
 
     public static readonly DirectProperty<ConsoleView, WindowManager> WindowManagerProperty = AvaloniaProperty.RegisterDirect<ConsoleView, WindowManager>(nameof(WindowManager), o => o.WindowManager, (o, v) => o.WindowManager = v);
     public static readonly DirectProperty<ConsoleView, FontFamily> FontFamilyProperty = AvaloniaProperty.RegisterDirect<ConsoleView, FontFamily>(nameof(FontFamily), o => o.FontFamily, (o, v) => o.FontFamily = v);
@@ -143,6 +146,7 @@ public partial class ConsoleView : Control
     private void DrawPixelScreen(DrawingContext context)
     {
         var pixelScreenLock = m_windowManager.PixelScreen;
+        m_reduceCrtGlow = pixelScreenLock?.ReduceCrtGlow == true;
         if (pixelScreenLock == null)
         {
             m_pixelBitmap?.Dispose();

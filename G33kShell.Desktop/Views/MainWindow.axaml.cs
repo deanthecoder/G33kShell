@@ -23,6 +23,9 @@ namespace G33kShell.Desktop.Views;
 
 public partial class MainWindow : Window
 {
+    private static readonly float[] s_defaultCrtGlow = [0];
+    private static readonly float[] s_reducedCrtGlow = [1];
+
     public MainWindow()
     {
         InitializeComponent();
@@ -34,6 +37,7 @@ public partial class MainWindow : Window
         source.Focus();
         
         // Configure the default CRT shader.
+        Shader.AddUniform("reduceCrtGlow", () => source.ReduceCrtGlow ? s_reducedCrtGlow : s_defaultCrtGlow);
         ApplyRetroSkin(source, source.WindowManager.Skin);
     }
 

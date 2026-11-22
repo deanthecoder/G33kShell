@@ -66,9 +66,9 @@ public class WindowManager
         Skin = skin ?? throw new ArgumentNullException(nameof(skin));
     }
 
-    public PixelScreenDataLock SetPixelScreen(int width, int height, Rgb[] palette)
+    public PixelScreenDataLock SetPixelScreen(int width, int height, Rgb[] palette, bool reduceCrtGlow = false)
     {
-        PixelScreen = new PixelScreenDataLock(width, height, palette);
+        PixelScreen = new PixelScreenDataLock(width, height, palette, reduceCrtGlow);
         Root.InvalidateVisual();
         return PixelScreen;
     }

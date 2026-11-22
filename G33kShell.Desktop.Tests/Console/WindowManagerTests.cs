@@ -8,14 +8,17 @@
 // 
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 using Avalonia.Input;
+using DTC.Core;
+using G33kShell.Desktop.Console.Controls;
 using G33kShell.Desktop.Console.Events;
+using G33kShell.Desktop.Console.Screensavers.GoldenAxe;
+using G33kShell.Desktop.Console.Screensavers.Mario;
 using G33kShell.Desktop.Skins;
 using NUnit.Framework;
 
 namespace G33kShell.Desktop.Console;
 
-/// <summary>Checks scrolling through the terminal input queue.</summary>
-/// <remarks>Keyboard and wheel input must use the same view offset.</remarks>
+/// <summary>Checks scrolling and the pixel surface lifecycle.</summary>
 [TestFixture]
 public class WindowManagerTests
 {
@@ -79,5 +82,43 @@ public class WindowManagerTests
         Assert.That(manager.OffsetY, Is.Zero);
     }
 
+    [TestCase("goldenaxe_play_color_fx", true)]
+    [TestCase("goldenaxe_color", true)]
+    [TestCase("goldenaxe_play_fx", false)]
+    [TestCase("mario_color", true)]
+    [TestCase("mario", false)]
+    public void ReducedCrtGlowAppliesOnlyToColourGameplay(string activationName, bool reduced)
+    {
+        var manager = CreateManager();
+        ScreensaverBase canvas = activationName.StartsWith("mario", System.StringComparison.Ordinal)
+            ? new MarioWithTestBrain()
+            : new GoldenAxeCanvas(80, 25);
+        canvas.ActivationName = activationName;
+        canvas.OnLoaded(manager);
+        canvas.Stop();
+        try
+        {
+            canvas.StartScreensaver(new ScreenData(80, 25));
+            Assert.That(manager.PixelScreen, Is.Not.Null);
+            Assert.That(manager.PixelScreen.ReduceCrtGlow, Is.EqualTo(reduced));
+        }
+        finally
+        {
+            canvas.StopScreensaver();
+        }
+
+        Assert.That(manager.PixelScreen, Is.Null);
+        Assert.That(manager.SetPixelScreen(1, 1, [Rgb.Black]).ReduceCrtGlow, Is.False);
+    }
+
     private static WindowManager CreateManager() => new WindowManager(80, 25, new RetroMonoDos());
+
+    private sealed class MarioWithTestBrain : MarioCanvas
+    {
+        private readonly byte[] m_brain;
+
+        public MarioWithTestBrain() : base(80, 25) => m_brain = CreateBrain().Save();
+
+        protected override byte[] GetSavedBrainBytes() => m_brain;
+    }
 }

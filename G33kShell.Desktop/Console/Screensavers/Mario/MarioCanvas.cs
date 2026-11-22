@@ -144,7 +144,7 @@ public class MarioCanvas : AiGameCanvasBase
         ResetMario();
         m_lastRenderTime = Time;
         m_simulationAccumulator = 0.0;
-        m_pixelScreen = m_windowManager.SetPixelScreen(ViewWidth, ViewHeight, GetDisplayPalette());
+        m_pixelScreen = m_windowManager.SetPixelScreen(ViewWidth, ViewHeight, GetDisplayPalette(), reduceCrtGlow: HasSwitch("color"));
     }
 
     public override void StopScreensaver()
