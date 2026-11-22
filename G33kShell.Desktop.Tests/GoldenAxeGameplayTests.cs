@@ -257,6 +257,32 @@ public class GoldenAxeGameplayTests
         Assert.That(EagleFeathers.IsVisible(game), Is.False);
     }
 
+    [TestCase(-1)]
+    [TestCase(1)]
+    public void GroundBreathingDragonStartsEveryFlameFacingForward(int facing)
+    {
+        var game = new Game(m_areas[0], random: new Random(0));
+        var dragon = game.Add(ActorKind.BlueDragon, game.Character.DragonMoves, 0x43, 99, game.Hero.X + 65, game.Hero.Z);
+        dragon.Facing = facing;
+        dragon.Rider = game.Hero;
+        game.Hero.Mount = dragon;
+        var bursts = 0;
+        for (var tick = 0; tick < 240 && bursts < 3; tick++)
+        {
+            game.Tick(new GameInput(Attack: true));
+            var flame = game.Actors.SingleOrDefault(actor => actor.Kind == ActorKind.Flame && actor.Age == 0);
+            if (flame == null)
+                continue;
+
+            bursts++;
+            Assert.That(flame.Facing, Is.EqualTo(dragon.Facing), "The flame can render on the same tick it spawns.");
+            Assert.That(flame.Y, Is.EqualTo(dragon.Y));
+            Assert.That(dragon.Facing, Is.EqualTo(facing));
+        }
+
+        Assert.That(bursts, Is.EqualTo(3));
+    }
+
     [TestCase(0)]
     [TestCase(1)]
     [TestCase(2)]

@@ -706,6 +706,8 @@ internal sealed class Game
                     actor.FlameStarted = true;
                     var flame = Add(ActorKind.Flame, Moves.BlueDragon, 0x45, 1, actor.X, actor.Z + 1);
                     flame.Owner = actor;
+                    flame.Facing = actor.Facing;
+                    flame.Y = actor.Y;
                     flame.Animation.Play(0x2f422);
                 }
                 if (actor.Kind == ActorKind.RedDragon && actor.Animation.Current.Frame == 0x274 && !actor.FlameStarted)
