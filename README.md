@@ -134,6 +134,8 @@ over its body instead of too far forward while standing, walking and attacking.
 skin-tinted monochrome graphics. Use `screensaver goldenaxe_color` for color.
 Add `_fx` for soft ground shadows, softened sprite outlines, campfire effects, drifting ground fog, glowing dragon breath and fireballs with heat haze.
 Use `screensaver goldenaxe_color_fx` for autoplay or `screensaver goldenaxe_play_color_fx` to play.
+The effects mode adds distance shading and soft ground shadows near ledges in the main areas.
+Add `_ao` to inspect the terrain shading mask. White means no adjustment and darker tones show stronger shading.
 Add `_play` to take control: `screensaver goldenaxe_play_color` (color) or
 `screensaver goldenaxe_play` (mono). Use the arrow keys to move, hold **Ctrl** to
 attack, press **Tab** for magic and **Space** to jump. Magic and jumping work on foot

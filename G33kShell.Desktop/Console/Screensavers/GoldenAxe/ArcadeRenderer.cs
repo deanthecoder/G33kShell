@@ -31,6 +31,7 @@ internal sealed class ArcadeRenderer
     private readonly byte m_orange, m_darkRed, m_blue, m_lightBlue, m_yellow;
     private readonly byte m_emberCore;
     private readonly byte[] m_campfireWood;
+    private TerrainShading m_terrainShading;
     private const byte DimMagicOpacity = 115;
     private const double ShadowSkew = 0.55;
     private const double ShadowSquash = 0.28;
@@ -51,14 +52,25 @@ internal sealed class ArcadeRenderer
         m_campfireWood = [Color(53, 31, 18), Color(79, 46, 24), Color(110, 64, 31)];
     }
 
-    public void Draw(PixelScreenData screen, Game game, bool effects = false, Rgb tint = null, byte effectOpacity = 255)
+    public void Draw(PixelScreenData screen, Game game, bool effects = false, Rgb tint = null, byte effectOpacity = 255,
+        bool showTerrainShade = false)
     {
         screen.Clear(m_data.Black);
         var u = -7 - game.CameraX;
         var v = (int)Math.Round(-512 - game.CameraY);
         var palette = m_data.TilePalettes[game.IsCamp ? "0" : game.Boss ? m_data.BossPalette : m_data.DayPalette];
-        Layer(screen, m_data.Background, (int)Math.Floor(u * m_data.Parallax[0][0] + m_data.Parallax[0][1]), (int)(v * m_data.Parallax[1][0] + m_data.Parallax[1][1]), palette, false, true);
+        var backgroundX = (int)Math.Floor(u * m_data.Parallax[0][0] + m_data.Parallax[0][1]);
+        var backgroundY = (int)(v * m_data.Parallax[1][0] + m_data.Parallax[1][1]);
+        Layer(screen, m_data.Background, backgroundX, backgroundY, palette, false, true);
         Layer(screen, m_data.Foreground, (int)u, v, palette, false, false);
+        if (showTerrainShade || effects && !game.IsCamp && effectOpacity != 0)
+        {
+            m_terrainShading ??= new TerrainShading(m_data);
+            m_terrainShading.Draw(screen, (int)u - 1, v + 512, backgroundX, backgroundY, palette, effectOpacity,
+                showTerrainShade, game.IsCamp);
+            if (showTerrainShade)
+                return;
+        }
         byte[] dustTints = [];
         if (effects)
         {

@@ -61,7 +61,7 @@ public class GoldenAxeTests
             // Use a white palette to isolate coverage from the opening fade.
             frame.SetPalette(Enumerable.Repeat(Rgb.White, frame.Palette.Length).ToArray());
             var colors = new int[frame.Pixels.Length];
-            CopyWithoutFog(frame, colors);
+            CopyWithoutTerrainAtmosphere(frame, colors);
             Assert.That(colors.Any(IsGroundShadow), Is.EqualTo(shadows));
             Assert.That(canvas.IsInteractive, Is.EqualTo(interactive));
         }
@@ -87,7 +87,7 @@ public class GoldenAxeTests
         game.Hero.SetState(FighterState.Idle);
         renderer.Draw(frame, game, effects: true);
         var colors = new int[frame.Pixels.Length];
-        CopyWithoutFog(frame, colors);
+        CopyWithoutTerrainAtmosphere(frame, colors);
         Assert.That(colors.Any(IsGroundShadow), Is.True);
         Assert.That(Enumerable.Range(0, colors.Length)
             .Where(i => frame.Pixels[i] != scenery[i])
@@ -117,7 +117,7 @@ public class GoldenAxeTests
         var sample = ((int)foot.Y + 1) * frame.Width + (int)foot.X;
 
         renderer.Draw(frame, game, effects: true);
-        CopyWithoutFog(frame, colors);
+        CopyWithoutTerrainAtmosphere(frame, colors);
         var grounded = colors[sample];
         Assert.That(IsGroundShadow(grounded), Is.True);
         if (kind != ActorKind.Food)
@@ -125,7 +125,7 @@ public class GoldenAxeTests
 
         potion.Y -= 28;
         renderer.Draw(frame, game, effects: true);
-        CopyWithoutFog(frame, colors);
+        CopyWithoutTerrainAtmosphere(frame, colors);
         Assert.That(colors[sample], Is.GreaterThan(grounded).And.LessThan(-1));
 
         renderer.Draw(frame, game);
@@ -147,7 +147,7 @@ public class GoldenAxeTests
         var farTip = ((int)foot.Y - 20) * frame.Width + (int)foot.X - 47;
 
         renderer.Draw(frame, game, effects: true);
-        CopyWithoutFog(frame, colors);
+        CopyWithoutTerrainAtmosphere(frame, colors);
         Assert.That(colors[raisedLeg], Is.EqualTo(-1));
         Assert.That(colors[farTip], Is.EqualTo(-1));
 
@@ -158,7 +158,7 @@ public class GoldenAxeTests
         for (var tick = 0; tick < 3; tick++)
             hero.Animation.Tick();
         renderer.Draw(frame, game, effects: true);
-        CopyWithoutFog(frame, colors);
+        CopyWithoutTerrainAtmosphere(frame, colors);
         Assert.That(IsGroundShadow(colors[raisedLeg]), Is.True);
         Assert.That(IsGroundShadow(colors[farTip]), Is.True);
         Assert.That(colors[farTip], Is.GreaterThan(colors[raisedLeg]));
@@ -233,7 +233,7 @@ public class GoldenAxeTests
         var frame = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, Enumerable.Repeat(Rgb.White, data.Palette.Length).ToArray());
         new ArcadeRenderer(data).Draw(frame, game, effects: true);
         var colors = new int[frame.Pixels.Length];
-        CopyWithoutFog(frame, colors);
+        CopyWithoutTerrainAtmosphere(frame, colors);
         var point = game.Project(enemy.X, enemy.Z, enemy.Y);
         var x = (int)point.X;
         var y = (int)point.Y;
@@ -245,7 +245,7 @@ public class GoldenAxeTests
 
     private static int MeasureShadowWidth(PixelScreenData frame, int[] colors)
     {
-        CopyWithoutFog(frame, colors);
+        CopyWithoutTerrainAtmosphere(frame, colors);
         return Enumerable.Range(0, colors.Length)
             .Where(i => IsGroundShadow(colors[i]))
             .Select(i => i % frame.Width)
@@ -256,10 +256,108 @@ public class GoldenAxeTests
     // In these white-palette frames, ground shadows are lighter than translucent black outlines.
     private static bool IsGroundShadow(int color) => (color & 255) is >= 155 and < 255;
 
-    private static void CopyWithoutFog(PixelScreenData frame, int[] colors)
+    private static void CopyWithoutTerrainAtmosphere(PixelScreenData frame, int[] colors)
     {
         frame.FogOpacity = 0;
+        frame.TerrainShadeOpacity = 0;
         frame.CopyToBgra(colors);
+    }
+
+    [TestCase(0)]
+    [TestCase(1)]
+    [TestCase(2)]
+    [TestCase(3)]
+    [TestCase(4)]
+    public void TerrainShadeDebugShowsBothShadedAndUnshadedPixelsInEveryArea(int area)
+    {
+        var data = new ArcadeData(ArcadeData.AssetDirectory, area);
+        var game = new Game(data);
+        var renderer = new ArcadeRenderer(data);
+        var frame = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
+        var colors = new int[frame.Pixels.Length];
+
+        renderer.Draw(frame, game, showTerrainShade: true);
+        frame.CopyToBgra(colors);
+
+        Assert.That(colors, Has.Some.EqualTo(-1));
+        Assert.That(colors.Any(color => (color & 255) < 200), Is.True);
+        Assert.That(colors.All(color => (color & 255) * 0x010101 == (color & 0xffffff)), Is.True);
+    }
+
+    [Test]
+    public void TerrainShadeComposesWithShadowsAndIsCoveredBySprites()
+    {
+        var frame = new PixelScreenData(3, 1, [Rgb.White]);
+        var colors = new int[3];
+        frame.SetTerrainShade([64, 64, 64], 255);
+        frame.ShadePixel(1, 64);
+        frame.SetPixel(2, 0, 0);
+        frame.CopyToBgra(colors);
+
+        Assert.That(colors.Select(color => color & 255), Is.EqualTo(new[] { 191, 143, 255 }));
+        frame.Clear();
+        frame.CopyToBgra(colors);
+        Assert.That(colors, Is.All.EqualTo(-1));
+    }
+
+    [Test]
+    public void TerrainShadeIncreasesWithDistanceAndReachesThePaintedScreenEdge()
+    {
+        var data = new ArcadeData(ArcadeData.AssetDirectory, 1);
+        var game = new Game(data);
+        var renderer = new ArcadeRenderer(data);
+        var frame = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
+        var colors = new int[frame.Pixels.Length];
+        renderer.Draw(frame, game, showTerrainShade: true);
+        frame.CopyToBgra(colors);
+        int Gray(int x, int y) => colors[y * frame.Width + x] & 255;
+
+        Assert.That(Gray(240, 140), Is.LessThan(Gray(240, 201)));
+        Assert.That(Gray(0, 140), Is.EqualTo(Gray(12, 140)).Within(18));
+    }
+
+    [Test]
+    public void TerrainShadeReachesThePaintedBackEdgeBelowTheScenery()
+    {
+        var data = new ArcadeData(ArcadeData.AssetDirectory, 1);
+        var game = new Game(data);
+        var renderer = new ArcadeRenderer(data);
+        var frame = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
+        var colors = new int[frame.Pixels.Length];
+        renderer.Draw(frame, game, showTerrainShade: true);
+        frame.CopyToBgra(colors);
+        double MeanGray(int y) => Enumerable.Range(215, 50).Average(x => colors[y * frame.Width + x] & 255);
+
+        // Turtle Village's back tile starts above the corresponding collision surface.
+        Assert.That(MeanGray(88), Is.LessThan(160));
+        Assert.That(MeanGray(76), Is.EqualTo(255));
+    }
+
+    [Test]
+    public void RaisedShelfAddsATightContactShadowToTheLowerFloor()
+    {
+        var data = new ArcadeData(ArcadeData.AssetDirectory);
+        var game = new Game(data, random: new Random(0));
+        for (var i = 0; i < 250 && game.Progress < 4690; i++)
+        {
+            game.Actors.RemoveAll(actor => actor != game.Hero);
+            game.Hero.X = game.Progress + 180;
+            game.Hero.Z = game.FindFloor(game.Hero.X, 4240, keepVisible: true);
+            game.Hero.Y = game.Ground(game.Hero.X, game.Hero.Z);
+            game.Tick(default);
+        }
+
+        Assert.That(game.Progress, Is.GreaterThanOrEqualTo(4690));
+        var renderer = new ArcadeRenderer(data);
+        var frame = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
+        var colors = new int[frame.Pixels.Length];
+        renderer.Draw(frame, game, showTerrainShade: true);
+        frame.CopyToBgra(colors);
+        double MeanGray(int y) => Enumerable.Range(200, 65).Average(x => colors[y * frame.Width + x] & 255);
+
+        Assert.That(MeanGray(140), Is.EqualTo(255), "The exposed face stays clear.");
+        Assert.That(MeanGray(161), Is.LessThan(65), "The dirt at the foot of the shelf gets contact shade.");
+        Assert.That(MeanGray(175), Is.GreaterThan(130), "The contact shadow fades onto the open dirt.");
     }
 
     [Test]
@@ -277,7 +375,7 @@ public class GoldenAxeTests
         int GetPixel(double x, double y) => colors[(int)y * frame.Width + (int)x];
 
         renderer.Draw(frame, game, effects: true);
-        CopyWithoutFog(frame, colors);
+        CopyWithoutTerrainAtmosphere(frame, colors);
         var warm = GetPixel(foot.X, foot.Y + 10);
         Assert.That((warm >> 16) & 255, Is.GreaterThan((warm >> 8) & 255));
         var farX = foot.X > frame.Width / 2 ? 0 : frame.Width - 1;
@@ -289,7 +387,7 @@ public class GoldenAxeTests
         for (var tick = 0; tick < 4; tick++)
             game.Tick(default);
         renderer.Draw(frame, game, effects: true);
-        CopyWithoutFog(frame, colors);
+        CopyWithoutTerrainAtmosphere(frame, colors);
         Assert.That(GetPixel(foot.X, foot.Y + 10), Is.Not.EqualTo(warm));
 
         frame.SetPalette(Enumerable.Repeat(new Rgb(230, 230, 230), frame.Palette.Length).ToArray());
@@ -304,14 +402,14 @@ public class GoldenAxeTests
         for (var tick = 0; tick < 100; tick++)
             game.Tick(default);
         renderer.Draw(frame, game, effects: true);
-        CopyWithoutFog(frame, colors);
+        CopyWithoutTerrainAtmosphere(frame, colors);
         var plume = colors.Skip(plumeStart).Take(40).ToArray();
         Assert.That(plume.Any(color => color != unlit), Is.True);
 
         for (var tick = 0; tick < 8; tick++)
             game.Tick(default);
         renderer.Draw(frame, game, effects: true);
-        CopyWithoutFog(frame, colors);
+        CopyWithoutTerrainAtmosphere(frame, colors);
         Assert.That(colors.Skip(plumeStart).Take(40), Is.Not.EqualTo(plume));
     }
 
@@ -585,7 +683,7 @@ public class GoldenAxeTests
         const int unlit = unchecked((int)0xff282828);
 
         renderer.Draw(frame, game, effects: true);
-        CopyWithoutFog(frame, colors);
+        CopyWithoutTerrainAtmosphere(frame, colors);
         Assert.That(colors[lit], Is.GreaterThan(unlit));
         Assert.That(colors[opposite], Is.EqualTo(unlit));
 
@@ -744,29 +842,29 @@ public class GoldenAxeTests
         renderer.Draw(frame, game);
         var classic = frame.Pixels.ToArray();
         renderer.Draw(frame, game, effects: true);
-        CopyWithoutFog(frame, colors);
+        CopyWithoutTerrainAtmosphere(frame, colors);
         Assert.That(frame.Pixels, Is.Not.EqualTo(classic), "The classic frame includes the painted projectile shadow.");
         Assert.That(GroundRed(start), Is.GreaterThan(40));
 
         fireball.X += travel;
         renderer.Draw(frame, game, effects: true);
-        CopyWithoutFog(frame, colors);
+        CopyWithoutTerrainAtmosphere(frame, colors);
         Assert.That(GroundRed(start), Is.EqualTo(40));
         Assert.That(GroundRed(start + travel), Is.GreaterThan(40));
 
         fireball.SetState(FighterState.Dying, 0x32b90);
         fireball.Animation.Seek(1);
         renderer.Draw(frame, game, effects: true);
-        CopyWithoutFog(frame, colors);
+        CopyWithoutTerrainAtmosphere(frame, colors);
         var impact = GroundRed(start + travel);
         fireball.StateTicks = Game.FireballImpactTicks / 2;
         renderer.Draw(frame, game, effects: true);
-        CopyWithoutFog(frame, colors);
+        CopyWithoutTerrainAtmosphere(frame, colors);
         Assert.That(GroundRed(start + travel), Is.InRange(41, impact - 1));
 
         fireball.SetState(FighterState.Gone);
         renderer.Draw(frame, game, effects: true);
-        CopyWithoutFog(frame, colors);
+        CopyWithoutTerrainAtmosphere(frame, colors);
         Assert.That(GroundRed(start + travel), Is.EqualTo(40));
     }
 

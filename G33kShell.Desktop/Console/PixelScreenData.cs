@@ -21,6 +21,7 @@ namespace G33kShell.Desktop.Console;
 public class PixelScreenData
 {
     private byte[] m_shade;
+    private byte[] m_terrainShade;
     private byte[] m_light;
     private byte[] m_magicLight;
     private byte[] m_lightOcclusion;
@@ -40,6 +41,7 @@ public class PixelScreenData
     internal byte SmokeOpacity { private get; set; } = 255;
     internal Rgb FogColor { private get; set; }
     internal byte FogOpacity { private get; set; } = 255;
+    internal byte TerrainShadeOpacity { private get; set; }
 
     public int Width { get; }
     public int Height { get; }
@@ -68,6 +70,7 @@ public class PixelScreenData
         Array.Fill(Pixels, colorIndex);
         if (m_shade != null)
             Array.Clear(m_shade);
+        TerrainShadeOpacity = 0;
         if (m_light != null)
             Array.Clear(m_light);
         if (m_magicLight != null)
@@ -104,6 +107,13 @@ public class PixelScreenData
     {
         m_shade ??= new byte[Pixels.Length];
         m_shade[offset] = Math.Max(m_shade[offset], opacity);
+    }
+
+    internal void SetTerrainShade(ReadOnlySpan<byte> mask, byte opacity)
+    {
+        m_terrainShade ??= new byte[Pixels.Length];
+        mask.CopyTo(m_terrainShade);
+        TerrainShadeOpacity = opacity;
     }
 
     internal void BlendBlackPixel(int offset, byte opacity)
@@ -201,9 +211,10 @@ public class PixelScreenData
             color = BlendColor(color, FogColor, m_fog[offset] * FogOpacity / 255);
 
         var shadow = m_shade?[offset] ?? 0;
-        if (shadow != 0)
+        var terrainShade = TerrainShadeOpacity == 0 ? 0 : m_terrainShade[offset] * TerrainShadeOpacity / 255;
+        if (shadow != 0 || terrainShade != 0)
         {
-            var brightness = 255 - shadow;
+            var brightness = (255 - shadow) * (255 - terrainShade) / 255;
             color = new Rgb(
                 (byte)(color.R * brightness / 255),
                 (byte)(color.G * brightness / 255),
@@ -289,6 +300,8 @@ public class PixelScreenData
         Pixels[offset] = colorIndex;
         if (m_shade != null)
             m_shade[offset] = 0;
+        if (TerrainShadeOpacity != 0)
+            m_terrainShade[offset] = 0;
         if (m_light != null)
             m_light[offset] = 0;
         if (m_magicLight != null)
