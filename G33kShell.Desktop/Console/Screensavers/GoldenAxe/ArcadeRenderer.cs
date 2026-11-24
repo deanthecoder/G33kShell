@@ -131,6 +131,9 @@ internal sealed class ArcadeRenderer
             var point = game.ProjectView(mound.X, mound.Z, game.Ground(mound.X, mound.Z));
             Sprite(screen, SkeletonEmergence.OpenFrame, SkeletonEmergence.GroundPalette, point.X, point.Y, false);
         }
+        DrawFloorLightningTrail(screen, game);
+        if (effects)
+            DrawFloorLightningSmoke(screen, game);
         foreach (var actor in game.Actors.Concat(game.StoneBodies).Concat(game.FadingPickups).OrderBy(a => a.Z).ThenByDescending(a => a.Y))
         {
             if (actor.Mount != null || actor.State == FighterState.Gone && actor.PickupTick < 0 || actor.State == FighterState.Respawning ||
@@ -217,6 +220,8 @@ internal sealed class ArcadeRenderer
         if (effects)
         {
             DrawFireLighting(screen, game);
+            if (game.MagicTick < 0)
+                DrawFloorLightningGlow(screen, game, tint, effectOpacity);
             DrawLandingDust(screen, game, dustTints);
             if (game.MagicTick < 0)
                 PotionSparkles.DrawBursts(screen, game, m_lightBlue, m_data.White, effectOpacity);
@@ -240,6 +245,60 @@ internal sealed class ArcadeRenderer
         }
         // Apply the approved contrast after lighting, translucency, screen shake and HUD composition.
         screen.OutputColorCurve = s_outputColorCurve;
+    }
+
+    private void DrawFloorLightningTrail(PixelScreenData screen, Game game)
+    {
+        foreach (var mark in game.LightningTrail)
+        {
+            var age = game.TickCount - mark.Tick;
+            if (age >= 28)
+                continue;
+            var point = game.ProjectView(mark.X, mark.Z, mark.Y);
+            screen.BeginTranslucentSprite((byte)(255 - age * 9));
+            Sprite(screen, 575 + age / 4, Game.LightningTrailPalette, point.X, point.Y, mark.Facing > 0);
+            screen.EndTranslucentSprite();
+        }
+    }
+
+    private void DrawFloorLightningGlow(PixelScreenData screen, Game game, Rgb tint, byte opacity)
+    {
+        if (game.LightningTrail.Count == 0 && !game.Actors.Any(a => a.Kind is ActorKind.Lightning or ActorKind.LightningCharge))
+            return;
+
+        screen.MagicLightColor = ScaleLight(tint ?? new Rgb(114, 175, 255), opacity);
+        foreach (var mark in game.LightningTrail)
+        {
+            var fade = 1 - (game.TickCount - mark.Tick) / (double)Game.LightningTrailTicks;
+            var point = game.ProjectView(mark.X, mark.Z, mark.Y);
+            DrawSoftEllipse(screen, point.X, point.Y - 2, 21, 7, 104 * fade, EllipseEffect.Magic);
+            DrawSoftEllipse(screen, point.X, point.Y - 2, 18, 2.5, 145 * fade, EllipseEffect.Magic);
+        }
+        foreach (var bolt in game.Actors.Where(a => a.Kind is ActorKind.Lightning or ActorKind.LightningCharge))
+        {
+            var pose = bolt.Animation.Current;
+            var point = game.ProjectView(bolt.X, bolt.Z, bolt.Y);
+            var frame = m_data.Frames[pose.Frame];
+            var offsetX = (frame.Ox + frame.Width / 2.0) * (IsFlipped(bolt, pose) ? -1 : 1);
+            DrawSoftEllipse(screen, point.X + pose.Dx * bolt.Facing + offsetX,
+                point.Y + pose.Dy + frame.Oy + frame.Height / 2.0, frame.Width / 2.0 + 11, frame.Height / 2.0 + 7,
+                115, EllipseEffect.Magic);
+        }
+    }
+
+    private static void DrawFloorLightningSmoke(PixelScreenData screen, Game game)
+    {
+        foreach (var mark in game.LightningTrail)
+        {
+            var age = game.TickCount - mark.Tick;
+            var life = age / (double)Game.LightningTrailTicks;
+            var opacity = 145 * Math.Min(age / 12.0, 1) * (1 - life);
+            var point = game.ProjectView(mark.X, mark.Z, mark.Y);
+            var x = point.X - mark.Facing * 9 * life + Math.Sin(mark.X + life * 5) * life * 5;
+            var y = point.Y - 4 - 36 * life;
+            DrawSoftEllipse(screen, x, y, 5 + 8 * life, 6 + 10 * life, opacity, EllipseEffect.Smoke, soot: 16);
+            DrawSoftEllipse(screen, x + 4, y + 3, 4 + 6 * life, 4 + 7 * life, opacity * 0.65, EllipseEffect.Smoke, soot: 16);
+        }
     }
 
     private static void DrawFireballHeatHaze(PixelScreenData screen, Game game)

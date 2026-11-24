@@ -1438,9 +1438,16 @@ public class GoldenAxeGameplayTests
         game.Hero.Y = game.Ground(game.Hero.X, game.Hero.Z);
         var boss = game.Add(ActorKind.DeathAdder, Moves.DeathAdder, 0x50, 64, game.Hero.X - direction * 140, game.Hero.Z);
         boss.SetState(FighterState.Down, boss.Moves.Fly);
+        var descentFrames = new HashSet<int>();
         for (var tick = 0; tick < 140 && !game.Actors.Any(a => a.Kind == ActorKind.Lightning); tick++)
+        {
             game.Tick(default);
+            foreach (var charge in game.Actors.Where(a => a.Kind == ActorKind.LightningCharge))
+                descentFrames.Add(charge.Animation.Current.Frame);
+        }
+        Assert.That(descentFrames, Is.SupersetOf(new[] { 548, 552, 555 }));
         var bolt = game.Actors.Single(a => a.Kind == ActorKind.Lightning);
+        var firstX = bolt.X;
         Assert.That(boss.Animation.Address, Is.EqualTo(Moves.DeathAdderCast));
         Assert.That(game.TickCount, Is.GreaterThan(60), "Recover and show the casting wind-up before releasing lightning.");
         Assert.That(bolt.Owner, Is.SameAs(boss));
@@ -1469,6 +1476,12 @@ public class GoldenAxeGameplayTests
             game.Tick(default);
         }
         Assert.That(bolt.IsGone, Is.True, "A bolt ends on impact or when its owner dies.");
+        Assert.That(game.LightningTrail.Count, Is.GreaterThan(1));
+        Assert.That(game.LightningTrail[0].X, Is.EqualTo(firstX));
+        Assert.That(game.LightningTrail[1].X - firstX, Is.EqualTo(direction * 16));
+        for (var tick = 0; tick < Game.LightningTrailTicks; tick++)
+            game.Tick(default);
+        Assert.That(game.LightningTrail, Is.Empty);
     }
 
     [Test]

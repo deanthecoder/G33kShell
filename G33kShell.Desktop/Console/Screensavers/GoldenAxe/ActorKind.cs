@@ -23,6 +23,7 @@ internal enum ActorKind
     RedDragon,
     Fireball,
     Lightning,
+    LightningCharge,
     Knight,
     Flame,
     Amazon,

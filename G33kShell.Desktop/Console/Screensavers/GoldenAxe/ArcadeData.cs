@@ -138,7 +138,11 @@ internal sealed class ArcadeData
             actorPalettes.Add(Game.BrotherDoorPalette);
         }
         if (AreaIndex == 4)
+        {
             actorPalettes.Add(SceneryEyes.EaglePalette);
+            actorPalettes.Add(Game.LightningPalette);
+            actorPalettes.Add(Game.LightningTrailPalette);
+        }
         if (AreaIndex == 3)
             actorPalettes.Add(EagleFeathers.Palette);
         foreach (var p in actorPalettes)

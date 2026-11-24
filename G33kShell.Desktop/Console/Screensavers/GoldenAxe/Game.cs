@@ -31,16 +31,21 @@ internal sealed class Game
     internal const int BrotherDoorOpeningTicks = 8;
     internal const int BrotherDoorClosingTick = 32;
     private const int BrotherChuckleTicks = 100;
+    internal const int LightningPalette = 0x61;
+    internal const int LightningTrailPalette = 0x60;
+    internal const int LightningTrailTicks = 180;
     private const double JumpVelocity = -5.75;
     private const double RunningJumpVelocity = -7.875;
     private const int KnockdownTicks = 36;
     private const int EnemyKnockdownVariation = 2;
     private const int ArcadeLightHitTicks = 81;
     internal readonly record struct DustPuff(double X, double Z, double Y, double Spread, int Tick, bool Heavy, bool Running = false);
+    internal readonly record struct LightningMark(double X, double Z, double Y, int Facing, int Tick);
 
     private readonly ArcadeData m_data;
     private readonly Random m_random;
     private readonly List<DustPuff> m_landingDust = [];
+    private readonly List<LightningMark> m_lightningTrail = [];
     private readonly List<SmokePuff> m_dragonSmoke = [];
     private readonly List<PotionPickup> m_potionPickups = [];
     private readonly List<Fighter> m_fadingPickups = [];
@@ -59,6 +64,7 @@ internal sealed class Game
     public int[][][][] MagicEffects => m_data.Magic[Character.MagicKey];
     public List<Fighter> Actors { get; } = [];
     public IReadOnlyList<DustPuff> LandingDust => m_landingDust;
+    public IReadOnlyList<LightningMark> LightningTrail => m_lightningTrail;
     public IReadOnlyList<SmokePuff> DragonSmoke => m_dragonSmoke;
     public IReadOnlyList<PotionPickup> PotionPickups => m_potionPickups;
     public IReadOnlyList<Fighter> FadingPickups => m_fadingPickups;
@@ -132,6 +138,7 @@ internal sealed class Game
         Complete = false;
         TickCount = 0;
         m_landingDust.Clear();
+        m_lightningTrail.Clear();
         m_dragonSmoke.Clear();
         m_potionPickups.Clear();
         m_fadingPickups.Clear();
@@ -219,6 +226,8 @@ internal sealed class Game
         if (Complete || GameOver)
             return;
         TickCount++;
+        if (m_lightningTrail.Count != 0)
+            m_lightningTrail.RemoveAll(mark => TickCount - mark.Tick >= LightningTrailTicks);
         m_stoneBodies.RemoveAll(body => body.X < Progress - 100);
         m_dragonSmoke.RemoveAll(puff => TickCount - puff.Tick >= 120);
         m_potionPickups.RemoveAll(pickup => TickCount - pickup.Tick >= PotionPickup.Lifetime);
@@ -305,6 +314,11 @@ internal sealed class Game
             if (actor.Kind == ActorKind.Lightning)
             {
                 UpdateLightning(actor);
+                continue;
+            }
+            if (actor.Kind == ActorKind.LightningCharge)
+            {
+                UpdateLightningCharge(actor);
                 continue;
             }
             if (actor.Kind == ActorKind.Flame)
@@ -584,6 +598,20 @@ internal sealed class Game
             beast.SetState(FighterState.Gone);
     }
 
+    private void UpdateLightningCharge(Fighter charge)
+    {
+        if (charge.Owner.Health > 0 && !charge.Owner.IsGone)
+        {
+            if (!charge.Animation.Tick())
+                return;
+            var bolt = Add(ActorKind.Lightning, Moves.Lightning, LightningPalette, 1,
+                charge.X + charge.Facing * 56, charge.Z);
+            bolt.Owner = charge.Owner;
+            bolt.Facing = charge.Facing;
+        }
+        charge.SetState(FighterState.Gone);
+    }
+
     private void UpdateLightning(Fighter bolt)
     {
         if (bolt.Owner.Health <= 0 || bolt.Owner.IsGone || bolt.Age > 180)
@@ -591,8 +619,14 @@ internal sealed class Game
             bolt.SetState(FighterState.Gone);
             return;
         }
-        bolt.X += bolt.Facing * 3;
-        bolt.Z += Math.Clamp(Hero.Z - bolt.Z, -0.35, 0.35);
+        const int hopTicks = 8;
+        if (bolt.Age % hopTicks == 0)
+        {
+            m_lightningTrail.Add(new LightningMark(bolt.X, bolt.Z, bolt.Y, bolt.Facing, TickCount));
+            bolt.X += bolt.Facing * 16;
+            var target = Hero.Mount ?? Hero;
+            bolt.Z += Math.Clamp(target.Z - bolt.Z, -2, 2);
+        }
         var floor = Ground(bolt.X, bolt.Z);
         var screenX = Project(bolt.X, bolt.Z, bolt.Y).X;
         if (floor is <= 3840 or >= 5248 || screenX is < -32 or > 352)
@@ -602,12 +636,15 @@ internal sealed class Game
         }
         bolt.Y = floor;
         // Each of the four ROM scripts makes a different phase the damaging frame.
-        var phase = (bolt.Age - 1) / 4 % 4;
+        var phase = bolt.Age / hopTicks % 4;
         bolt.Animation.Play(0x3618e + phase * 0x3a);
         bolt.Animation.Seek(phase);
         ResolveAttack(bolt);
         if (bolt.Connected)
+        {
+            m_lightningTrail.Add(new LightningMark(bolt.X, bolt.Z, bolt.Y, bolt.Facing, TickCount));
             bolt.SetState(FighterState.Gone);
+        }
     }
 
     private GameInput EnemyInput(Fighter actor)
@@ -956,13 +993,25 @@ internal sealed class Game
                 }
                 return;
             case FighterState.Attacking:
-                if (actor.Kind == ActorKind.DeathAdder && actor.Animation.Address == Moves.DeathAdderCast &&
-                    actor.Animation.Index >= 4 && !actor.FlameStarted)
+                if (actor.Kind == ActorKind.DeathAdder && actor.Animation.Address == Moves.DeathAdderCast)
                 {
-                    actor.FlameStarted = true;
-                    var bolt = Add(ActorKind.Lightning, Moves.Lightning, 0x52, 1, actor.X + actor.Facing * 40, actor.Z);
-                    bolt.Owner = actor;
-                    bolt.Facing = actor.Facing;
+                    if (actor.Animation.Index == 0)
+                    {
+                        actor.Animation.Tick();
+                        if (actor.Animation.Index != 0)
+                            actor.SetState(FighterState.Idle, actor.Moves.Idle);
+                        return;
+                    }
+                    if (actor.Animation.Index >= 3 && !actor.FlameStarted)
+                    {
+                        actor.FlameStarted = true;
+                        var charge = Add(ActorKind.LightningCharge, Moves.Lightning, LightningPalette, 1, actor.X, actor.Z + 1);
+                        charge.Owner = actor;
+                        charge.Facing = actor.Facing;
+                        charge.Animation.Play(Moves.LightningDescent);
+                    }
+                    actor.Animation.Tick();
+                    return;
                 }
                 if (actor.Kind == ActorKind.BlueDragon && actor.Animation.Current.Frame == 0x277 && !actor.FlameStarted)
                 {
