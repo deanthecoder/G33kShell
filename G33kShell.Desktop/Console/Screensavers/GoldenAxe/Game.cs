@@ -622,6 +622,8 @@ internal sealed class Game
         }
         var dx = target.X - actor.X;
         var dz = target.Z - actor.Z;
+        if (actor.IsHeavyEnemy && actor.IsFree && Hero.Health > 0 && HeavyEnemyFlank(actor, target) is { } flank)
+            return flank;
         if (actor.IsFree)
             actor.Facing = dx < 0 ? -1 : 1;
         var reach = actor.Kind switch { ActorKind.RedDragon => 140, ActorKind.BlueDragon => 70, ActorKind.DeathAdder => 42, ActorKind.BadBrother or ActorKind.Knight => 38, _ => 30 };
@@ -634,6 +636,77 @@ internal sealed class Game
             Math.Abs(dx) < reach + 6 && Math.Abs(dz) < 6 && HasAttackWindow(actor, target);
         return new GameInput(Math.Abs(dx) > reach ? Math.Sign(dx) : 0, Math.Abs(dz) > 2 ? Math.Sign(dz) : 0,
             attack);
+    }
+
+    private GameInput? HeavyEnemyFlank(Fighter actor, Fighter target)
+    {
+        var distance = actor.X - target.X;
+        if (Math.Abs(distance) >= 160 || Math.Abs(actor.Y - target.Y) > 12)
+        {
+            actor.FlankSide = 0;
+            return null;
+        }
+
+        var side = distance < 0 ? -1 : 1;
+        var hasPartner = false;
+        var oppositeSideTaken = false;
+        var closerPartner = false;
+        foreach (var partner in Actors)
+        {
+            var partnerDistance = partner.X - target.X;
+            if (partner == actor || !partner.IsHeavyEnemy || partner.Health <= 0 || partner.State == FighterState.Entering ||
+                Math.Abs(partnerDistance) >= 160 || Math.Abs(partner.Z - target.Z) >= 52 || Math.Abs(partner.Y - target.Y) > 12)
+                continue;
+            hasPartner = true;
+            oppositeSideTaken |= partnerDistance * side < 0 || partner.FlankSide != 0;
+            closerPartner |= Math.Abs(partnerDistance) < Math.Abs(distance) ||
+                Math.Abs(partnerDistance) == Math.Abs(distance) && partner.Id < actor.Id;
+        }
+        if (!hasPartner || distance * actor.FlankSide >= 28)
+        {
+            actor.FlankSide = 0;
+            return null;
+        }
+        if (actor.FlankSide == 0)
+        {
+            // Keep the closer enemy in attack range while its partner takes the open side.
+            if (oppositeSideTaken || !closerPartner)
+                return null;
+            actor.FlankSide = -side;
+        }
+
+        const int bypass = 24;
+        var destinationX = target.X + actor.FlankSide * 32;
+        var preferredLane = actor.Z < target.Z ? -1 : 1;
+        foreach (var lane in new[] { preferredLane, -preferredLane })
+        {
+            var laneZ = target.Z + lane * bypass;
+            if (destinationX < Progress + 12 || destinationX > Progress + 305 ||
+                !FlankPathIsWalkable(actor.Y, actor.X, actor.Z, actor.X, laneZ) ||
+                !FlankPathIsWalkable(actor.Y, actor.X, laneZ, destinationX + actor.FlankSide * 8, laneZ) ||
+                !FlankPathIsWalkable(actor.Y, destinationX, laneZ, destinationX, target.Z))
+                continue;
+
+            var depth = laneZ - actor.Z;
+            var moveX = Math.Abs(depth) < 4 ? actor.FlankSide : 0;
+            if (moveX == 0)
+                actor.Facing = -side;
+            return new GameInput(moveX, Math.Abs(depth) > 1 ? Math.Sign(depth) : 0);
+        }
+        actor.FlankSide = 0;
+        return null;
+    }
+
+    private bool FlankPathIsWalkable(double height, double x, double z, double endX, double endZ)
+    {
+        var steps = Math.Max(1, (int)Math.Ceiling(Math.Max(Math.Abs(endX - x), Math.Abs(endZ - z)) / 8));
+        for (var i = 0; i <= steps; i++)
+        {
+            var floor = Ground(x + (endX - x) * i / steps, z + (endZ - z) * i / steps);
+            if (Math.Abs(floor - height) > 12)
+                return false;
+        }
+        return true;
     }
 
     internal bool HasImminentStrike(Fighter actor) => actor.State == FighterState.Attacking &&

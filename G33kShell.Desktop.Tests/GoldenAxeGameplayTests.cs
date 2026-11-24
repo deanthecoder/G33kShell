@@ -1996,6 +1996,34 @@ public class GoldenAxeGameplayTests
         Assert.That(second.X, Is.EqualTo(5136));
     }
 
+    [TestCase((int)ActorKind.BadBrother, (int)ActorKind.BadBrother)]
+    [TestCase((int)ActorKind.Knight, (int)ActorKind.Knight)]
+    [TestCase((int)ActorKind.Knight, (int)ActorKind.DeathAdder)]
+    public void HeavyEnemiesOnTheSameSideSplitAroundThePlayer(int frontKind, int rearKind)
+    {
+        var game = new Game(m_areas[0]);
+        var hero = game.Hero;
+        hero.Z = 4224;
+        hero.Y = game.Ground(hero.X, hero.Z);
+        hero.Invulnerable = 1000;
+        Fighter AddHeavy(ActorKind kind, int offset)
+        {
+            var moves = kind == ActorKind.BadBrother ? Moves.Brother : kind == ActorKind.Knight ? Moves.Knight : Moves.DeathAdder;
+            return game.Add(kind, moves, 0x38, 32, hero.X + offset, hero.Z);
+        }
+        var front = AddHeavy((ActorKind)frontKind, 32);
+        var rear = AddHeavy((ActorKind)rearKind, 62);
+        for (var tick = 0; tick < 440 && rear.X > hero.X - 28; tick++)
+            game.Tick(default);
+
+        Assert.That(front.X, Is.GreaterThan(hero.X));
+        Assert.That(rear.X, Is.LessThanOrEqualTo(hero.X - 28));
+        Assert.That(rear.Health, Is.EqualTo(32));
+        for (var tick = 0; tick < 100 && rear.State != FighterState.Attacking; tick++)
+            game.Tick(default);
+        Assert.That(rear.State, Is.EqualTo(FighterState.Attacking));
+    }
+
     [Test]
     public void FirstAreaClearsAfterTheTwoBadBrothersWithoutFurtherScrolling()
     {

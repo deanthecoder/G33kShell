@@ -29,6 +29,7 @@ internal sealed class Fighter
     public bool Connected, Entered, FoodThief;
     public int UnmountedTicks, EscapeDirection, EscapeBlockedTicks;
     public int KnockdownVariation;
+    public int FlankSide;
     public int PetrifiedTick;
     public int PickupTick = -1;
     public Fighter Mount, Rider, Victim, HeldBy, Owner, PendingMount;
@@ -39,6 +40,7 @@ internal sealed class Fighter
     public FighterState State { get; private set; }
     public HashSet<int> Struck { get; } = [];
     public bool IsEnemy => Kind is ActorKind.Heninger or ActorKind.Longmoan or ActorKind.BadBrother or ActorKind.Amazon or ActorKind.Knight or ActorKind.Skeleton or ActorKind.DeathAdder;
+    public bool IsHeavyEnemy => Kind is ActorKind.BadBrother or ActorKind.Knight or ActorKind.DeathAdder;
     public bool IsGone => State is FighterState.Gone or FighterState.Petrified;
     public bool Vulnerable => Kind is not (ActorKind.Flame or ActorKind.Fireball or ActorKind.Lightning or ActorKind.Campfire or ActorKind.CampPotion or ActorKind.Food or ActorKind.Potion) && Health > 0 && Invulnerable == 0 && Mount == null && State is not (FighterState.Emerging or FighterState.Entering or FighterState.Sleeping or FighterState.Collapsing or FighterState.Flying or FighterState.Down or FighterState.GettingUp or FighterState.Dying or FighterState.Held or FighterState.Respawning or FighterState.Gone or FighterState.Magic);
     public bool IsFree => State is FighterState.Idle or FighterState.Walking;
