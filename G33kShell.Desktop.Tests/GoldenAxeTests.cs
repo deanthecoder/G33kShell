@@ -570,14 +570,15 @@ public class GoldenAxeTests
     [Test]
     public void TerrainShadeComposesWithShadowsAndIsCoveredBySprites()
     {
-        var frame = new PixelScreenData(3, 1, [Rgb.White]);
-        var colors = new int[3];
-        frame.SetTerrainShade([64, 64, 64], 255);
+        var frame = new PixelScreenData(4, 1, [Rgb.White]);
+        var colors = new int[4];
+        frame.SetTerrainShade([64, 64, 64, 64], 255);
         frame.ShadePixel(1, 64);
         frame.SetPixel(2, 0, 0);
+        frame.SetPixelAtOffset(3, 0, keepTerrainShade: true);
         frame.CopyToBgra(colors);
 
-        Assert.That(colors.Select(color => color & 255), Is.EqualTo(new[] { 191, 143, 255 }));
+        Assert.That(colors.Select(color => color & 255), Is.EqualTo(new[] { 191, 143, 255, 191 }));
         frame.Clear();
         frame.CopyToBgra(colors);
         Assert.That(colors, Is.All.EqualTo(-1));

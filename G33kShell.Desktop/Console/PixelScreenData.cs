@@ -328,7 +328,7 @@ public class PixelScreenData
 
     internal void EndTranslucentSprite() => m_spriteOpacity = 255;
 
-    internal void SetPixelAtOffset(int offset, byte colorIndex, byte lightAttenuation = 0)
+    internal void SetPixelAtOffset(int offset, byte colorIndex, byte lightAttenuation = 0, bool keepTerrainShade = false)
     {
         if (m_spriteOpacity < 255)
         {
@@ -343,7 +343,7 @@ public class PixelScreenData
         Pixels[offset] = colorIndex;
         if (m_shade != null)
             m_shade[offset] = 0;
-        if (TerrainShadeOpacity != 0)
+        if (TerrainShadeOpacity != 0 && !keepTerrainShade)
             m_terrainShade[offset] = 0;
         if (m_light != null)
             m_light[offset] = 0;

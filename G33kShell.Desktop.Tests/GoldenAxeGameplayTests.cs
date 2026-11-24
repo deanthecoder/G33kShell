@@ -1744,13 +1744,36 @@ public class GoldenAxeGameplayTests
     [TestCase(4, 0x2538a)]
     [TestCase(4, 0x25352)]
     [TestCase(3, 0x23bda)]
-    public void SkeletonDoesNotEmergeAwayFromAuthoredMudMounds(int area, int routine)
+    public void SkeletonDoesNotEmergeAwayFromAuthoredEntrances(int area, int routine)
     {
         var game = new Game(m_areas[area]);
         game.Spawn(new SpawnDefinition((int)game.Progress, (int)game.Hero.X, (int)game.Hero.Z, 0, routine));
         var skeleton = game.Actors.Single(a => a.Kind == ActorKind.Skeleton);
         Assert.That(skeleton.State, Is.EqualTo(FighterState.Idle));
         Assert.That(skeleton.Vulnerable, Is.True);
+    }
+
+    [TestCase(4096)]
+    [TestCase(4149)]
+    [TestCase(4297)]
+    public void CastleSkeletonRisesAndLeavesAnOpenCrack(int trigger)
+    {
+        var data = m_areas[4];
+        var spawn = data.Spawns.Single(s => s.Routine == 0x2538a && s.Trigger == trigger);
+        var game = new Game(data);
+        AdvanceTo(game, trigger);
+        game.Hero.X = game.Progress + 65;
+        game.Hero.Invulnerable = 10000;
+        Assert.That(game.SkeletonMounds, Is.Empty, "The castle cracks appear as the skeleton rises.");
+        game.Tick(default);
+        var skeleton = game.Actors.Single(a => a.Kind == ActorKind.Skeleton && a.X == spawn.X && a.Z == spawn.Z);
+        Assert.That(skeleton.State, Is.EqualTo(FighterState.Emerging));
+        Assert.That(skeleton.Animation.Address, Is.EqualTo(SkeletonEmergence.CastleAnimation));
+        Assert.That(skeleton.Animation.Current.Frame, Is.EqualTo(846));
+        for (var tick = 1; tick < SkeletonEmergence.Duration; tick++)
+            game.Tick(default);
+        Assert.That(skeleton.State, Is.EqualTo(FighterState.Idle));
+        Assert.That(game.OpenedSkeletonMounds, Does.Contain(spawn));
     }
 
     [TestCase(0)]

@@ -71,9 +71,10 @@ internal sealed class Game
     public IReadOnlyList<Fighter> MagicTargets => m_magicTargets;
     public IReadOnlyList<Fighter> StoneBodies => m_stoneBodies;
     public IReadOnlyList<SpawnDefinition> OpenedSkeletonMounds => m_openedSkeletonMounds;
-    public IEnumerable<SpawnDefinition> SkeletonMounds => IsCamp ? [] : m_data.Spawns.Skip(m_spawnIndex).Where(IsSkeletonMound);
+    public IEnumerable<SpawnDefinition> SkeletonMounds => IsCamp || AreaIndex != 3 ? [] : m_data.Spawns.Skip(m_spawnIndex).Where(IsSkeletonMound);
 
-    private bool IsSkeletonMound(SpawnDefinition spawn) => AreaIndex == 3 && spawn.Routine == 0x23bda;
+    private bool IsSkeletonMound(SpawnDefinition spawn) =>
+        AreaIndex == 3 && spawn.Routine == 0x23bda || AreaIndex == 4 && spawn.Routine == 0x2538a;
     public Fighter Hero { get; }
     public int TickCount { get; private set; }
     public int? SurfAge => !IsCamp && m_surfStartTick is { } start ? TickCount - start : null;
@@ -407,7 +408,7 @@ internal sealed class Game
             case 0x20414: Add(ActorKind.Longmoan, Moves.StrongLongmoan, 0x7a, 16, spawn.X, spawn.Z); break;
             case 0x23bda: SpawnSkeletonMound(spawn); break;
             case 0x2536e: Add(ActorKind.Skeleton, Moves.Skeleton, 0x6f, 24, spawn.X, spawn.Z); break;
-            case 0x2538a: Add(ActorKind.Skeleton, Moves.Skeleton, 0x6f, 16, spawn.X, spawn.Z); break;
+            case 0x2538a: SpawnSkeletonMound(spawn); break;
             case 0x25352:
                 if (spawn.Parameter == 0x1005)
                     Add(ActorKind.DeathAdder, Moves.DeathAdder, 0x50, 64, spawn.X, spawn.Z);
@@ -485,14 +486,15 @@ internal sealed class Game
 
     private void SpawnSkeletonMound(SpawnDefinition spawn)
     {
-        var skeleton = Add(ActorKind.Skeleton, Moves.Skeleton, 0x73, 16, spawn.X, spawn.Z);
-        // These authored eagle-area positions are cracked mud, not the stone streets or castle.
-        if (!m_data.Spawns.Any(s => IsSkeletonMound(s) && s.X == spawn.X && s.Z == spawn.Z))
+        var skeleton = Add(ActorKind.Skeleton, Moves.Skeleton, spawn.Routine == 0x2538a ? 0x6f : 0x73, 16, spawn.X, spawn.Z);
+        // Only authored rise spawns use cracks; the final castle guards arrive standing.
+        if (!IsSkeletonMound(spawn) || !m_data.Spawns.Contains(spawn))
             return;
 
-        skeleton.Palette = 0x6f; // Original white-bone palette; mound variety awaits arcade confirmation.
+        skeleton.Palette = 0x6f;
         skeleton.Facing = Hero.X < spawn.X ? -1 : 1;
-        skeleton.SetState(FighterState.Emerging, SkeletonEmergence.Animation);
+        var animation = AreaIndex == 4 ? SkeletonEmergence.CastleAnimation : SkeletonEmergence.Animation;
+        skeleton.SetState(FighterState.Emerging, animation);
         skeleton.Animation.Seek(1); // The script starts with a standing setup pose before the buried skull.
     }
 

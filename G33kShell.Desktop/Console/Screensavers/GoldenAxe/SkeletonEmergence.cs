@@ -18,6 +18,7 @@ internal static class SkeletonEmergence
     public const int MoundFrame = 853;
     public const int OpenFrame = 857;
     public const int Animation = 0x24a00;
+    public const int CastleAnimation = 0x261cc;
     public const int GroundPalette = 0x74;
     // MAME: crack and skeleton advance together, entering normal AI after six poses.
     public const int Duration = 48;

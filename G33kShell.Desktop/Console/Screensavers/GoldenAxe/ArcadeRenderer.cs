@@ -124,12 +124,12 @@ internal sealed class ArcadeRenderer
         foreach (var mound in game.SkeletonMounds)
         {
             var point = game.ProjectView(mound.X, mound.Z, game.Ground(mound.X, mound.Z));
-            Sprite(screen, SkeletonEmergence.MoundFrame, SkeletonEmergence.GroundPalette, point.X, point.Y, false);
+            Sprite(screen, SkeletonEmergence.MoundFrame, SkeletonEmergence.GroundPalette, point.X, point.Y, false, keepTerrainShade: true);
         }
         foreach (var mound in game.OpenedSkeletonMounds)
         {
             var point = game.ProjectView(mound.X, mound.Z, game.Ground(mound.X, mound.Z));
-            Sprite(screen, SkeletonEmergence.OpenFrame, SkeletonEmergence.GroundPalette, point.X, point.Y, false);
+            Sprite(screen, SkeletonEmergence.OpenFrame, SkeletonEmergence.GroundPalette, point.X, point.Y, false, keepTerrainShade: true);
         }
         DrawFloorLightningTrail(screen, game);
         if (effects)
@@ -152,7 +152,7 @@ internal sealed class ArcadeRenderer
             {
                 var ground = game.ProjectView(actor.X, actor.Z, actor.Y);
                 Sprite(screen, SkeletonEmergence.GroundFrame(actor.StateTicks), SkeletonEmergence.GroundPalette,
-                    ground.X, ground.Y, false);
+                    ground.X, ground.Y, false, keepTerrainShade: true);
             }
             var step = actor.Animation.Current;
             var flip = IsFlipped(actor, step);
@@ -1261,7 +1261,7 @@ internal sealed class ArcadeRenderer
 
     private void Sprite(PixelScreenData screen, int index, int palette, double anchorX, double anchorY, bool flip,
         bool flash = false, int divisor = 1, bool softFlash = false, bool softenOutline = false, bool campfireWood = false,
-        byte[] paletteOverride = null)
+        byte[] paletteOverride = null, bool keepTerrainShade = false)
     {
         if (index < 0 || index >= m_data.Frames.Length)
             return;
@@ -1286,7 +1286,7 @@ internal sealed class ArcadeRenderer
                 else if (sourceColors != null && sourceColors[pen] == 0 && IsSilhouetteEdge(frame, frameX, frameY, sourceOffset))
                     screen.BlendBlackPixel(offset, 125);
                 else
-                    screen.SetPixelAtOffset(offset, flash && !softFlash ? m_data.White : spritePalette[pen]);
+                    screen.SetPixelAtOffset(offset, flash && !softFlash ? m_data.White : spritePalette[pen], keepTerrainShade: keepTerrainShade);
 
                 if (flash && softFlash)
                     screen.LightPixel(offset, 56);
