@@ -1496,6 +1496,34 @@ public class GoldenAxeGameplayTests
         Assert.That(game.Actors.Any(a => a.Kind == ActorKind.Lightning), Is.False);
     }
 
+    [Test]
+    public void DeathAdderAimsAtThePlayersSideAndDepthWhenTheBoltLands()
+    {
+        var game = new Game(m_areas[0]);
+        var hero = game.Hero;
+        hero.X = game.Progress + 150;
+        hero.Z = 4224;
+        hero.Y = game.Ground(hero.X, hero.Z);
+        var boss = game.Add(ActorKind.DeathAdder, Moves.DeathAdder, 0x50, 64, game.Progress + 118, hero.Z);
+        boss.SetState(FighterState.Down, boss.Moves.Fly);
+        for (var tick = 0; tick < 120 && !game.Actors.Any(a => a.Kind == ActorKind.LightningCharge); tick++)
+            game.Tick(default);
+        Assert.That(game.Actors.Single(a => a.Kind == ActorKind.LightningCharge).Facing, Is.EqualTo(1));
+
+        hero.X = game.Progress + 16;
+        hero.Z = 4248;
+        hero.Y = game.Ground(hero.X, hero.Z);
+        for (var tick = 0; tick < 45 && !game.Actors.Any(a => a.Kind == ActorKind.Lightning); tick++)
+            game.Tick(default);
+        var bolt = game.Actors.Single(a => a.Kind == ActorKind.Lightning);
+        Assert.That(bolt.Facing, Is.EqualTo(-1));
+        Assert.That(bolt.X, Is.GreaterThan(hero.X));
+        for (var tick = 0; tick < 48 && !bolt.IsGone; tick++)
+            game.Tick(default);
+        Assert.That(hero.Health, Is.EqualTo(32));
+        Assert.That(Math.Abs(hero.Z - bolt.Z), Is.LessThan(7));
+    }
+
     [TestCase(0, false)]
     [TestCase(1, false)]
     [TestCase(2, false)]

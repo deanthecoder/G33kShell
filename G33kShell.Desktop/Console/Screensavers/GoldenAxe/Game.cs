@@ -606,10 +606,14 @@ internal sealed class Game
         {
             if (!charge.Animation.Tick())
                 return;
+            var target = Hero.Mount ?? Hero;
+            var distance = target.X - charge.X;
+            var facing = distance == 0 ? charge.Facing : Math.Sign(distance);
+            var launchOffset = Math.Clamp(Math.Abs(distance) - 12, 8, 56);
             var bolt = Add(ActorKind.Lightning, Moves.Lightning, LightningPalette, 1,
-                charge.X + charge.Facing * 56, charge.Z);
+                charge.X + facing * launchOffset, charge.Z);
             bolt.Owner = charge.Owner;
-            bolt.Facing = charge.Facing;
+            charge.Owner.Facing = bolt.Facing = facing;
         }
         charge.SetState(FighterState.Gone);
     }
@@ -625,9 +629,10 @@ internal sealed class Game
         if (bolt.Age % hopTicks == 0)
         {
             m_lightningTrail.Add(new LightningMark(bolt.X, bolt.Z, bolt.Y, bolt.Facing, TickCount));
-            bolt.X += bolt.Facing * 16;
             var target = Hero.Mount ?? Hero;
-            bolt.Z += Math.Clamp(target.Z - bolt.Z, -2, 2);
+            var hopsToTarget = Math.Max(1, Math.Ceiling(Math.Abs(target.X - bolt.X) / 16));
+            bolt.X += bolt.Facing * 16;
+            bolt.Z += Math.Clamp((target.Z - bolt.Z) / hopsToTarget, -12, 12);
         }
         var floor = Ground(bolt.X, bolt.Z);
         var screenX = Project(bolt.X, bolt.Z, bolt.Y).X;
@@ -1007,6 +1012,7 @@ internal sealed class Game
                     if (actor.Animation.Index >= 3 && !actor.FlameStarted)
                     {
                         actor.FlameStarted = true;
+                        actor.Facing = Hero.X < actor.X ? -1 : 1;
                         var charge = Add(ActorKind.LightningCharge, Moves.Lightning, LightningPalette, 1, actor.X, actor.Z + 1);
                         charge.Owner = actor;
                         charge.Facing = actor.Facing;
