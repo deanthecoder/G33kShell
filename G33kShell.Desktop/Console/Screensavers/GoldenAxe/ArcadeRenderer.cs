@@ -28,10 +28,11 @@ internal sealed class ArcadeRenderer
     private readonly ArcadeData m_data;
     private readonly PoseFootprint?[] m_footprints;
     private readonly SunShadow[,] m_sunShadows;
-    private readonly byte m_orange, m_darkRed, m_blue, m_lightBlue, m_yellow;
+    private readonly byte m_orange, m_darkRed, m_filledRed, m_hudRed, m_hudPink, m_blue, m_lightBlue, m_yellow, m_livesYellow;
     private readonly byte m_emberCore;
     private readonly byte[] m_campfireWood;
     private TerrainShading m_terrainShading;
+    internal const int MagicMeterTop = 12;
     private const byte DimMagicOpacity = 115;
     private const double ShadowSkew = 0.55;
     private const double ShadowSquash = 0.28;
@@ -45,9 +46,13 @@ internal sealed class ArcadeRenderer
         m_sunShadows = new SunShadow[data.Frames.Length, 2];
         m_orange = Color(255, 136, 0);
         m_darkRed = Color(160, 0, 0);
+        m_filledRed = Color(255, 32, 32);
+        m_hudRed = Color(255, 0, 0);
+        m_hudPink = Color(255, 165, 189);
         m_blue = Color(34, 34, 255);
         m_lightBlue = Color(120, 160, 255);
         m_yellow = Color(255, 255, 0);
+        m_livesYellow = Color(255, 203, 0);
         m_emberCore = Color(255, 202, 94);
         m_campfireWood = [Color(53, 31, 18), Color(79, 46, 24), Color(110, 64, 31)];
     }
@@ -119,9 +124,9 @@ internal sealed class ArcadeRenderer
             var point = game.ProjectView(mound.X, mound.Z, game.Ground(mound.X, mound.Z));
             Sprite(screen, SkeletonEmergence.OpenFrame, SkeletonEmergence.GroundPalette, point.X, point.Y, false);
         }
-        foreach (var actor in game.Actors.Concat(game.StoneBodies).OrderBy(a => a.Z).ThenByDescending(a => a.Y))
+        foreach (var actor in game.Actors.Concat(game.StoneBodies).Concat(game.FadingPickups).OrderBy(a => a.Z).ThenByDescending(a => a.Y))
         {
-            if (actor.Mount != null || actor.State is FighterState.Gone or FighterState.Respawning ||
+            if (actor.Mount != null || actor.State == FighterState.Gone && actor.PickupTick < 0 || actor.State == FighterState.Respawning ||
                 actor.State == FighterState.Dying && game.TickCount % 4 < 2)
                 continue;
             if (actor.State == FighterState.Emerging)
@@ -139,9 +144,12 @@ internal sealed class ArcadeRenderer
             }
             var point = game.ProjectView(actor.X, actor.Z, actor.Y);
             var pulse = actor.Invulnerable % 12;
-            var translucent = pulse != 0;
+            var opacity = actor.PickupTick >= 0
+                ? (byte)(255 * Math.Clamp(1 - (game.TickCount - actor.PickupTick) / (double)Game.PickupFadeTicks, 0, 1))
+                : (byte)(255 - 18 * Math.Min(pulse, 12 - pulse));
+            var translucent = opacity < 255;
             if (translucent)
-                screen.BeginTranslucentSprite((byte)(255 - 18 * Math.Min(pulse, 12 - pulse)));
+                screen.BeginTranslucentSprite(opacity);
             Sprite(screen, step.Frame, actor.Palette, point.X + step.Dx * actor.Facing, point.Y + step.Dy, flip,
                 flash: actor.Flash > 0, softFlash: effects, softenOutline: effects && IsCharacter(actor),
                 campfireWood: effects && actor.Kind == ActorKind.Campfire);
@@ -166,6 +174,12 @@ internal sealed class ArcadeRenderer
             }
             if (translucent)
                 screen.EndTranslucentSprite();
+            if (effects && game.MagicTick < 0 && actor.PickupTick < 0 && actor.Kind is ActorKind.Potion or ActorKind.CampPotion)
+            {
+                var bottle = m_data.Frames[step.Frame];
+                PotionSparkles.DrawIdle(screen, point.X, point.Y + step.Dy + bottle.Oy + bottle.Height * 0.25,
+                    actor.Age, actor.Id, m_lightBlue, m_data.White, effectOpacity);
+            }
             if (effects && actor.Kind == ActorKind.Campfire)
             {
                 DrawCampfireSmoke(screen, point.X, point.Y, game.TickCount);
@@ -178,10 +192,14 @@ internal sealed class ArcadeRenderer
         {
             DrawFireLighting(screen, game);
             DrawLandingDust(screen, game, dustTints);
+            if (game.MagicTick < 0)
+                PotionSparkles.DrawBursts(screen, game, m_lightBlue, m_data.White, effectOpacity);
         }
         Layer(screen, m_data.Foreground, (int)u, v, palette, true, false);
         DrawFeathers(screen, game, foreground: true);
         DrawHud(screen, game);
+        if (effects && game.MagicTick < 0)
+            PotionSparkles.DrawTrails(screen, game, m_lightBlue, m_data.White, effectOpacity);
         if (game.CanAdvance && game.MagicTick < 0 && game.TickCount % 60 < 30)
             DrawGoPrompt(screen);
         if (game.Complete || game.GameOver)
@@ -515,7 +533,7 @@ internal sealed class ArcadeRenderer
         foreach (var actor in game.Actors.Concat(game.StoneBodies))
         {
             var potion = actor.Kind is ActorKind.Potion or ActorKind.CampPotion or ActorKind.Food;
-            if (actor.Mount != null || actor.State is FighterState.Gone or FighterState.Respawning ||
+            if (actor.Mount != null || actor.State == FighterState.Gone && actor.PickupTick < 0 || actor.State == FighterState.Respawning ||
                 (!potion && !IsCharacter(actor)))
                 continue;
 
@@ -772,7 +790,7 @@ internal sealed class ArcadeRenderer
 
         foreach (var actor in game.Actors)
         {
-            if (actor.Mount != null || actor.State is FighterState.Gone or FighterState.Respawning || !IsCharacter(actor))
+            if (actor.Mount != null || actor.State == FighterState.Gone && actor.PickupTick < 0 || actor.State == FighterState.Respawning || !IsCharacter(actor))
                 continue;
 
             var dx = actor.X - fire.X;
@@ -869,10 +887,10 @@ internal sealed class ArcadeRenderer
 
     private void DrawGoPrompt(PixelScreenData screen)
     {
-        Text(screen, "GO", 264, 48, m_yellow);
-        Fill(screen, 282, 51, 18, 3, m_yellow);
-        for (var row = -6; row <= 6; row++)
-            Fill(screen, 299, 52 + row, 7 - Math.Abs(row), 1, m_yellow);
+        // Frame 646 contains both the sword and GO! lettering (atlas position 398, 1502).
+        // The gold palette is provisional until checked against a set-6 capture.
+        var frame = m_data.Frames[646];
+        Sprite(screen, 646, 0x40, 248 - frame.Ox, 48 - frame.Oy, false);
     }
 
     private byte Color(int red, int green, int blue) => (byte)Enumerable.Range(0, m_data.StaticPaletteCount)
@@ -880,7 +898,7 @@ internal sealed class ArcadeRenderer
 
     private void DrawHud(PixelScreenData screen, Game game)
     {
-        Text(screen, $"STAGE {m_data.StageNumber + (game.IsCamp ? 1 : 0)}", 16, 16, m_orange);
+        Text(screen, $"STAGE {m_data.StageNumber + (game.IsCamp ? 1 : 0)}", 16, 16, m_hudRed, m_yellow);
         DrawMagicMeter(screen, game);
         for (var bar = 0; bar < 3; bar++)
         {
@@ -889,8 +907,26 @@ internal sealed class ArcadeRenderer
             Fill(screen, 57 + bar * 24, 206, amount * 20 / 16, 6, m_blue);
             Fill(screen, 57 + bar * 24, 206, amount * 20 / 16, 1, m_lightBlue);
         }
-        Text(screen, Math.Max(0, game.Lives).ToString(), 128, 205, m_yellow);
+        DrawLives(screen, game.Lives);
         DrawHudPortrait(screen, game.Character.PortraitTile);
+    }
+
+    private void DrawLives(PixelScreenData screen, int lives)
+    {
+        var digits = Math.Max(0, lives).ToString();
+        for (var digit = 0; digit < digits.Length; digit++)
+        {
+            var number = digits[digit] - '0';
+            var left = 136 - (digits.Length - digit) * 8;
+            for (var y = 0; y < 16; y++)
+            for (var x = 0; x < 8; x++)
+            {
+                // Top halves are 0..9; the lower row is ordered 1..9,0.
+                var tile = y < 8 ? 0x60 + number : number == 0 ? 0x73 : 0x69 + number;
+                if (TilePen(tile, x, y % 8) != 0)
+                    screen.SetPixel(left + x, 200 + y, m_livesYellow);
+            }
+        }
     }
 
     private void DrawHudPortrait(PixelScreenData screen, int firstTile)
@@ -911,10 +947,13 @@ internal sealed class ArcadeRenderer
     private void DrawMagicMeter(PixelScreenData screen, Game game)
     {
         const int left = 104;
-        const int top = 2;
+        const int top = MagicMeterTop;
         const int slotWidth = 10;
         const int height = 18;
         var hero = game.Character;
+        Text(screen, "MAGIC", left, 2, m_hudPink, m_hudRed);
+        // Pulse the filled background smoothly; artwork and tier dividers stay crisp.
+        var pulse = (byte)(96 + 159 * (0.5 + 0.5 * Math.Sin(game.TickCount * Math.PI / 30)));
         Fill(screen, left, top, hero.PotionCapacity * slotWidth + 1, height, m_data.White);
         for (var tier = 0; tier < hero.MagicLevels; tier++)
         {
@@ -922,14 +961,26 @@ internal sealed class ArcadeRenderer
             var end = tier + 1 < hero.MagicLevels ? hero.MagicThresholds[tier + 1] - 1 : hero.PotionCapacity;
             var x = left + start * slotWidth + 1;
             Fill(screen, x, top + 1, (end - start) * slotWidth - 1, height - 2, m_darkRed);
+            var filled = Math.Min(end, game.Potions) - start;
+            if (filled > 0)
+            {
+                screen.BeginTranslucentSprite(pulse);
+                Fill(screen, x, top + 1, filled * slotWidth - 1, height - 2, m_filledRed);
+                screen.EndTranslucentSprite();
+            }
         }
 
-        var potionIndex = m_data.Animations[0x1870a][0].Frame;
-        var potion = m_data.Frames[potionIndex];
         for (var slot = 0; slot < game.Potions; slot++)
-            Sprite(screen, potionIndex, 0x4a,
-                left + slot * slotWidth + (slotWidth + 1 - potion.Width / 2) / 2 - potion.Ox / 2.0,
-                top + height - 1 - potion.Height / 2 - potion.Oy / 2.0, false, divisor: 2);
+        for (var y = 0; y < 8; y++)
+        for (var x = 0; x < 8; x++)
+        {
+            // The text tile includes the bottle and the meter's lower border.
+            var pen = TilePen(0x01a, x, y);
+            if (pen is not (3 or 4 or 5))
+                continue;
+            var color = pen switch { 3 => m_data.White, 4 => m_lightBlue, _ => m_blue };
+            screen.SetPixel(left + slot * slotWidth + 1 + x, top + height - 8 + y, color);
+        }
 
         for (var tier = 0; tier < hero.MagicLevels; tier++)
             Text(screen, (tier + 1).ToString(), left + (hero.MagicThresholds[tier] - 1) * slotWidth + 1, top + 1, m_yellow);
@@ -1019,7 +1070,7 @@ internal sealed class ArcadeRenderer
 
     private static bool IsOpaquePen(byte pen) => pen is > 0 and < 15;
 
-    private void Text(PixelScreenData screen, string text, int left, int top, int color = -1)
+    private void Text(PixelScreenData screen, string text, int left, int top, int color = -1, int shadowColor = -1)
     {
         for (var i = 0; i < text.Length; i++)
         for (var y = 0; y < 8; y++)
@@ -1028,7 +1079,7 @@ internal sealed class ArcadeRenderer
             var code = text[i];
             var pen = TilePen(code, x, y);
             if (pen != 0)
-                screen.SetPixel(left + i * 8 + x, top + y, pen == 2 ? m_data.Black : color < 0 ? m_data.White : (byte)color);
+                screen.SetPixel(left + i * 8 + x, top + y, pen == 2 ? shadowColor < 0 ? m_data.Black : (byte)shadowColor : color < 0 ? m_data.White : (byte)color);
         }
     }
 

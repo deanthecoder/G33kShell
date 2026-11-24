@@ -24,6 +24,7 @@ internal sealed class Game
 {
     internal const int FireballImpactTicks = 14;
     internal const int LandingDustTicks = 84;
+    internal const int PickupFadeTicks = 15;
     private const double JumpVelocity = -5.75;
     private const double RunningJumpVelocity = -7.875;
     private const int KnockdownTicks = 36;
@@ -34,6 +35,8 @@ internal sealed class Game
     private readonly ArcadeData m_data;
     private readonly Random m_random;
     private readonly List<DustPuff> m_landingDust = [];
+    private readonly List<PotionPickup> m_potionPickups = [];
+    private readonly List<Fighter> m_fadingPickups = [];
     private readonly List<Fighter> m_stoneBodies = [];
     private readonly List<SpawnDefinition> m_openedSkeletonMounds = [];
     private int m_nextId;
@@ -46,6 +49,8 @@ internal sealed class Game
     public int[][][][] MagicEffects => m_data.Magic[Character.MagicKey];
     public List<Fighter> Actors { get; } = [];
     public IReadOnlyList<DustPuff> LandingDust => m_landingDust;
+    public IReadOnlyList<PotionPickup> PotionPickups => m_potionPickups;
+    public IReadOnlyList<Fighter> FadingPickups => m_fadingPickups;
     public IReadOnlyList<Fighter> StoneBodies => m_stoneBodies;
     public IReadOnlyList<SpawnDefinition> OpenedSkeletonMounds => m_openedSkeletonMounds;
     public IEnumerable<SpawnDefinition> SkeletonMounds => IsCamp ? [] : m_data.Spawns.Skip(m_spawnIndex).Where(IsSkeletonMound);
@@ -106,6 +111,8 @@ internal sealed class Game
         Complete = false;
         TickCount = 0;
         m_landingDust.Clear();
+        m_potionPickups.Clear();
+        m_fadingPickups.Clear();
         m_stoneBodies.Clear();
         m_openedSkeletonMounds.Clear();
         var range = CameraRange();
@@ -187,6 +194,8 @@ internal sealed class Game
             return;
         TickCount++;
         m_stoneBodies.RemoveAll(body => body.X < Progress - 100);
+        m_potionPickups.RemoveAll(pickup => TickCount - pickup.Tick >= PotionPickup.Lifetime);
+        m_fadingPickups.RemoveAll(pickup => TickCount - pickup.PickupTick >= PickupFadeTicks);
         if (m_landingDust.Count > 0)
             m_landingDust.RemoveAll(puff => TickCount - puff.Tick >= LandingDustTicks);
         Camp?.BeforeTick();
@@ -980,6 +989,7 @@ internal sealed class Game
         if (IsCamp || !input.Magic || Potions == 0 || Hero.Health <= 0)
             return false;
 
+        m_potionPickups.Clear();
         MagicLevel = Character.GetMagicLevel(Potions);
         // The export indexes recordings by the potion count fed to the arcade.
         var recordings = MagicEffects;
@@ -1435,6 +1445,14 @@ internal sealed class Game
             actor.SetState(FighterState.Gone);
     }
 
+    private void FadePickup(Fighter actor)
+    {
+        // Collected or stolen items stop participating in gameplay immediately.
+        actor.PickupTick = TickCount;
+        m_fadingPickups.Add(actor);
+        actor.SetState(FighterState.Gone);
+    }
+
     private void UpdateProp(Fighter actor)
     {
         if (actor.Kind is ActorKind.Campfire or ActorKind.CampPotion)
@@ -1444,7 +1462,7 @@ internal sealed class Game
         }
         if (actor.Kind is ActorKind.Potion or ActorKind.Food)
         {
-            var persistentPotion = !IsCamp && actor.Kind == ActorKind.Potion;
+            var persistentPickup = !IsCamp || actor.Kind == ActorKind.Food;
             actor.Y += actor.Vy;
             actor.Vy += 0.25;
             var floor = Ground(actor.X, actor.Z);
@@ -1464,10 +1482,10 @@ internal sealed class Game
                 }
             }
             var nextFloor = Ground(actor.X + actor.Vx, actor.Z);
-            // Settled potions stay where they landed as the camera scrolls past.
-            if ((!persistentPotion || actor.Vx != 0) && nextFloor > 3840 && nextFloor < 5248)
+            // Persistent pickups stay where they landed as the camera scrolls past.
+            if ((!persistentPickup || actor.Vx != 0) && nextFloor > 3840 && nextFloor < 5248)
                 actor.X = Math.Clamp(actor.X + actor.Vx, Progress + 16, Progress + 296);
-            if (persistentPotion ? actor.X < Progress - 16 : actor.Age > 600)
+            if (persistentPickup ? actor.X < Progress - 16 : actor.Age > 600)
             {
                 actor.SetState(FighterState.Gone);
                 return;
@@ -1477,8 +1495,13 @@ internal sealed class Game
                 if (actor.Kind == ActorKind.Food)
                     Hero.Health = Math.Min(48, Hero.Health + 16);
                 else
+                {
+                    var point = ProjectView(actor.X, actor.Z, actor.Y);
+                    var slot = Potions < Character.PotionCapacity ? Potions : -1;
+                    m_potionPickups.Add(new PotionPickup(actor.X, actor.Z, actor.Y, point.X, point.Y, TickCount, slot));
                     Potions = Math.Min(Character.PotionCapacity, Potions + 1);
-                actor.SetState(FighterState.Gone);
+                }
+                FadePickup(actor);
             }
             return;
         }
@@ -1516,7 +1539,7 @@ internal sealed class Game
                 Move(actor, Math.Sign(dx) * Math.Min(1.5, Math.Abs(dx)), Math.Sign(dz) * Math.Min(1, Math.Abs(dz)));
                 if (Math.Abs(dx) < 4 && Math.Abs(dz) < 4)
                 {
-                    jar.SetState(FighterState.Gone);
+                    FadePickup(jar);
                     Potions = Math.Max(0, Potions - 1);
                     actor.Items++;
                 }

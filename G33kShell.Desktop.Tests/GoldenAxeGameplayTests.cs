@@ -117,7 +117,7 @@ public class GoldenAxeGameplayTests
         var renderer = new ArcadeRenderer(data);
         var screen = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
         // The lower stroke of the first tier number overlaps the first potion's neck.
-        var overlap = 9 * screen.Width + 108;
+        var overlap = (ArcadeRenderer.MagicMeterTop + 7) * screen.Width + 108;
         renderer.Draw(screen, game);
         var withPotion = screen.Pixels[overlap];
 
@@ -125,6 +125,101 @@ public class GoldenAxeGameplayTests
         Assert.That(game.Potions, Is.Zero);
         renderer.Draw(screen, game);
         Assert.That(withPotion, Is.EqualTo(screen.Pixels[overlap]));
+    }
+
+    [Test]
+    public void FilledMagicSlotsPulseWhileEmptySlotsAndBordersStayFixed()
+    {
+        var data = m_areas[0];
+        var game = new Game(data, character: 2);
+        var screen = new PixelScreenData(320, 224, data.Palette);
+        var renderer = new ArcadeRenderer(data);
+        var bright = new int[320 * 224];
+        var dark = new int[320 * 224];
+        for (var tick = 0; tick < 15; tick++)
+            game.Tick(default);
+        renderer.Draw(screen, game);
+        screen.CopyToBgra(bright);
+        for (var tick = 0; tick < 30; tick++)
+            game.Tick(default);
+        renderer.Draw(screen, game);
+        screen.CopyToBgra(dark);
+        var row = (ArcadeRenderer.MagicMeterTop + 9) * 320;
+        Assert.That((bright[row + 108] >> 16) & 255, Is.GreaterThan((dark[row + 108] >> 16) & 255));
+        Assert.That((dark[row + 108] >> 16) & 255, Is.GreaterThan((dark[row + 118] >> 16) & 255));
+        Assert.That(bright[row + 118], Is.EqualTo(dark[row + 118]));
+        Assert.That(bright[row + 104], Is.EqualTo(dark[row + 104]));
+    }
+
+    [Test]
+    public void HudPotionUsesTheOriginalEightPixelTextTile()
+    {
+        var data = m_areas[0];
+        var game = new Game(data);
+        var screen = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
+        new ArcadeRenderer(data).Draw(screen, game);
+        byte[] colors = new byte[8];
+        for (var y = 0; y < 8; y++)
+        for (var x = 0; x < 8; x++)
+        {
+            var pen = data.TilePens[y * data.TileStride + 0x1a * 8 + x];
+            var pixel = screen.Pixels[(ArcadeRenderer.MagicMeterTop + 10 + y) * screen.Width + 105 + x];
+            if (colors[pen] == 0)
+                colors[pen] = pixel;
+            Assert.That(pixel, Is.EqualTo(colors[pen]), "Preserve the original HUD bottle's pixel pattern.");
+        }
+        Assert.That(new[] { colors[3], colors[4], colors[5], colors[6] }.Distinct().Count(), Is.EqualTo(4));
+        Assert.That(colors[3], Is.EqualTo(data.White), "The tile's bottom edge must join the meter's white border.");
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void PotionSparklesSurviveCollectionThenExpireWithoutFoodSparkles(bool fullMeter)
+    {
+        var game = new Game(m_areas[0]);
+        if (fullMeter)
+        {
+            for (var i = game.Potions; i < game.Character.PotionCapacity; i++)
+                game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, game.Hero.X, game.Hero.Z);
+            game.Tick(default);
+            for (var tick = 0; tick < PotionPickup.Lifetime; tick++)
+                game.Tick(default);
+        }
+        var count = game.Potions;
+        var potion = game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, game.Hero.X, game.Hero.Z);
+        game.Add(ActorKind.Food, Moves.Thief, 0x7f, 1, game.Hero.X, game.Hero.Z);
+        game.Tick(default);
+        Assert.That(game.Actors, Does.Not.Contain(potion));
+        Assert.That(game.PotionPickups, Has.Count.EqualTo(1));
+        Assert.That(game.PotionPickups[0].Slot, Is.EqualTo(fullMeter ? -1 : count));
+        Assert.That(game.Potions, Is.EqualTo(Math.Min(count + 1, game.Character.PotionCapacity)));
+        for (var tick = 0; tick < PotionPickup.Lifetime; tick++)
+            game.Tick(default);
+        Assert.That(game.PotionPickups, Is.Empty);
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void CollectedItemsFadeWithoutBeingCollectedAgain(bool food)
+    {
+        var kind = food ? ActorKind.Food : ActorKind.Potion;
+        var game = new Game(m_areas[0]);
+        game.Hero.Health = 16;
+        var item = game.Add(kind, Moves.Thief, kind == ActorKind.Food ? 0x7f : 0x4a, 1, game.Hero.X, game.Hero.Z);
+        item.Animation.Play(kind == ActorKind.Food ? 0x18722 : 0x1870a);
+        var frame = item.Animation.Current.Frame;
+        game.Tick(default);
+        Assert.That(game.Actors, Does.Not.Contain(item));
+        Assert.That(game.FadingPickups, Does.Contain(item));
+        Assert.That((game.Hero.Health, game.Potions), Is.EqualTo(kind == ActorKind.Food ? (32, 1) : (16, 2)));
+        Assert.That(game.PotionPickups.Count, Is.EqualTo(kind == ActorKind.Food ? 0 : 1));
+        for (var tick = 1; tick < Game.PickupFadeTicks; tick++)
+            game.Tick(default);
+        Assert.That(game.FadingPickups, Does.Contain(item));
+        Assert.That(item.Animation.Current.Frame, Is.EqualTo(frame));
+        game.Tick(default);
+        Assert.That(game.FadingPickups, Is.Empty);
+        Assert.That((game.Hero.Health, game.Potions), Is.EqualTo(kind == ActorKind.Food ? (32, 1) : (16, 2)));
     }
 
     [Test]
@@ -178,21 +273,24 @@ public class GoldenAxeGameplayTests
     }
 
     [Test]
-    public void RegularPotionStaysCollectibleAfterTheOldTimeout()
+    public void RegularPotionAndFoodStayCollectibleAfterTheOldTimeout()
     {
         var game = new Game(m_areas[0]);
         var potion = game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, game.Hero.X + 30, game.Hero.Z);
         var food = game.Add(ActorKind.Food, Moves.Thief, 0x7f, 1, potion.X, potion.Z);
         potion.Age = food.Age = 600;
+        game.Hero.Health = 16;
         game.Tick(default);
         Assert.That(game.Actors, Does.Contain(potion));
-        Assert.That(game.Actors, Does.Not.Contain(food));
+        Assert.That(game.Actors, Does.Contain(food));
 
         game.Hero.X = potion.X;
         game.Hero.Y = potion.Y;
         game.Tick(default);
         Assert.That(game.Potions, Is.EqualTo(2));
+        Assert.That(game.Hero.Health, Is.EqualTo(32));
         Assert.That(game.Actors, Does.Not.Contain(potion));
+        Assert.That(game.Actors, Does.Not.Contain(food));
     }
 
     [Test]
@@ -671,10 +769,34 @@ public class GoldenAxeGameplayTests
         }
     }
 
-    [Test]
-    public void CampSleepsWakesAllowsPotionTheftAndDropsHealingFood()
+    [TestCase(2, -666, -749)]
+    [TestCase(4, -632, -736)]
+    public void HoldingDownReachesTheMameLowerCameraAtRecoveredScenery(int area, int cameraX, int expectedY)
     {
-        var game = new Game(m_areas[1], 2);
+        var game = new Game(m_areas[area], random: new Random(0));
+        typeof(Game).GetProperty(nameof(Game.CameraX))!.SetValue(game, (double)cameraX);
+        typeof(Game).GetProperty(nameof(Game.CameraY))!.SetValue(game, area == 2 ? -720.0 : -711.0);
+        game.Hero.X = game.Progress + 120;
+        game.Hero.Z = game.FindFloor(game.Hero.X, 4240, keepVisible: true);
+        game.Hero.Y = game.Ground(game.Hero.X, game.Hero.Z);
+        var lives = game.Lives;
+        for (var tick = 0; tick < 300 && game.CameraY > expectedY; tick++)
+        {
+            game.Actors.RemoveAll(a => a != game.Hero);
+            game.Tick(new GameInput(Z: 1));
+        }
+        Assert.That(game.CameraX, Is.EqualTo(cameraX));
+        Assert.That(game.CameraY, Is.EqualTo(expectedY));
+        Assert.That(game.Lives, Is.EqualTo(lives));
+        Assert.That(game.Project(game.Hero.X, game.Hero.Z, game.Hero.Y).Y, Is.LessThanOrEqualTo(198));
+    }
+
+    [TestCase(0)]
+    [TestCase(1)]
+    [TestCase(2)]
+    public void CampSleepsWakesAllowsPotionTheftAndDropsHealingFood(int character)
+    {
+        var game = new Game(m_areas[1], character);
         AdvanceTo(game, m_areas[1].Stops[^1]);
         for (var tick = 0; tick < 40; tick++)
         {
@@ -686,6 +808,7 @@ public class GoldenAxeGameplayTests
         game.StartCamp();
         Assert.That(game.Complete, Is.False);
         Assert.That(game.Hero.State, Is.EqualTo(FighterState.Sleeping));
+        Assert.That(game.Hero.Animation.Current.Frame, Is.EqualTo(830 + character));
         Assert.That(game.Hero.Health, Is.EqualTo(16));
         var jar = game.Actors.Single(a => a.Kind == ActorKind.CampPotion);
         Assert.That(game.Potions, Is.EqualTo(1), "The visible camp jar still belongs to the sleeping hero.");
@@ -705,9 +828,12 @@ public class GoldenAxeGameplayTests
         Assert.That(game.Potions, Is.Zero);
         Assert.That(thief.Items, Is.EqualTo(carried + 1));
         Assert.That(jar.IsGone, Is.True);
+        Assert.That(game.FadingPickups, Does.Contain(jar));
+        Assert.That(game.PotionPickups, Is.Empty, "Theft must not send collection sparkles to the player's HUD.");
         for (var tick = 0; tick < 50 && !game.Hero.IsFree; tick++)
             game.Tick(default);
         Assert.That(game.Hero.IsFree, Is.True);
+        Assert.That(game.FadingPickups, Does.Not.Contain(jar));
 
         var foodThief = game.Actors.Single(a => a.FoodThief);
         game.Actors.RemoveAll(a => a != game.Hero && a != foodThief && a.Kind != ActorKind.Campfire);
@@ -718,8 +844,10 @@ public class GoldenAxeGameplayTests
         for (var tick = 0; tick < 120 && !game.Actors.Any(a => a.Kind == ActorKind.Food); tick++)
             game.Tick(new GameInput(1, Attack: true));
         var food = game.Actors.Single(a => a.Kind == ActorKind.Food);
+        food.Age = 600;
         for (var tick = 0; tick < 40; tick++)
             game.Tick(default);
+        Assert.That(game.Actors, Does.Contain(food), "Camp food must not expire while waiting to be collected.");
         game.Hero.X = food.X;
         game.Hero.Z = food.Z;
         for (var tick = 0; tick < 60 && game.Hero.Health == 16; tick++)
@@ -1477,13 +1605,25 @@ public class GoldenAxeGameplayTests
         }
         Assert.That(game.CanAdvance, Is.True);
         Assert.That(controller.Read(game).X, Is.EqualTo(1), "Resume advancing when the route unlocks.");
+        // Stay behind the scrolling threshold so the next wave cannot hide the prompt.
+        body.X = game.Progress + 80;
         while (game.TickCount % 60 != 0)
             game.Tick(default);
+        Assert.That(game.CanAdvance, Is.True, "Keep the route clear while checking the prompt.");
         var screen = new PixelScreenData(320, 224, data.Palette);
         var renderer = new ArcadeRenderer(data);
-        byte[] PromptPixels() => Enumerable.Range(48, 12).SelectMany(y => screen.Pixels.Skip(y * 320 + 264).Take(44)).ToArray();
+        var prompt = data.Frames[646];
+        byte[] PromptPixels() => Enumerable.Range(48, prompt.Height).SelectMany(y => screen.Pixels.Skip(y * 320 + 248).Take(prompt.Width)).ToArray();
         renderer.Draw(screen, game);
         var visible = PromptPixels();
+        for (var y = 0; y < prompt.Height; y++)
+        for (var x = 0; x < prompt.Width; x++)
+        {
+            var pen = data.SpritePens[(prompt.Y + y) * data.SpriteStride + prompt.X + x];
+            if (pen is > 0 and < 15)
+                Assert.That(visible[y * prompt.Width + x], Is.EqualTo(data.SpritePalette[0x40][pen]),
+                    "Draw the original GO! artwork at native size, including its lettering and sword.");
+        }
         for (var tick = 0; tick < 30; tick++)
             game.Tick(default);
         renderer.Draw(screen, game);
