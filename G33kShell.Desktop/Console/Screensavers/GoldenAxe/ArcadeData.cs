@@ -29,6 +29,9 @@ namespace G33kShell.Desktop.Console.Screensavers.GoldenAxe;
 /// </remarks>
 internal sealed class ArcadeData
 {
+    private readonly bool[] m_capturedBackground;
+    private readonly int[] m_castleCoverage;
+    private readonly Dictionary<(int X, int StartY, int EndY), int> m_lowerCoverage = new();
     public const int AreaCount = 5;
     public const int Width = 320;
     public const int Height = 224;
@@ -77,6 +80,116 @@ internal sealed class ArcadeData
     public byte White { get; }
     public byte Black { get; }
 
+    public bool UsesCastleOpeningFraming(double progress) => AreaIndex == 4 && progress <= 0x1108;
+
+    public (int Low, int High) CameraRange(double cameraX, bool extendLower = true)
+    {
+        var column = (int)Math.Floor(cameraX / 8);
+        var sampled = CameraPath.OrderBy(p => Math.Abs(p.Key - column)).First().Value;
+        if (!extendLower)
+            return (sampled[0], sampled[1]);
+
+        var progress = Math.Clamp((int)(4089 - cameraX), 4096, Stops[^1]);
+        var arcadeLow = ArcadeCameraLimits.LowerY(AreaIndex, progress);
+        if (UsesCastleOpeningFraming(progress))
+            arcadeLow = Math.Min(arcadeLow, -624);
+        // Keep the view inside the tile canvas even when the arcade can scroll farther.
+        var limit = Background.Y + Background.Height * 8 - Height;
+        var coveredScroll = (int)Math.Floor((limit - Parallax[1][1]) / Parallax[1][0]);
+        var canvasLow = -512 - coveredScroll;
+        var sampledLow = Math.Max(sampled[0], canvasLow);
+        var requestedLow = Math.Max(Math.Min(sampled[0], arcadeLow), canvasLow);
+        var low = requestedLow < sampledLow
+            ? CoveredLowerY((int)Math.Round(cameraX), sampledLow, requestedLow)
+            : sampledLow;
+        return KeepCastleViewCovered(cameraX, low, sampled[1]);
+    }
+
+    private (int Low, int High) KeepCastleViewCovered(double cameraX, int low, int high)
+    {
+        high = Math.Max(low, high);
+        if (m_castleCoverage == null)
+            return (low, high);
+
+        var x = -7 - (int)Math.Round(cameraX) - Background.X;
+        var highestView = -512 - Background.Y;
+        // A sampled lower limit can already contain a hole. Find the deepest usable
+        // view, even if clearing the hole means panning above the sampled range.
+        var coveredLow = low;
+        while (coveredLow <= highestView && !CastleViewIsCovered(x, coveredLow))
+            coveredLow++;
+        if (coveredLow > highestView)
+            return (low, high);
+
+        var coveredHigh = coveredLow;
+        while (coveredHigh < high && CastleViewIsCovered(x, coveredHigh + 1))
+            coveredHigh++;
+        return (coveredLow, coveredHigh);
+    }
+
+    public double KeepDisplayViewCovered(double cameraX, double cameraY, (int Low, int High) range)
+    {
+        if (m_castleCoverage != null && !CastleViewIsCovered(
+                -7 - (int)Math.Round(cameraX) - Background.X, (int)Math.Round(cameraY)))
+            return Math.Clamp(cameraY, range.Low, range.High);
+        return cameraY;
+    }
+
+    private bool CastleViewIsCovered(int x, int cameraY)
+    {
+        var y = -512 - cameraY - Background.Y;
+        var right = x + Width;
+        var bottom = y + Height;
+        var stride = Background.Width * 8 + 1;
+        if (x < 0 || y < 0 || right >= stride || bottom > Background.Height * 8)
+            return false;
+        return m_castleCoverage[bottom * stride + right] - m_castleCoverage[bottom * stride + x]
+            - m_castleCoverage[y * stride + right] + m_castleCoverage[y * stride + x] == 0;
+    }
+
+    private int CoveredLowerY(int cameraX, int startY, int endY)
+    {
+        var key = (cameraX, startY, endY);
+        if (m_lowerCoverage.TryGetValue(key, out var cached))
+            return cached;
+
+        var foregroundX = -7 - cameraX;
+        var backgroundX = (int)Math.Floor(foregroundX * Parallax[0][0] + Parallax[0][1]);
+        var result = startY;
+        for (var y = startY - 1; y >= endY; y--)
+        {
+            var foregroundY = -512 - y;
+            var backgroundY = (int)(foregroundY * Parallax[1][0] + Parallax[1][1]);
+            if (!IsBottomRowCaptured(foregroundX, foregroundY + Height - 1, backgroundX, backgroundY + Height - 1))
+                break;
+            result = y;
+        }
+        return m_lowerCoverage[key] = result;
+    }
+
+    private bool IsBottomRowCaptured(int foregroundX, int foregroundY, int backgroundX, int backgroundY)
+    {
+        foregroundX -= Foreground.X;
+        foregroundY -= Foreground.Y;
+        backgroundX -= Background.X;
+        backgroundY -= Background.Y;
+        for (var x = 0; x < Width; x++)
+        {
+            var bx = backgroundX + x;
+            if (bx >= 0 && bx < Background.Width * 8 && backgroundY >= 0 && backgroundY < Background.Height * 8 &&
+                m_capturedBackground[backgroundY / 8 * Background.Width + bx / 8])
+                continue;
+
+            var fx = foregroundX + x;
+            if (fx < 0 || fx >= Foreground.Width * 8 || foregroundY < 0 || foregroundY >= Foreground.Height * 8)
+                return false;
+            var cell = Foreground.Cells[foregroundY / 8 * Foreground.Width + fx / 8];
+            if (cell == uint.MaxValue || TilePen(cell, fx, foregroundY) == 0)
+                return false;
+        }
+        return true;
+    }
+
     public ArcadeData(string directory, int areaIndex = 0)
     {
         AreaIndex = areaIndex is >= 0 and < AreaCount ? areaIndex : throw new ArgumentOutOfRangeException(nameof(areaIndex));
@@ -93,6 +206,7 @@ internal sealed class ArcadeData
         (TilePens, TileStride) = ReadPens(Path.Combine(directory, "tiles.png"), 32);
         Foreground = ReadLayer(level["fg"]);
         Background = ReadLayer(level["bg"]);
+        m_capturedBackground = Background.Cells.Select(cell => cell != uint.MaxValue).ToArray();
         HeightMap = Convert.FromBase64String((string)level["height"]);
         Spawns = level["spawns"].Select(s => new SpawnDefinition((int)s[0], (int)s[1], (int)s[2], (int)s[3], (int)s[4])).OrderBy(s => s.Trigger).ToArray();
         CampSpawns = level["camp"].Select(s => new SpawnDefinition((int)s[0], (int)s[1], (int)s[2], (int)s[3], (int)s[4])).ToArray();
@@ -199,6 +313,48 @@ internal sealed class ArcadeData
         Black = Map(0);
         White = Map(0xffffff);
         FillBackgroundGaps();
+        // The castle's layers share the same tile coordinates and scroll offsets.
+        if (AreaIndex == 4)
+            m_castleCoverage = BuildCastleCoverage();
+    }
+
+    private int[] BuildCastleCoverage()
+    {
+        var width = Background.Width * 8;
+        var height = Background.Height * 8;
+        var stride = width + 1;
+        // A summed-area table makes each viewport check four lookups.
+        var coverage = new int[stride * (height + 1)];
+        var day = TilePalettes[DayPalette];
+        var boss = TilePalettes[BossPalette];
+        for (var y = 0; y < height; y++)
+        {
+            var holesOnRow = 0;
+            for (var x = 0; x < width; x++)
+            {
+                var index = y / 8 * Background.Width + x / 8;
+                if (!m_capturedBackground[index])
+                {
+                    var bg = Background.Cells[index];
+                    var fg = Foreground.Cells[index];
+                    var group = (int)(bg >> 16 & 127) * 8;
+                    var color = group + TilePen(bg, x, y);
+                    // Known black scenery is valid. A black fill over a missing
+                    // background pixel needs an opaque foreground pixel to cover it.
+                    if ((day[color] == Black || boss[color] == Black) &&
+                        (fg == uint.MaxValue || TilePen(fg, x, y) == 0))
+                        holesOnRow++;
+                }
+                coverage[(y + 1) * stride + x + 1] = holesOnRow + coverage[y * stride + x + 1];
+            }
+        }
+        return coverage;
+    }
+
+    private byte TilePen(uint cell, int x, int y)
+    {
+        var tile = (int)(cell & 0xffff);
+        return TilePens[(tile / 128 * 8 + y % 8) * TileStride + tile % 128 * 8 + x % 8];
     }
 
     private void FixMaceSwingPoses()

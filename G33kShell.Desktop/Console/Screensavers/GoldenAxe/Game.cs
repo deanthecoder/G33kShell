@@ -90,7 +90,7 @@ internal sealed class Game
     public bool Complete { get; private set; }
     public CampRound Camp { get; private set; }
     public bool IsCamp => Camp != null;
-    internal int BottomFeetLimit => IsCamp ? 196 : ArcadeData.Height - 12;
+    internal int BottomFeetLimit => IsCamp ? 196 : ArcadeData.Height - 2;
     public bool GameOver { get; private set; }
     public int MagicTick { get; private set; } = -1;
     public int MagicLevel { get; private set; }
@@ -108,7 +108,7 @@ internal sealed class Game
         m_random = random ?? Random.Shared;
         Character = HeroDefinition.All[Math.Clamp(character, 0, 2)];
         CameraX = data.InitialCameraX;
-        CameraY = CameraRange()[0];
+        CameraY = m_data.CameraRange(CameraX, extendLower: false).Low;
         Hero = Add(ActorKind.Hero, Character.Moves, Character.Palette, 48, 4096 - CameraX + 60, 4240);
         Hero.Facing = 1;
         Hero.Z = FindFloor(Hero.X, Hero.Z, keepVisible: true);
@@ -148,7 +148,7 @@ internal sealed class Game
         m_openedSkeletonMounds.Clear();
         m_brotherEntrances.Clear();
         var range = CameraRange();
-        CameraY = Math.Clamp(150 - (Project(Hero.X, Hero.Z, Hero.Y).Y - CameraY), range[0], range[1]);
+        CameraY = Math.Clamp(150 - (Project(Hero.X, Hero.Z, Hero.Y).Y - CameraY), range.Low, range.High);
         ViewCamera.Reset(CameraX, CameraY);
     }
 
@@ -191,7 +191,7 @@ internal sealed class Game
 
     public double FindFloor(double x, double z, bool keepVisible = false)
     {
-        var cameraY = keepVisible ? CameraRange()[0] : CameraY;
+        var cameraY = keepVisible ? m_data.CameraRange(CameraX, extendLower: false).Low : CameraY;
         for (var d = 0; d < 160; d += 2)
         foreach (var candidate in new[] { z + d, z - d })
         {
@@ -211,7 +211,7 @@ internal sealed class Game
         return (point.X + ViewCamera.X - CameraX, point.Y + ViewCamera.Y - CameraY);
     }
 
-    private int[] CameraRange() => m_data.CameraPath.OrderBy(p => Math.Abs(p.Key - (int)Math.Floor(CameraX / 8))).First().Value;
+    private (int Low, int High) CameraRange() => m_data.CameraRange(CameraX, extendLower: !IsCamp);
 
     public void Tick(GameInput input)
     {
@@ -377,11 +377,14 @@ internal sealed class Game
         var cameraRange = CameraRange();
         var z = body.Z - 4096;
         var floor = Ground(body.X, body.Z);
+        // Frame the player higher as they approach the front of the opening ledge,
+        // while keeping the initial view close to the arcade framing.
+        var feetTarget = m_data.UsesCastleOpeningFraming(Progress) ? 188 : 150;
         // Do not chase the jump arc. Falls still lower the view to reveal the landing.
         var desiredY = body.State == FighterState.Jumping
             ? CameraY + Math.Max(0, 64 - Project(body.X, body.Z, body.Y).Y)
-            : 150 - (z - Math.Floor(z / 4) + Math.Min(body.Y, floor) - 4096);
-        CameraY += Math.Clamp(Math.Clamp(desiredY, cameraRange[0], cameraRange[1]) - CameraY, -2, 2);
+            : feetTarget - (z - Math.Floor(z / 4) + Math.Min(body.Y, floor) - 4096);
+        CameraY += Math.Clamp(Math.Clamp(desiredY, cameraRange.Low, cameraRange.High) - CameraY, -2, 2);
         var enemies = m_brotherEntrances.Count != 0 || Actors.Any(a => a.IsEnemy && !a.IsGone);
         if (!enemies && (Progress >= stop || FinalWaveSpawned))
         {
@@ -1450,7 +1453,7 @@ internal sealed class Game
     {
         if (actor != Hero && actor.Rider != Hero)
             return true;
-        var lowestCamera = IsCamp ? CameraY : CameraRange()[0];
+        var lowestCamera = IsCamp ? CameraY : CameraRange().Low;
         if (Project(actor.X, z, ground).Y + lowestCamera - CameraY <= BottomFeetLimit)
             return true;
         if (IsCamp)

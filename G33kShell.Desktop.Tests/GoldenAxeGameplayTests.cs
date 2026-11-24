@@ -939,7 +939,7 @@ public class GoldenAxeGameplayTests
             game.Actors.RemoveAll(a => a != game.Hero);
             game.Tick(new GameInput(Z: 1));
         }
-        Assert.That(game.ProjectView(game.Hero.X, game.Hero.Z, game.Hero.Y).Y, Is.InRange(210, 214));
+        Assert.That(game.ProjectView(game.Hero.X, game.Hero.Z, game.Hero.Y).Y, Is.InRange(210, ArcadeData.Height - 1));
         Assert.That(game.Hero.Y, Is.EqualTo(game.Ground(game.Hero.X, game.Hero.Z)));
         Assert.That(game.Lives, Is.EqualTo(2));
     }
@@ -988,6 +988,135 @@ public class GoldenAxeGameplayTests
         Assert.That(game.CameraY, Is.EqualTo(expectedY));
         Assert.That(game.Lives, Is.EqualTo(lives));
         Assert.That(game.Project(game.Hero.X, game.Hero.Z, game.Hero.Y).Y, Is.LessThanOrEqualTo(game.BottomFeetLimit + 2));
+    }
+
+    [Test]
+    public void CastleApproachUsesTheArcadeLowerBoundBetweenCameraSamples()
+    {
+        var data = m_areas[4];
+        var game = new Game(data);
+        var renderer = new ArcadeRenderer(data);
+        var screen = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
+        foreach (var cameraX in new[] { -324, -351, -379, -632 })
+        {
+            var lowerY = data.CameraRange(cameraX).Low;
+            Assert.That(lowerY, Is.EqualTo(-736), $"Camera X {cameraX}");
+            game.ViewCamera.Reset(cameraX, lowerY);
+            renderer.Draw(screen, game, effects: false);
+            var bottomRow = screen.Pixels.Skip((ArcadeData.Height - 1) * ArcadeData.Width);
+            Assert.That(bottomRow.Count(pixel => pixel != data.Black), Is.GreaterThan(ArcadeData.Width / 2));
+        }
+        Assert.That(data.CameraRange(-1223).Low, Is.EqualTo(-676));
+        // The Stage 3 capture ends at this row even where the arcade could scroll lower.
+        Assert.That(m_areas[1].CameraRange(-487).Low, Is.EqualTo(-868));
+        Assert.That(m_areas[1].CameraRange(-500).Low, Is.EqualTo(-872));
+    }
+
+    [Test]
+    public void CastleApproachKeepsTheLeftEdgeCoveredUntilTheEagleSceneryStarts()
+    {
+        var data = m_areas[4];
+        var game = new Game(data);
+        var renderer = new ArcadeRenderer(data);
+        var frame = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
+        AdvanceTo(game, 4381);
+        game.Hero.X = game.Progress + 132;
+        // The sampled eagle camera applies early here, while the left edge is
+        // still over tiles missing from the capture.
+        Assert.That(data.CameraRange(-292), Is.EqualTo((-576, -576)));
+        for (var tick = 0; tick < 90; tick++)
+        {
+            game.Tick(default);
+            game.Actors.RemoveAll(actor => actor != game.Hero);
+            renderer.Draw(frame, game, effects: false);
+            for (var y = 140; y < ArcadeData.Height; y++)
+                Assert.That(frame.Pixels[y * ArcadeData.Width], Is.Not.EqualTo(data.Black),
+                    $"Left edge at camera ({game.ViewCamera.X}, {game.ViewCamera.Y}), row {y}");
+        }
+
+        Assert.That(game.ViewCamera.X, Is.InRange(-300, -285));
+        Assert.That(game.ViewCamera.Y, Is.EqualTo(-576));
+        Assert.That(data.CameraRange(-324).Low, Is.EqualTo(-736));
+    }
+
+    [Test]
+    public void CastleOpeningPansDownWhenBothCornersHaveScenery()
+    {
+        var game = new Game(m_areas[4]);
+        var hero = game.Hero;
+        hero.Invulnerable = 10000;
+        var startingView = game.ViewCamera.Y;
+        for (var tick = 0; tick < 100; tick++)
+        {
+            game.Tick(new GameInput(Z: 1));
+            game.Actors.RemoveAll(a => a != hero);
+        }
+
+        Assert.That(game.ViewCamera.Y, Is.EqualTo(startingView), "The opening left corner has no captured tiles below this view.");
+        Assert.That(hero.Z, Is.InRange(4254, 4255.99));
+        Assert.That(game.Lives, Is.EqualTo(2));
+
+        AdvanceTo(game, 4120);
+        hero.X = game.Progress + 110;
+        for (var tick = 0; tick < 80; tick++)
+        {
+            game.Tick(new GameInput(Z: 1));
+            game.Actors.RemoveAll(a => a != hero);
+        }
+        Assert.That(game.ViewCamera.Y, Is.EqualTo(-576));
+        var data = m_areas[4];
+        var frame = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
+        new ArcadeRenderer(data).Draw(frame, game, effects: false);
+        var bottom = (ArcadeData.Height - 1) * ArcadeData.Width;
+        Assert.That(frame.Pixels.Skip(bottom).Take(8).Any(pixel => pixel != data.Black), Is.True);
+    }
+
+    [Test]
+    public void CastleOpeningShowsTheDropBeforeThePlayerStepsOff()
+    {
+        var game = new Game(m_areas[4]);
+        AdvanceTo(game, 4265);
+        var hero = game.Hero;
+        hero.X = 4418;
+        hero.Z = 4220;
+        hero.Y = game.Ground(hero.X, hero.Z);
+        for (var tick = 0; tick < 22; tick++)
+            game.Tick(new GameInput(Z: 1));
+
+        Assert.That(hero.Z, Is.EqualTo(4253));
+        Assert.That(hero.State, Is.EqualTo(FighterState.Walking));
+        Assert.That(game.ProjectView(hero.X, 4256, hero.Y).Y, Is.LessThanOrEqualTo(200));
+        game.Tick(new GameInput(Z: 1));
+        game.Tick(new GameInput(Z: 1));
+        Assert.That(hero.State, Is.EqualTo(FighterState.Falling));
+    }
+
+    [Test]
+    public void PlayerCanHitAThiefBelowTheOldBottomLaneLimit()
+    {
+        var game = new Game(m_areas[4]);
+        AdvanceTo(game, 5200);
+        var hero = game.Hero;
+        hero.X = game.Progress + 130;
+        hero.Z = 4240;
+        hero.Y = game.Ground(hero.X, hero.Z);
+        var thief = game.Add(ActorKind.Thief, Moves.Thief, 0x3d, 99, hero.X + 27, 4278);
+        thief.Items = 1;
+        thief.Facing = -1;
+        // Let the player enter the lane while the thief is stationary between steps.
+        for (var tick = 0; tick < 36; tick++)
+        {
+            thief.SetState(FighterState.Hurt, thief.Moves.Hurt);
+            game.Tick(new GameInput(Z: 1));
+        }
+
+        Assert.That(Math.Abs(hero.Z - thief.Z), Is.LessThan(7));
+        Assert.That(game.ProjectView(hero.X, hero.Z, hero.Y).Y, Is.InRange(215, ArcadeData.Height - 1));
+        thief.SetState(FighterState.Walking, thief.Moves.Walk);
+        for (var tick = 0; tick < 18 && thief.Items > 0; tick++)
+            game.Tick(new GameInput(Attack: true));
+        Assert.That(thief.Items, Is.Zero);
+        Assert.That(game.Actors.Any(a => a.Kind == ActorKind.Potion), Is.True);
     }
 
     [TestCase(0)]

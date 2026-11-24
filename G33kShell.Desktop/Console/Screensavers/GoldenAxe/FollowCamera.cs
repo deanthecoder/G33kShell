@@ -4,7 +4,6 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
 using System;
-using System.Linq;
 
 namespace G33kShell.Desktop.Console.Screensavers.GoldenAxe;
 
@@ -24,6 +23,8 @@ internal sealed class FollowCamera
         if (game.IsCamp || Math.Abs(game.CameraX - m_x) > 96 || Math.Abs(game.CameraY - m_y) > 96)
         {
             Reset(game.CameraX, game.CameraY);
+            if (!game.IsCamp)
+                m_y = data.KeepDisplayViewCovered(X, m_y, data.CameraRange(X));
             return;
         }
 
@@ -37,9 +38,12 @@ internal sealed class FollowCamera
         m_x = Math.Clamp(m_x, game.CameraX, game.CameraX + Math.Clamp(304 - feet.X, 0, 28));
         m_y = Math.Clamp(m_y, game.CameraY + Math.Max(-16, Math.Min(0, 32 - feet.Y)),
             game.CameraY + Math.Min(16, Math.Max(0, game.BottomFeetLimit + 2 - feet.Y)));
-        var range = data.CameraPath.OrderBy(p => Math.Abs(p.Key - (int)Math.Floor(X / 8))).First().Value;
-        m_y = Math.Clamp(m_y, range[0], range[1]);
+        var range = data.CameraRange(X);
+        m_y = Math.Clamp(m_y, range.Low, range.High);
         // A changing terrain range or feet guard must not bypass the smooth follow.
         m_y = Math.Clamp(m_y, previousY - 2, previousY + 2);
+        if (data.UsesCastleOpeningFraming(4089 - X))
+            m_y = Math.Max(m_y, range.Low);
+        m_y = data.KeepDisplayViewCovered(X, m_y, range);
     }
 }
