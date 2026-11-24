@@ -82,9 +82,9 @@ public class WindowManagerTests
         Assert.That(manager.OffsetY, Is.Zero);
     }
 
-    [TestCase("goldenaxe_play_color_fx", true)]
+    [TestCase("goldenaxe_play_color", true)]
     [TestCase("goldenaxe_color", true)]
-    [TestCase("goldenaxe_play_fx", false)]
+    [TestCase("goldenaxe_play", false)]
     [TestCase("mario_color", true)]
     [TestCase("mario", false)]
     public void ReducedCrtGlowAppliesOnlyToColourGameplay(string activationName, bool reduced)

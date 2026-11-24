@@ -59,6 +59,53 @@ public class GoldenAxeGameplayTests
     }
 
     [Test]
+    public void CastingClearsPickupSparklesAndCagesFollowPoseOffsets()
+    {
+        var data = m_areas[0];
+        var game = new Game(data, character: 2);
+        game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, game.Hero.X, game.Hero.Z);
+        game.Tick(default);
+        Assert.That(game.PotionPickups, Is.Not.Empty);
+        game.Tick(new GameInput(Magic: true));
+        Assert.That(game.PotionPickups, Is.Empty);
+
+        var target = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, game.Hero.X + 90, game.Hero.Z);
+        target.Animation.HoldFrame(115);
+        var renderer = new ArcadeRenderer(data);
+        foreach (var facing in new[] { -1, 1 })
+        {
+            target.Facing = facing;
+            target.Animation.Steps[0] = target.Animation.Current with { Dx = 0, Dy = 0 };
+            var start = renderer.LightningAnchor(game, target);
+            target.Animation.Steps[0] = target.Animation.Current with { Dx = 18, Dy = -7 };
+            var shifted = renderer.LightningAnchor(game, target);
+            Assert.That(shifted.X - start.X, Is.EqualTo(18 * facing));
+            Assert.That(shifted.Y - start.Y, Is.EqualTo(-7));
+        }
+    }
+
+    [Test]
+    public void DwarfLightningKeepsVisibleVictimsUntilSpellEnds()
+    {
+        var game = new Game(m_areas[0], character: 2);
+        game.Actors.RemoveAll(a => a != game.Hero);
+        var victim = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 1, game.Hero.X + 90, game.Hero.Z);
+        var offscreen = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, game.Progress + 500, game.Hero.Z);
+        game.Tick(new GameInput(Magic: true));
+        Assert.That(game.MagicTargets, Does.Contain(victim));
+        Assert.That(game.MagicTargets, Does.Not.Contain(offscreen));
+        Assert.That(LightningCage.SampleTick(game), Is.EqualTo(-1));
+        while (game.MagicTick < game.MagicDuration - 1)
+            game.Tick(default);
+        Assert.That(game.MagicTargets, Does.Contain(victim), "Lethal spell damage must not remove the visual target early.");
+        Assert.That(victim.Health, Is.Zero);
+        Assert.That(LightningCage.SampleTick(game), Is.EqualTo(game.MagicEffects[0].Length - 1));
+        game.Tick(default);
+        Assert.That(game.MagicTargets, Is.Empty);
+        Assert.That(LightningCage.SampleTick(game), Is.EqualTo(-1));
+    }
+
+    [Test]
     public void TurtleVillageCrowdRoutesAroundBuildingsAndLeavesTheScreen()
     {
         var data = m_areas[1];
@@ -927,6 +974,40 @@ public class GoldenAxeGameplayTests
         Assert.That(game.Actors.Where(a => a.Kind == (food ? ActorKind.Food : ActorKind.Potion)), Is.EquivalentTo(loot));
     }
 
+    [TestCase(0)]
+    [TestCase(1)]
+    [TestCase(2)]
+    public void MagicMakesVisibleThievesDropOneItemOfTheirOwnLoot(int character)
+    {
+        var game = new Game(m_areas[0], character, new Random(0));
+        var thieves = new[] { false, true }.Select(food =>
+        {
+            var thief = game.Add(ActorKind.Thief, Moves.Thief, food ? 0x3c : 0x3d, 99,
+                game.Hero.X + (food ? 100 : 60), game.Hero.Z);
+            thief.FoodThief = food;
+            thief.Items = food ? 1 : 3;
+            return thief;
+        }).ToArray();
+        var offscreen = game.Add(ActorKind.Thief, Moves.Thief, 0x3d, 99, game.Progress + 400, game.Hero.Z);
+        offscreen.Items = 3;
+        var empty = game.Add(ActorKind.Thief, Moves.Thief, 0x3d, 99, game.Hero.X + 140, game.Hero.Z);
+        empty.Items = 0;
+
+        game.Tick(new GameInput(Magic: true));
+        Assert.That(game.MagicTick, Is.Zero);
+        for (var tick = 0; tick < 1000 && game.MagicTick >= 0; tick++)
+            game.Tick(default);
+
+        Assert.That(game.MagicTick, Is.EqualTo(-1));
+        Assert.That(thieves.Select(a => a.Items), Is.EqualTo(new[] { 2, 0 }));
+        Assert.That(thieves.All(a => a.State == FighterState.Hurt && a.Health == 99), Is.True);
+        Assert.That(thieves[1].Animation.Address, Is.EqualTo(Moves.ThiefEmptyHurt));
+        Assert.That(offscreen.Items, Is.EqualTo(3));
+        Assert.That(empty.Items, Is.Zero);
+        Assert.That(game.Actors.Count(a => a.Kind == ActorKind.Potion), Is.EqualTo(1));
+        Assert.That(game.Actors.Count(a => a.Kind == ActorKind.Food), Is.EqualTo(1));
+    }
+
     [TestCase(false)]
     [TestCase(true)]
     public void HungryCampControllerPursuesDistantFoodWithFullMagic(bool carriedByThief)
@@ -1319,29 +1400,52 @@ public class GoldenAxeGameplayTests
             Assert.That(enemy.Mount, Is.Null);
             Assert.That(enemy.State, Is.EqualTo(FighterState.Collapsing));
             Assert.That(enemy.Vulnerable, Is.False);
+            Assert.That(enemy.Animation.Current.Frame,
+                Is.Not.EqualTo(m_areas[0].Animations[enemy.Moves.GetUp][1].Frame),
+                "Magic must not show the prone hold before playing the fall.");
         }
-        for (var tick = 0; tick < 60; tick++)
-            game.Tick(default);
-        Assert.That(enemies.All(enemy => enemy.State == FighterState.Down), Is.True, "Every enemy must visibly land and lie down.");
-        Assert.That(enemies.All(enemy => enemy.Animation.Address == enemy.Moves.GetUp && enemy.Animation.Index == 1), Is.True,
-            "Every enemy must hold its grounded pose while down.");
-        var waiting = enemies.ToDictionary(enemy => enemy, enemy => enemy.StateTicks);
+        var landedAt = new Dictionary<Fighter, int>();
+        var recovered = new HashSet<Fighter>();
         var recoveryTimes = new HashSet<int>();
-        for (var tick = 1; tick <= 38; tick++)
+        for (var tick = 1; tick <= 120 && recovered.Count < enemies.Length; tick++)
         {
+            foreach (var enemy in enemies)
+                enemy.Cooldown = 10000;
             game.Tick(default);
-            foreach (var enemy in waiting.Keys.Where(enemy => enemy.State != FighterState.Down).ToArray())
+            foreach (var enemy in enemies.Where(enemy => !recovered.Contains(enemy)))
             {
-                Assert.That(enemy.State, Is.EqualTo(lethal ? FighterState.Dying : FighterState.GettingUp));
-                var duration = waiting[enemy] + tick;
+                if (enemy.State == FighterState.Collapsing)
+                {
+                    Assert.That(landedAt.ContainsKey(enemy), Is.False, "A victim must never replay its fall.");
+                    continue;
+                }
+                if (enemy.State == FighterState.Down)
+                {
+                    landedAt.TryAdd(enemy, tick);
+                    Assert.That((enemy.Animation.Address, enemy.Animation.Index), Is.EqualTo((enemy.Moves.GetUp, 1)));
+                    continue;
+                }
+                Assert.That(landedAt.ContainsKey(enemy), Is.True, "Every victim must land before recovering or petrifying.");
+                Assert.That(enemy.State, Is.EqualTo(lethal ? FighterState.Petrified : FighterState.GettingUp));
+                var duration = tick - landedAt[enemy];
                 Assert.That(duration, Is.InRange(lethal ? 36 : 34, lethal ? 36 : 38));
                 recoveryTimes.Add(duration);
-                waiting.Remove(enemy);
+                recovered.Add(enemy);
             }
         }
-        Assert.That(waiting, Is.Empty);
+        Assert.That(recovered, Has.Count.EqualTo(enemies.Length));
         if (!lethal)
             Assert.That(recoveryTimes.Count, Is.GreaterThan(1));
+        else
+        {
+            Assert.That(game.StoneBodies, Is.EquivalentTo(enemies));
+            Assert.That(game.Actors.Intersect(enemies), Is.Empty, "Bodies must not block stage progression or attract attacks.");
+            var frames = enemies.Select(a => a.Animation.Current.Frame).ToArray();
+            for (var tick = 0; tick < 120; tick++)
+                game.Tick(default);
+            Assert.That(game.StoneBodies, Is.EquivalentTo(enemies));
+            Assert.That(enemies.Select(a => a.Animation.Current.Frame), Is.EqualTo(frames));
+        }
     }
 
     [Test]
@@ -1364,6 +1468,9 @@ public class GoldenAxeGameplayTests
         Assert.That(skeleton.Health, Is.EqualTo(24));
 
         game.Tick(new GameInput(Magic: true));
+        Assert.That(game.MagicShakeStart, Is.EqualTo(40), "The recorded casting potions occupy ticks 0 through 39.");
+        Assert.That(MagicScreenShake.Sample(game.MagicTick - game.MagicShakeStart,
+            game.MagicDuration - game.MagicShakeStart, game.MagicLevel), Is.EqualTo((0, 0)));
         for (var tick = 0; tick < 500 && game.MagicTick >= 0; tick++)
             game.Tick(default);
 
@@ -1479,6 +1586,42 @@ public class GoldenAxeGameplayTests
         var skeleton = game.Actors.Single(a => a.Kind == ActorKind.Skeleton);
         Assert.That(skeleton.State, Is.EqualTo(FighterState.Idle));
         Assert.That(skeleton.Vulnerable, Is.True);
+    }
+
+    [TestCase(0)]
+    [TestCase(1)]
+    [TestCase(2)]
+    public void WeaponTrailsFollowTheStrikeAndMirrorWithTheHero(int character)
+    {
+        var data = m_areas[0];
+        var hero = new Game(data, character).Hero;
+        hero.SetState(FighterState.Attacking, hero.Moves.Attacks[0], attack: true);
+        Assert.That(WeaponSwipe.Sample(hero, data), Is.Null, "No trail while the weapon is held ready.");
+        var seen = 0;
+        for (var tick = 0; tick < 50; tick++)
+        {
+            hero.Facing = 1;
+            var right = WeaponSwipe.Sample(hero, data);
+            hero.Facing = -1;
+            var left = WeaponSwipe.Sample(hero, data);
+            Assert.That(left.HasValue, Is.EqualTo(right.HasValue));
+            if (right is { } r && left is { } l)
+            {
+                seen++;
+                Assert.That(l.Frame, Is.EqualTo(r.Frame));
+                Assert.That(l.Dx, Is.EqualTo(-r.Dx));
+                Assert.That(l.Dy, Is.EqualTo(r.Dy));
+                Assert.That(l.Flip, Is.Not.EqualTo(r.Flip));
+            }
+            if (hero.Animation.Tick())
+                break;
+        }
+        Assert.That(seen, Is.InRange(6, 10), "A brief sweep, not a persistent weapon glow.");
+        hero.SetState(FighterState.Hurt, hero.Moves.Hurt);
+        Assert.That(WeaponSwipe.Sample(hero, data), Is.Null, "Interrupted attacks lose their trail immediately.");
+        hero.SetState(FighterState.Attacking, hero.Moves.Attacks[3], attack: true);
+        hero.Animation.Seek(data.Attacks[hero.Animation.Address][2]);
+        Assert.That(WeaponSwipe.Sample(hero, data), Is.Null, "Kicks have no weapon sweep.");
     }
 
     [TestCase(0, 65)]

@@ -31,9 +31,10 @@ internal sealed class ArcadeRenderer
     private readonly byte m_orange, m_darkRed, m_filledRed, m_hudRed, m_hudPink, m_blue, m_lightBlue, m_yellow, m_livesYellow;
     private readonly byte m_emberCore;
     private readonly byte[] m_campfireWood;
+    private readonly byte[] m_redTint, m_whiteTint;
     private TerrainShading m_terrainShading;
     internal const int MagicMeterTop = 12;
-    private const byte DimMagicOpacity = 115;
+    private const byte MinimumMagicOpacity = 64;
     private const double ShadowSkew = 0.55;
     private const double ShadowSquash = 0.28;
 
@@ -49,6 +50,8 @@ internal sealed class ArcadeRenderer
         m_filledRed = Color(255, 32, 32);
         m_hudRed = Color(255, 0, 0);
         m_hudPink = Color(255, 165, 189);
+        m_redTint = Enumerable.Repeat(m_hudRed, 16).ToArray();
+        m_whiteTint = Enumerable.Repeat(data.White, 16).ToArray();
         m_blue = Color(34, 34, 255);
         m_lightBlue = Color(120, 160, 255);
         m_yellow = Color(255, 255, 0);
@@ -57,7 +60,7 @@ internal sealed class ArcadeRenderer
         m_campfireWood = [Color(53, 31, 18), Color(79, 46, 24), Color(110, 64, 31)];
     }
 
-    public void Draw(PixelScreenData screen, Game game, bool effects = false, Rgb tint = null, byte effectOpacity = 255,
+    public void Draw(PixelScreenData screen, Game game, bool effects = true, Rgb tint = null, byte effectOpacity = 255,
         bool showTerrainShade = false)
     {
         screen.Clear(m_data.Black);
@@ -114,6 +117,8 @@ internal sealed class ArcadeRenderer
                 DrawCampfireShadows(screen, game);
         }
         DrawFeathers(screen, game, foreground: false);
+        if (effects)
+            DrawDragonSmoke(screen, game);
         foreach (var mound in game.SkeletonMounds)
         {
             var point = game.ProjectView(mound.X, mound.Z, game.Ground(mound.X, mound.Z));
@@ -150,9 +155,13 @@ internal sealed class ArcadeRenderer
             var translucent = opacity < 255;
             if (translucent)
                 screen.BeginTranslucentSprite(opacity);
-            Sprite(screen, step.Frame, actor.Palette, point.X + step.Dx * actor.Facing, point.Y + step.Dy, flip,
-                flash: actor.Flash > 0, softFlash: effects, softenOutline: effects && IsCharacter(actor),
+            var lightningTint = LightningCage.SampleTick(game) >= 66 && game.MagicTargets.Contains(actor);
+            Sprite(screen, step.Frame, actor.Palette,
+                point.X + step.Dx * actor.Facing, point.Y + step.Dy, flip,
+                flash: actor.Flash > 0 && !lightningTint, softFlash: effects, softenOutline: effects && IsCharacter(actor),
                 campfireWood: effects && actor.Kind == ActorKind.Campfire);
+            if (lightningTint)
+                DrawLightningTint(screen, game, step.Frame, actor.Palette, point.X + step.Dx * actor.Facing, point.Y + step.Dy, flip);
             if (actor.State == FighterState.Petrified)
             {
                 var stoneOpacity = (byte)(255 * Math.Clamp((game.TickCount - actor.PetrifiedTick) / 120.0, 0, 1));
@@ -164,6 +173,8 @@ internal sealed class ArcadeRenderer
                     screen.EndTranslucentSprite();
                 }
             }
+            if (WeaponSwipe.Sample(actor, m_data) is { } swipe)
+                Sprite(screen, swipe.Frame, swipe.Palette, point.X + swipe.Dx, point.Y + swipe.Dy, swipe.Flip);
             if (actor.Rider != null && m_data.Riders.TryGetValue(actor.Animation.Address, out var riders))
             {
                 var rider = riders[Math.Min(actor.Animation.Index, riders.Length - 1)];
@@ -171,6 +182,10 @@ internal sealed class ArcadeRenderer
                 Sprite(screen, rider[0], actor.Rider.Palette,
                     point.X + (step.Dx + rider[2]) * actor.Facing, point.Y + step.Dy + rider[3],
                     (rider[1] != 0) ^ actor.Facing < 0, softenOutline: effects);
+                if (LightningCage.SampleTick(game) >= 66 && game.MagicTargets.Contains(actor.Rider))
+                    DrawLightningTint(screen, game, rider[0], actor.Rider.Palette,
+                        point.X + (step.Dx + rider[2]) * actor.Facing, point.Y + step.Dy + rider[3],
+                        (rider[1] != 0) ^ actor.Facing < 0);
             }
             if (translucent)
                 screen.EndTranslucentSprite();
@@ -197,6 +212,10 @@ internal sealed class ArcadeRenderer
         }
         Layer(screen, m_data.Foreground, (int)u, v, palette, true, false);
         DrawFeathers(screen, game, foreground: true);
+        var shake = MagicScreenShake.Sample(game.MagicTick - game.MagicShakeStart,
+            game.MagicDuration - game.MagicShakeStart, game.MagicLevel);
+        if (shake != default)
+            screen.OffsetScene(shake.X, shake.Y);
         DrawHud(screen, game);
         if (effects && game.MagicTick < 0)
             PotionSparkles.DrawTrails(screen, game, m_lightBlue, m_data.White, effectOpacity);
@@ -322,20 +341,76 @@ internal sealed class ArcadeRenderer
 
     private void DrawMagic(PixelScreenData screen, Game game, bool effects, Rgb tint, byte effectOpacity)
     {
-        var sprites = game.ActiveMagicEffects[game.MagicTick];
-        var dim = DimMagicSprites(game.ActiveMagicEffects, game.MagicTick).ToArray();
+        var dwarf = game.Character.MagicKey == "gilius";
+        var sprites = game.ActiveMagicEffects[game.MagicTick].Where(e => !dwarf || !LightningCage.IsSprite(e)).ToArray();
+        var dim = DimMagicSprites(game.ActiveMagicEffects, game.MagicTick).Where(e => !dwarf || !LightningCage.IsSprite(e)).ToArray();
         if (effects)
             DrawMagicLighting(screen, game, sprites, dim, tint, effectOpacity);
 
-        if (dim.Length > 0)
+        foreach (var effect in dim)
         {
-            screen.BeginTranslucentSprite(DimMagicOpacity);
-            foreach (var effect in dim)
-                DrawMagicSprite(screen, game, effect);
+            screen.BeginTranslucentSprite(MagicGapOpacity(game.ActiveMagicEffects, game.MagicTick, effect));
+            DrawMagicSprite(screen, game, effect);
             screen.EndTranslucentSprite();
         }
         foreach (var effect in sprites)
             DrawMagicSprite(screen, game, effect);
+        DrawLightningCages(screen, game, effects);
+    }
+
+    private void DrawLightningTint(PixelScreenData screen, Game game, int frame, int palette, double x, double y, bool flip)
+    {
+        screen.BeginTranslucentSprite(180);
+        Sprite(screen, frame, palette, x, y, flip, paletteOverride: m_redTint);
+        screen.EndTranslucentSprite();
+        screen.BeginTranslucentSprite(LightningCage.WhiteOpacity(game.MagicTick - game.MagicShakeStart));
+        Sprite(screen, frame, palette, x, y, flip, paletteOverride: m_whiteTint);
+        screen.EndTranslucentSprite();
+    }
+
+    internal (double X, double Y) LightningAnchor(Game game, Fighter target)
+    {
+        var point = game.ProjectView(target.X, target.Z, target.Y);
+        var step = target.Animation.Current;
+        if (target.Mount is { } mount && m_data.Riders.TryGetValue(mount.Animation.Address, out var riders))
+        {
+            var rider = riders[Math.Min(mount.Animation.Index, riders.Length - 1)];
+            var pose = mount.Animation.Current;
+            var footprint = m_footprints[rider[0]] ??= ScanFootprint(m_data.Frames[rider[0]]);
+            var flip = (rider[1] != 0) ^ mount.Facing < 0;
+            var feet = footprint.Feet.Project((pose.Dx + rider[2]) * mount.Facing, flip);
+            return (point.X + feet.Center, point.Y + pose.Dy + rider[3] + footprint.BodyBottom);
+        }
+        var current = ProjectFootprint(target, step);
+        return (point.X + current.Feet.Center, point.Y + step.Dy + current.BodyBottom);
+    }
+
+    private void DrawLightningCages(PixelScreenData screen, Game game, bool effects)
+    {
+        var tick = LightningCage.SampleTick(game);
+        if (tick < 0)
+            return;
+        var source = game.MagicEffects[0];
+        var sprites = source[tick].Where(LightningCage.IsSprite).Select(e => (Effect: e, Opacity: (byte)255))
+            .Concat(DimMagicSprites(source, tick).Where(LightningCage.IsSprite)
+                .Select(e => (Effect: e, Opacity: MagicGapOpacity(source, tick, e)))).ToArray();
+        foreach (var target in game.MagicTargets.Prepend(game.Hero).OrderBy(a => a.Z))
+        foreach (var (effect, opacity) in sprites)
+        {
+            var point = LightningAnchor(game, target);
+            // The captured cage was six pixels left and one depth unit forward of the caster.
+            // Remove that caster-specific offset before attaching it to the displayed victim pose.
+            point = (point.X + effect[3] + 6, point.Y + effect[5] + (effect[4] - 1) * 0.75);
+            if (effects)
+            {
+                var frame = m_data.Frames[effect[0]];
+                DrawSoftEllipse(screen, point.X, point.Y + frame.Oy + frame.Height / 2.0,
+                    frame.Width * 0.65 + 12, frame.Height * 0.55 + 8, opacity * 0.22, EllipseEffect.Magic);
+            }
+            screen.BeginTranslucentSprite(opacity);
+            Sprite(screen, effect[0], effect[1], point.X, point.Y, effect[2] == 1);
+            screen.EndTranslucentSprite();
+        }
     }
 
     private void DrawMagicSprite(PixelScreenData screen, Game game, int[] effect)
@@ -363,6 +438,24 @@ internal sealed class ArcadeRenderer
     private static bool ContainsMagicAnchor(int[][] sprites, int[] match) =>
         sprites.Any(sprite => sprite.AsSpan(1).SequenceEqual(match.AsSpan(1)));
 
+    internal static byte MagicGapOpacity(int[][][] recording, int tick, int[] effect)
+    {
+        for (var previous = tick - 1; previous >= Math.Max(0, tick - 6); previous--)
+        {
+            if (!ContainsMagicAnchor(recording[previous], effect))
+                continue;
+            for (var next = tick + 1; next <= Math.Min(recording.Length - 1, previous + 7); next++)
+            {
+                if (!ContainsMagicAnchor(recording[next], effect))
+                    continue;
+                var phase = (tick - previous) / (double)(next - previous);
+                return (byte)Math.Round(255 - (255 - MinimumMagicOpacity) * Math.Sin(Math.PI * phase));
+            }
+            break;
+        }
+        return 255;
+    }
+
     private void DrawMagicLighting(PixelScreenData screen, Game game, int[][] sprites, int[][] dim, Rgb tint, byte effectOpacity)
     {
         var spellColor = game.Character.MagicKey switch
@@ -375,7 +468,7 @@ internal sealed class ArcadeRenderer
         foreach (var effect in sprites)
             DrawMagicGlow(screen, game, effect, 1);
         foreach (var effect in dim)
-            DrawMagicGlow(screen, game, effect, DimMagicOpacity / 255.0);
+            DrawMagicGlow(screen, game, effect, MagicGapOpacity(game.ActiveMagicEffects, game.MagicTick, effect) / 255.0);
     }
 
     private void DrawMagicGlow(PixelScreenData screen, Game game, int[] effect, double opacity)
@@ -443,32 +536,77 @@ internal sealed class ArcadeRenderer
             }
 
             // Suspended dust is lighter than the ground it came from.
-            tints[i] = Color(56 + red * 199 / (255 * count), 56 + green * 199 / (255 * count), 56 + blue * 199 / (255 * count));
+            tints[i] = Color(76 + red * 179 / (255 * count), 76 + green * 179 / (255 * count), 76 + blue * 179 / (255 * count));
         }
         return tints;
     }
 
     private static void DrawLandingDust(PixelScreenData screen, Game game, byte[] tints)
     {
+        // The feather-filled stretch carries suspended dust gently to the left (pixels per second).
+        var wind = EagleFeathers.IsVisible(game) ? -6.0 : 0;
         for (var i = 0; i < tints.Length; i++)
         {
             var puff = game.LandingDust[i];
-            var foot = game.Project(puff.X, puff.Z, puff.Y);
-            var progress = (game.TickCount - puff.Tick) / (double)Game.LandingDustTicks;
-            var remaining = 1 - progress;
-            var opacity = (puff.Heavy ? 154 : 94) * remaining * Math.Sqrt(remaining);
-            var spread = puff.Spread + (1 - remaining * remaining) * (puff.Heavy ? 15 : 10);
-            var y = foot.Y + (puff.Heavy ? 3 : 1) - progress * (puff.Heavy ? 26 : 20);
-            var radiusX = (puff.Heavy ? 10 : 6) + 8 * progress;
-            var radiusY = (puff.Heavy ? 4 : 3) + 4 * progress;
-            var tint = tints[i];
-            DrawSoftEllipse(screen, foot.X - spread, y, radiusX, radiusY, opacity, EllipseEffect.Dust, tint: tint);
-            DrawSoftEllipse(screen, foot.X + spread, y - 1, radiusX, radiusY, opacity * 0.85, EllipseEffect.Dust, tint: tint);
-            DrawSoftEllipse(screen, foot.X - spread * 0.3, y + 1, radiusX * 0.7, radiusY * 0.9,
-                opacity * 0.67, EllipseEffect.Dust, tint: tint);
-            DrawSoftEllipse(screen, foot.X + spread * 0.28, y - 2 - progress * 3, radiusX * 0.6, radiusY * 0.8,
-                opacity * 0.55, EllipseEffect.Dust, tint: tint);
+            var foot = game.ProjectView(puff.X, puff.Z, puff.Y);
+            var age = game.TickCount - puff.Tick;
+            var count = puff.Running ? 3 : puff.Heavy ? 14 : 9;
+            for (var particle = 0; particle < count; particle++)
+            {
+                // Each particle has stable launch properties, independent of rendering frequency.
+                var seed = unchecked(puff.Tick * 397 ^ (int)puff.X * 31 ^ (int)puff.Z * 17 ^ particle * 7919);
+                var delay = DustRandom(seed) * 6;
+                var lifetime = (puff.Running ? 55 : 120) + DustRandom(seed + 1) * 24;
+                var elapsed = age - delay;
+                if (elapsed <= 0 || elapsed >= lifetime)
+                    continue;
+
+                var progress = elapsed / lifetime;
+                var remaining = 1 - progress;
+                var direction = DustRandom(seed + 2) * 2 - 1;
+                var launchSpeed = (puff.Running ? 6 : puff.Heavy ? 28 : 19) * direction;
+                var drift = (DustRandom(seed + 3) * 2 - 1) * 11;
+                var rise = puff.Running ? 7 + DustRandom(seed + 4) * 9 : 22 + DustRandom(seed + 4) * 25;
+                var phase = DustRandom(seed + 5) * Math.PI * 2;
+                var expansion = 1 - Math.Exp(-progress * 4);
+                var x = foot.X + direction * puff.Spread + launchSpeed * expansion + drift * progress +
+                    Math.Sin(phase + progress * 5) * progress * 3 + wind * elapsed / 60;
+                var y = foot.Y + 2 - rise * progress - 4 * expansion;
+                var size = (puff.Running ? 1.5 : puff.Heavy ? 4.5 : 3) + DustRandom(seed + 6) * 2;
+                var radiusX = size + progress * 7;
+                var radiusY = size * 0.7 + progress * 6;
+                var opacity = (puff.Running ? 90 : puff.Heavy ? 175 : 135) * (0.7 + DustRandom(seed + 7) * 0.3) *
+                    Math.Min(1, elapsed / 3) * remaining;
+                DrawSoftEllipse(screen, x, y, radiusX, radiusY, opacity, EllipseEffect.Dust, tint: tints[i]);
+            }
         }
+    }
+
+    private static void DrawDragonSmoke(PixelScreenData screen, Game game)
+    {
+        foreach (var puff in game.DragonSmoke)
+        {
+            var age = game.TickCount - puff.Tick;
+            var progress = age / 120.0;
+            var point = game.ProjectView(puff.X, puff.Z, puff.Y);
+            var phase = DustRandom(puff.Tick + (int)puff.X) * Math.PI * 2;
+            var x = point.X + Math.Sin(phase + progress * 4) * progress * 7;
+            var y = point.Y - progress * 44;
+            var opacity = 180 * Math.Min(1, age / 5.0) * Math.Pow(1 - progress, 0.8);
+            DrawSoftEllipse(screen, x, y, 5 + progress * 12, 6 + progress * 15, opacity, EllipseEffect.Smoke,
+                soot: (byte)(255 * Math.Pow(1 - progress, 1.5)));
+        }
+    }
+
+    private static double DustRandom(int seed)
+    {
+        var value = unchecked((uint)seed);
+        value ^= value >> 16;
+        value = unchecked(value * 0x7feb352d);
+        value ^= value >> 15;
+        value = unchecked(value * 0x846ca68b);
+        value ^= value >> 16;
+        return (value & 0xffffff) / 16777216.0;
     }
 
     private static void DrawCampfireSmoke(PixelScreenData screen, double x, double y, int tick)
@@ -483,13 +621,15 @@ internal sealed class ArcadeRenderer
             var opacity = 115 * Math.Min(1, progress * 11) * Math.Pow(1 - progress, 1.3);
             var centerX = x + wind;
             var centerY = y - 12 - 60 * progress;
-            DrawSoftEllipse(screen, centerX, centerY, 4 + 12 * progress, 6 + 9 * progress, opacity, EllipseEffect.Smoke);
-            DrawSoftEllipse(screen, centerX - 3, centerY + 2, 3 + 9 * progress, 5 + 7 * progress, opacity * 0.45, EllipseEffect.Smoke);
+            var soot = (byte)(255 * Math.Pow(1 - progress, 3));
+            DrawSoftEllipse(screen, centerX, centerY, 4 + 12 * progress, 6 + 9 * progress, opacity, EllipseEffect.Smoke, soot: soot);
+            DrawSoftEllipse(screen, centerX - 3, centerY + 2, 3 + 9 * progress, 5 + 7 * progress, opacity * 0.45, EllipseEffect.Smoke, soot: soot);
         }
     }
 
     private static void DrawSoftEllipse(PixelScreenData screen, double centerX, double centerY,
-        double radiusX, double radiusY, double strength, EllipseEffect effect = EllipseEffect.Fire, bool occludedByGround = false, byte tint = 0)
+        double radiusX, double radiusY, double strength, EllipseEffect effect = EllipseEffect.Fire, bool occludedByGround = false, byte tint = 0,
+        byte soot = 0)
     {
         var left = Math.Max(0, (int)Math.Floor(centerX - radiusX));
         var right = Math.Min(screen.Width - 1, (int)Math.Ceiling(centerX + radiusX));
@@ -512,7 +652,7 @@ internal sealed class ArcadeRenderer
                 switch (effect)
                 {
                     case EllipseEffect.Smoke:
-                        screen.SmokePixel(offset, opacity);
+                        screen.SmokePixel(offset, opacity, soot);
                         break;
                     case EllipseEffect.Magic:
                         screen.MagicLightPixel(offset, opacity);

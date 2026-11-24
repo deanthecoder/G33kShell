@@ -23,7 +23,7 @@ namespace G33kShell.Desktop.Console.Screensavers.GoldenAxe;
 internal sealed class Game
 {
     internal const int FireballImpactTicks = 14;
-    internal const int LandingDustTicks = 84;
+    internal const int LandingDustTicks = 150;
     internal const int PickupFadeTicks = 15;
     private const double JumpVelocity = -5.75;
     private const double RunningJumpVelocity = -7.875;
@@ -35,8 +35,10 @@ internal sealed class Game
     private readonly ArcadeData m_data;
     private readonly Random m_random;
     private readonly List<DustPuff> m_landingDust = [];
+    private readonly List<SmokePuff> m_dragonSmoke = [];
     private readonly List<PotionPickup> m_potionPickups = [];
     private readonly List<Fighter> m_fadingPickups = [];
+    private readonly List<Fighter> m_magicTargets = [];
     private readonly List<Fighter> m_stoneBodies = [];
     private readonly List<SpawnDefinition> m_openedSkeletonMounds = [];
     private int m_nextId;
@@ -49,8 +51,10 @@ internal sealed class Game
     public int[][][][] MagicEffects => m_data.Magic[Character.MagicKey];
     public List<Fighter> Actors { get; } = [];
     public IReadOnlyList<DustPuff> LandingDust => m_landingDust;
+    public IReadOnlyList<SmokePuff> DragonSmoke => m_dragonSmoke;
     public IReadOnlyList<PotionPickup> PotionPickups => m_potionPickups;
     public IReadOnlyList<Fighter> FadingPickups => m_fadingPickups;
+    public IReadOnlyList<Fighter> MagicTargets => m_magicTargets;
     public IReadOnlyList<Fighter> StoneBodies => m_stoneBodies;
     public IReadOnlyList<SpawnDefinition> OpenedSkeletonMounds => m_openedSkeletonMounds;
     public IEnumerable<SpawnDefinition> SkeletonMounds => IsCamp ? [] : m_data.Spawns.Skip(m_spawnIndex).Where(IsSkeletonMound);
@@ -73,6 +77,8 @@ internal sealed class Game
     public bool GameOver { get; private set; }
     public int MagicTick { get; private set; } = -1;
     public int MagicLevel { get; private set; }
+    public int MagicDuration => Math.Max(60, ActiveMagicEffects.Length);
+    public int MagicShakeStart { get; private set; }
     public int[][][] ActiveMagicEffects { get; private set; } = [];
     private bool FinalWaveSpawned => m_stopIndex == m_data.Stops.Length - 1 && m_spawnIndex == m_data.Spawns.Length;
     public bool CanAdvance => !IsCamp && !Complete && !GameOver && Hero.Health > 0 && !FinalWaveSpawned && Progress < m_data.Stops[m_stopIndex] &&
@@ -111,8 +117,10 @@ internal sealed class Game
         Complete = false;
         TickCount = 0;
         m_landingDust.Clear();
+        m_dragonSmoke.Clear();
         m_potionPickups.Clear();
         m_fadingPickups.Clear();
+        m_magicTargets.Clear();
         m_stoneBodies.Clear();
         m_openedSkeletonMounds.Clear();
         var range = CameraRange();
@@ -194,6 +202,7 @@ internal sealed class Game
             return;
         TickCount++;
         m_stoneBodies.RemoveAll(body => body.X < Progress - 100);
+        m_dragonSmoke.RemoveAll(puff => TickCount - puff.Tick >= 120);
         m_potionPickups.RemoveAll(pickup => TickCount - pickup.Tick >= PotionPickup.Lifetime);
         m_fadingPickups.RemoveAll(pickup => TickCount - pickup.PickupTick >= PickupFadeTicks);
         if (m_landingDust.Count > 0)
@@ -205,6 +214,12 @@ internal sealed class Game
             Hero.Animation.Tick();
             if (MagicTick == m_magicPeak)
             {
+                foreach (var thief in Actors.Where(a => a.Kind == ActorKind.Thief && !a.IsGone).ToArray())
+                {
+                    var point = Project(thief.X, thief.Z, thief.Y);
+                    if (point.X is >= 0 and < ArcadeData.Width && point.Y is >= 0 and <= ArcadeData.Height)
+                        Hit(Hero, thief, 0, false);
+                }
                 foreach (var enemy in Actors.Where(a => a.IsEnemy && a.State != FighterState.Emerging && a.Health > 0 && a.HeldBy == null && Project(a.X, a.Z, a.Y).X is >= -20 and <= 340).ToArray())
                 {
                     Hit(Hero, enemy, new[] { 0, 4, 8, 16, 24, 32, 48 }[MagicLevel], true);
@@ -214,13 +229,19 @@ internal sealed class Game
                         enemy.Y = Ground(enemy.X, enemy.Z);
                         enemy.Vx = enemy.Vy = 0;
                         enemy.SetState(FighterState.Collapsing, enemy.Moves.Collapse);
+                        // Some arcade scripts lead with the resting prone pose before the fall.
+                        // Starting there makes the victim lie down, stand up, then collapse again.
+                        var proneFrame = m_data.Animations[enemy.Moves.GetUp][1].Frame;
+                        if (enemy.Animation.Current.Frame == proneFrame)
+                            enemy.Animation.Seek(1);
                     }
                 }
             }
-            if (MagicTick >= Math.Max(60, ActiveMagicEffects.Length))
+            if (MagicTick >= MagicDuration)
             {
                 MagicTick = -1;
                 ActiveMagicEffects = [];
+                m_magicTargets.Clear();
                 Hero.SetState(FighterState.Idle, Hero.Moves.Idle);
             }
             return;
@@ -254,6 +275,7 @@ internal sealed class Game
                 actor.Combo = 0;
             if (actor.Kind == ActorKind.Fireball)
             {
+                AddDragonSmoke(actor);
                 UpdateFireball(actor);
                 continue;
             }
@@ -269,6 +291,7 @@ internal sealed class Game
                 actor.Z = owner.Z + 1;
                 actor.Y = owner.Y;
                 actor.Facing = owner.Facing;
+                AddDragonSmoke(actor);
                 if (actor.Animation.Tick() || owner.Rider == null || owner.State != FighterState.Attacking)
                     actor.SetState(FighterState.Gone);
                 continue;
@@ -990,10 +1013,15 @@ internal sealed class Game
             return false;
 
         m_potionPickups.Clear();
+        m_magicTargets.Clear();
+        m_magicTargets.AddRange(Actors.Where(a => a.IsEnemy && a.State != FighterState.Emerging && a.Health > 0 &&
+            a.HeldBy == null && ProjectView(a.X, a.Z, a.Y) is { X: >= -20 and <= 340, Y: >= 0 and <= 224 }));
         MagicLevel = Character.GetMagicLevel(Potions);
         // The export indexes recordings by the potion count fed to the arcade.
         var recordings = MagicEffects;
         ActiveMagicEffects = recordings[Math.Min(Potions, recordings.Length) - 1];
+        // Wait until the last casting potion has disappeared, including any recorded flicker gaps.
+        MagicShakeStart = Array.FindLastIndex(ActiveMagicEffects, frame => frame.Any(sprite => sprite[0] == 517)) + 1;
         Potions = 0;
         MagicTick = 0;
         m_magicPeak = Math.Max(30, Enumerable.Range(0, ActiveMagicEffects.Length)
@@ -1320,6 +1348,18 @@ internal sealed class Game
             actor.SetState(FighterState.Down);
 
         AddLandingDust(actor, heavy: true);
+    }
+
+    private void AddDragonSmoke(Fighter actor)
+    {
+        if (actor.Age % 4 != 0 || actor.State is FighterState.Dying or FighterState.Gone)
+            return;
+        var step = actor.Animation.Current;
+        var frame = m_data.Frames[step.Frame];
+        var direction = ((step.Flags & 1) != 0) ^ actor.Facing < 0 ? -1 : 1;
+        m_dragonSmoke.Add(new SmokePuff(
+            actor.X + step.Dx * actor.Facing + (frame.Ox + frame.Width * 0.5) * direction,
+            actor.Z, actor.Y + step.Dy + frame.Oy + frame.Height * 0.35, TickCount));
     }
 
     private void AddLandingDust(Fighter actor, bool heavy = false)

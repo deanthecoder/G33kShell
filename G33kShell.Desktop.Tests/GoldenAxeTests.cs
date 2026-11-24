@@ -57,6 +57,33 @@ public class GoldenAxeTests
     }
 
     [Test]
+    public void MagicShakeLastsForTheSpellAndLeavesTheHudStationary()
+    {
+        Assert.That(MagicScreenShake.Sample(-1, 151, 6), Is.EqualTo((0, 0)));
+        Assert.That(MagicScreenShake.Sample(151, 151, 6), Is.EqualTo((0, 0)));
+        for (var tick = 0; tick < 151; tick++)
+            Assert.That(MagicScreenShake.Sample(tick, 151, 6), Is.Not.EqualTo((0, 0)));
+        Assert.That(Math.Abs(MagicScreenShake.Sample(32, 151, 6).X),
+            Is.GreaterThan(Math.Abs(MagicScreenShake.Sample(32, 151, 1).X)));
+
+        var screen = new PixelScreenData(3, 2, [Rgb.Black, Rgb.White, new Rgb(255, 0, 0)]);
+        screen.SetPixel(0, 0, 1);
+        screen.ShadePixel(0, 128);
+        var before = new int[6];
+        var after = new int[6];
+        screen.CopyToBgra(before);
+        screen.OffsetScene(1, 1);
+        screen.SetPixel(2, 0, 2); // HUD drawn after the world moves.
+        screen.CopyToBgra(after);
+        Assert.That(after[4], Is.EqualTo(before[0]), "The offset includes composited effects.");
+        Assert.That(after[0], Is.EqualTo(before[0]), "Clamp the exposed scene edge.");
+        Assert.That(after[2], Is.EqualTo(unchecked((int)0xffff0000)), "The HUD remains at its screen coordinate.");
+        screen.Clear();
+        screen.CopyToBgra(after);
+        Assert.That(after, Is.All.EqualTo(unchecked((int)0xff000000)), "Shake does not leak into the next frame.");
+    }
+
+    [Test]
     public void MagicFlickerFillsOnlyBriefDropoutsAtTheSamePosition()
     {
         int[] sprite = [643, 38, 0, 40, 0, -20];
@@ -68,6 +95,13 @@ public class GoldenAxeTests
         Assert.That(ArcadeRenderer.DimMagicSprites(recording, 2).Single(), Is.SameAs(sprite));
         Assert.That(ArcadeRenderer.DimMagicSprites(recording, 3), Is.Empty);
         Assert.That(ArcadeRenderer.DimMagicSprites(recording, 4), Is.Empty);
+
+        int[][][] longerPulse = [[sprite], [], [], [], [], [], [sprite]];
+        var opacity = Enumerable.Range(1, 5).Select(tick => ArcadeRenderer.MagicGapOpacity(longerPulse, tick, sprite)).ToArray();
+        Assert.That(opacity.All(alpha => alpha is > 0 and < 255), Is.True, "A flickering spell should dim without disappearing.");
+        Assert.That(opacity[0], Is.GreaterThan(opacity[1]));
+        Assert.That(opacity[1], Is.GreaterThan(opacity[2]));
+        Assert.That(opacity, Is.EqualTo(opacity.Reverse().ToArray()), "Opacity should smoothly fall and rise across the gap.");
     }
 
     [TestCase(false)]
@@ -240,10 +274,11 @@ public class GoldenAxeTests
         }
     }
 
-    [TestCase("goldenaxe_play_color_fx", true, true)]
-    [TestCase("goldenaxe_color_fx", false, true)]
-    [TestCase("goldenaxe_color", false, false)]
-    public void ContactShadowsAreOptInForBothControllers(string activationName, bool interactive, bool shadows)
+    [TestCase("goldenaxe_play_color", true)]
+    [TestCase("goldenaxe_color", false)]
+    [TestCase("goldenaxe_play", true)]
+    [TestCase("goldenaxe", false)]
+    public void ContactShadowsAreStandardForBothControllers(string activationName, bool interactive)
     {
         var manager = new WindowManager(80, 25, new RetroMonoDos());
         var canvas = new GoldenAxeCanvas(80, 25) { ActivationName = activationName };
@@ -260,7 +295,7 @@ public class GoldenAxeTests
             frame.SetPalette(Enumerable.Repeat(Rgb.White, frame.Palette.Length).ToArray());
             var colors = new int[frame.Pixels.Length];
             CopyWithoutTerrainAtmosphere(frame, colors);
-            Assert.That(colors.Any(IsGroundShadow), Is.EqualTo(shadows));
+            Assert.That(colors.Any(IsGroundShadow), Is.True);
             Assert.That(canvas.IsInteractive, Is.EqualTo(interactive));
         }
         finally
@@ -279,7 +314,7 @@ public class GoldenAxeTests
         frame.SetPalette(Enumerable.Repeat(Rgb.White, frame.Palette.Length).ToArray());
 
         game.Hero.SetState(FighterState.Gone);
-        renderer.Draw(frame, game);
+        renderer.Draw(frame, game, effects: false);
         var scenery = frame.Pixels.ToArray();
 
         game.Hero.SetState(FighterState.Idle);
@@ -291,7 +326,7 @@ public class GoldenAxeTests
             .Where(i => frame.Pixels[i] != scenery[i])
             .All(i => colors[i] == -1), Is.True);
 
-        renderer.Draw(frame, game);
+        renderer.Draw(frame, game, effects: false);
         frame.CopyToBgra(colors);
         Assert.That(colors.All(color => color == -1), Is.True);
     }
@@ -326,7 +361,7 @@ public class GoldenAxeTests
         CopyWithoutTerrainAtmosphere(frame, colors);
         Assert.That(colors[sample], Is.GreaterThan(grounded).And.LessThan(-1));
 
-        renderer.Draw(frame, game);
+        renderer.Draw(frame, game, effects: false);
         frame.CopyToBgra(colors);
         Assert.That(colors[sample], Is.EqualTo(-1));
     }
@@ -593,7 +628,7 @@ public class GoldenAxeTests
         Assert.That((GetPixel(foot.X, foot.Y + 10) >> 16) & 255, Is.InRange(231, 254));
 
         frame.SetPalette(Enumerable.Repeat(new Rgb(40, 40, 40), frame.Palette.Length).ToArray());
-        renderer.Draw(frame, game);
+        renderer.Draw(frame, game, effects: false);
         frame.CopyToBgra(colors);
         Assert.That(colors.All(color => color == unlit), Is.True);
 
@@ -628,7 +663,7 @@ public class GoldenAxeTests
         var renderer = new ArcadeRenderer(data);
         var colors = new int[screen.Pixels.Length];
 
-        renderer.Draw(screen, game);
+        renderer.Draw(screen, game, effects: false);
         screen.CopyToBgra(colors);
         var originalRed = colors[wood] >> 16 & 255;
 
@@ -905,7 +940,7 @@ public class GoldenAxeTests
         Assert.That(colors[lit], Is.GreaterThan(unlit));
         Assert.That(colors[opposite], Is.EqualTo(unlit));
 
-        renderer.Draw(frame, game);
+        renderer.Draw(frame, game, effects: false);
         frame.CopyToBgra(colors);
         Assert.That(colors[lit], Is.EqualTo(unlit));
     }
@@ -918,11 +953,11 @@ public class GoldenAxeTests
         var frame = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
         var renderer = new ArcadeRenderer(data);
         game.Hero.SetState(FighterState.Gone);
-        renderer.Draw(frame, game);
+        renderer.Draw(frame, game, effects: false);
         var scenery = frame.Pixels.ToArray();
 
         game.Hero.SetState(FighterState.Idle);
-        renderer.Draw(frame, game);
+        renderer.Draw(frame, game, effects: false);
         var classic = frame.Pixels.ToArray();
 
         renderer.Draw(frame, game, effects: true);
@@ -1000,7 +1035,7 @@ public class GoldenAxeTests
         Assert.That(changedColors, Is.Not.Empty);
         Assert.That(changedColors.All(color => color != -1), Is.True);
 
-        renderer.Draw(frame, game);
+        renderer.Draw(frame, game, effects: false);
         Assert.That(frame.Pixels, Is.Not.EqualTo(paletteIndices));
     }
 
@@ -1057,7 +1092,7 @@ public class GoldenAxeTests
         const int travel = 84;
         int GroundRed(int offset) => (colors[offset] >> 16) & 255;
 
-        renderer.Draw(frame, game);
+        renderer.Draw(frame, game, effects: false);
         var classic = frame.Pixels.ToArray();
         renderer.Draw(frame, game, effects: true);
         CopyWithoutTerrainAtmosphere(frame, colors);

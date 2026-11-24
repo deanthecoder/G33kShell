@@ -123,6 +123,7 @@ internal sealed class ArcadeData
         actorPalettes.UnionWith(new[] { 0x4b, 0x4c, 0x4d, 0x4e }); // Dean-selected civilian palettes.
         actorPalettes.Add(0x42); // Injured villager: grey clothes and red wounds, matched to Dean's MAME image.
         actorPalettes.Add(SkeletonEmergence.GroundPalette);
+        actorPalettes.Add(WeaponSwipe.SilverPalette);
         actorPalettes.Add(0x97); // MAME-confirmed warm stone for fallen humanoids.
         actorPalettes.Add(0x72); // MAME-confirmed ochre bone for fallen skeletons.
         if (AreaIndex == 2)

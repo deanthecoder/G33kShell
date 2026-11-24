@@ -27,6 +27,7 @@ public class PixelScreenData
     private byte[] m_lightOcclusion;
     private byte[] m_lightAttenuation;
     private byte[] m_smoke;
+    private byte[] m_smokeSoot;
     private (byte ColorIndex, byte Opacity)[] m_dust;
     private byte[] m_fog;
     private (byte ColorIndex, byte Weight)[] m_refraction;
@@ -34,6 +35,7 @@ public class PixelScreenData
     private byte m_spriteOpacity = 255;
     private int m_spriteGroup;
     private int[] m_bgraFrame;
+    private int[] m_sceneSnapshot;
     private bool m_hasBgraFrame;
     internal Rgb LightColor { private get; set; }
     internal Rgb MagicLightColor { get; set; }
@@ -141,10 +143,16 @@ public class PixelScreenData
         m_light[offset] = (byte)Math.Min(255, m_light[offset] + strength);
     }
 
-    internal void SmokePixel(int offset, byte opacity)
+    internal void SmokePixel(int offset, byte opacity, byte soot = 0)
     {
+        if (opacity == 0)
+            return;
         m_smoke ??= new byte[Pixels.Length];
-        m_smoke[offset] = (byte)(255 - (255 - m_smoke[offset]) * (255 - opacity) / 255);
+        m_smokeSoot ??= new byte[Pixels.Length];
+        var remaining = m_smoke[offset] * (255 - opacity) / 255;
+        var combined = remaining + opacity;
+        m_smokeSoot[offset] = (byte)((m_smokeSoot[offset] * remaining + soot * opacity) / combined);
+        m_smoke[offset] = (byte)combined;
     }
 
     internal void DustPixel(int offset, byte colorIndex, byte opacity)
@@ -180,6 +188,25 @@ public class PixelScreenData
             var color = GetColorAtOffset(i);
             destination[i] = color.B | (color.G << 8) | (color.R << 16) | unchecked((int)0xff000000);
         }
+    }
+
+    /// <summary>
+    /// Offsets the composited scene; subsequent pixel drawing forms a stationary overlay.
+    /// </summary>
+    internal void OffsetScene(int dx, int dy)
+    {
+        m_sceneSnapshot ??= new int[Pixels.Length];
+        CopyToBgra(m_sceneSnapshot);
+        m_bgraFrame ??= new int[Pixels.Length];
+        for (var y = 0; y < Height; y++)
+        for (var x = 0; x < Width; x++)
+        {
+            // Extend the edge pixels rather than exposing black strips during a small shake.
+            var sourceX = Math.Clamp(x - dx, 0, Width - 1);
+            var sourceY = Math.Clamp(y - dy, 0, Height - 1);
+            m_bgraFrame[y * Width + x] = m_sceneSnapshot[sourceY * Width + sourceX];
+        }
+        m_hasBgraFrame = true;
     }
 
     internal void SetBgraFrame(ReadOnlySpan<int> pixels)
@@ -228,7 +255,11 @@ public class PixelScreenData
             color = LiftColor(color, MagicLightColor, m_magicLight[offset]);
 
         if (m_smoke != null && m_smoke[offset] != 0)
-            color = BlendColor(color, SmokeColor, m_smoke[offset] * SmokeOpacity / 255);
+        {
+            var soot = m_smokeSoot[offset];
+            var charcoal = new Rgb((byte)(SmokeColor.R / 4), (byte)(SmokeColor.G / 4), (byte)(SmokeColor.B / 4));
+            color = BlendColor(color, BlendColor(SmokeColor, charcoal, soot), m_smoke[offset] * SmokeOpacity / 255);
+        }
 
         if (m_dust != null && m_dust[offset].Opacity != 0)
             color = BlendColor(color, Palette[m_dust[offset].ColorIndex], m_dust[offset].Opacity);
@@ -320,6 +351,11 @@ public class PixelScreenData
             m_fog[offset] = 0;
         if (m_refraction != null)
             m_refraction[offset] = default;
+        if (m_hasBgraFrame)
+        {
+            var color = GetColorAtOffset(offset);
+            m_bgraFrame[offset] = color.B | (color.G << 8) | (color.R << 16) | unchecked((int)0xff000000);
+        }
     }
 
     public void DrawLine(int x0, int y0, int x1, int y1, byte colorIndex)

@@ -28,6 +28,7 @@ internal sealed class Animation
     public AnimationStep Current => Steps[Index];
     public AnimationStep PreviousPose { get; private set; }
     public int PoseTicks { get; private set; }
+    public int StepTicks => Current.Duration - m_remaining;
     public Animation(ArcadeData data) => m_data = data;
 
     public void Play(int address, bool restart = false, bool attack = false)
