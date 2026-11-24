@@ -47,6 +47,7 @@ internal sealed class Game
     private int m_clearTicks;
     private int m_magicPeak;
     private int m_pendingHero = -1;
+    private int? m_surfStartTick;
     public HeroDefinition Character { get; private set; }
     public int[][][][] MagicEffects => m_data.Magic[Character.MagicKey];
     public List<Fighter> Actors { get; } = [];
@@ -62,6 +63,7 @@ internal sealed class Game
     private bool IsSkeletonMound(SpawnDefinition spawn) => AreaIndex == 3 && spawn.Routine == 0x23bda;
     public Fighter Hero { get; }
     public int TickCount { get; private set; }
+    public int? SurfAge => !IsCamp && m_surfStartTick is { } start ? TickCount - start : null;
     public double CameraX { get; private set; }
     public double CameraY { get; private set; }
     public FollowCamera ViewCamera { get; } = new();
@@ -198,6 +200,8 @@ internal sealed class Game
     public void Tick(GameInput input)
     {
         TickSimulation(input);
+        if (AreaIndex == TurtleVillageSurf.Area && !IsCamp && Progress >= TurtleVillageSurf.StartProgress)
+            m_surfStartTick ??= TickCount;
         ViewCamera.Tick(this, m_data);
     }
 

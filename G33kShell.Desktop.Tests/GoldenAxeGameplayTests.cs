@@ -727,6 +727,78 @@ public class GoldenAxeGameplayTests
         Assert.That(game.Ground(hero.X, hero.Z), Is.LessThan(5248));
     }
 
+    [Test]
+    public void TurtleVillageSurfStartsAtTheShoreAndMovesBelowThePlayfield()
+    {
+        var data = m_areas[1];
+        var game = new Game(data);
+        AdvanceTo(game, 4940);
+        Assert.That(game.SurfAge, Is.Null);
+        AdvanceTo(game, 4944);
+        Assert.That(game.SurfAge, Is.Zero);
+        game.Hero.X = game.Progress + 120;
+        game.Hero.Z = game.FindFloor(game.Hero.X, 4296);
+        game.Hero.Y = game.Ground(game.Hero.X, game.Hero.Z);
+        for (var tick = 0; tick < 384; tick++)
+            game.Tick(default);
+        Assert.That(game.SurfAge, Is.EqualTo(384));
+
+        var renderer = new ArcadeRenderer(data);
+        var screen = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
+        // The GO prompt can blink above the water independently of the surf.
+        byte[] Draw(Game scene, int cameraY)
+        {
+            scene.ViewCamera.Reset(-855, cameraY);
+            renderer.Draw(screen, scene, effects: false);
+            return screen.Pixels.Skip(160 * ArcadeData.Width).ToArray();
+        }
+
+        game.Actors.Clear();
+        var inactive = new Game(data);
+        inactive.Actors.Clear();
+        var baseline = Draw(inactive, -873);
+        var crest = Draw(game, -873);
+        var crestRow = (176 - 160) * ArcadeData.Width;
+        Assert.That(crest.Take(crestRow), Is.EqualTo(baseline.Take(crestRow)));
+        Assert.That(crest.Skip(crestRow), Is.Not.EqualTo(baseline.Skip(crestRow)));
+        var highView = Draw(game, -820);
+        Assert.That(highView, Is.EqualTo(Draw(inactive, -820)));
+        Assert.That(Draw(game, -831), Is.EqualTo(Draw(inactive, -831)), "Hide an isolated crest at the bottom edge.");
+        Assert.That(Draw(game, -837), Is.Not.EqualTo(Draw(inactive, -837)), "Start the fade as more water comes into view.");
+
+        for (var tick = 0; tick < 8; tick++)
+            game.Tick(default);
+        Assert.That(Draw(game, -873), Is.Not.EqualTo(crest));
+        Assert.That(new Game(data, startInCamp: true).SurfAge, Is.Null);
+    }
+
+    [Test]
+    public void TurtleVillageSurfCoversHighPriorityTilesAtTheBottomEdge()
+    {
+        var data = new ArcadeData(ArcadeData.AssetDirectory, 1);
+        var game = new Game(data);
+        AdvanceTo(game, 4944);
+        game.Hero.X = game.Progress + 120;
+        for (var tick = 0; tick < 384; tick++)
+            game.Tick(default);
+        game.Actors.Clear();
+        const int cameraX = -855, cameraY = -872, x = 16, y = 223;
+        game.ViewCamera.Reset(cameraX, cameraY);
+        var screen = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
+        var renderer = new ArcadeRenderer(data);
+        renderer.Draw(screen, game, effects: false);
+        var offset = y * ArcadeData.Width + x;
+        var surfPixel = screen.Pixels[offset];
+        Assert.That(surfPixel, Is.InRange(TurtleVillageSurf.PaletteStart, 255));
+
+        var layer = data.Foreground;
+        var tileX = (x - 7 - cameraX - layer.X) / 8;
+        var tileY = (y - 512 - cameraY - layer.Y) / 8;
+        layer.Cells[tileY * layer.Width + tileX] = (1u << 23) | 1u; // High priority, solid pen 7.
+        renderer.Draw(screen, game, effects: false);
+        Assert.That(screen.Pixels[offset], Is.EqualTo(surfPixel));
+    }
+
     [TestCase(false)]
     [TestCase(true)]
     public void WalkingOffLedgeFallsOverSeveralTicksAndLands(bool mounted)

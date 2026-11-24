@@ -45,6 +45,7 @@ internal sealed class ArcadeData
     public Dictionary<string, int[][][][]> Magic { get; }
     public int[][] SpriteColors { get; }
     public byte[][] SpritePalette { get; }
+    public byte[] SurfPalette { get; }
     public byte[] SpritePens { get; }
     public int SpriteStride { get; }
     public byte[] TilePens { get; }
@@ -67,7 +68,12 @@ internal sealed class ArcadeData
     public Dictionary<string, byte[]> TilePalettes { get; }
     public Dictionary<int, byte[]> PortraitPalettes { get; }
     public Rgb[] Palette { get; }
-    public int StaticPaletteCount => AreaIndex == 3 ? EagleSky.PaletteStart : 256;
+    public int StaticPaletteCount => AreaIndex switch
+    {
+        TurtleVillageSurf.Area => TurtleVillageSurf.PaletteStart,
+        3 => EagleSky.PaletteStart,
+        _ => 256
+    };
     public byte White { get; }
     public byte Black { get; }
 
@@ -161,6 +167,16 @@ internal sealed class ArcadeData
             return cache[rgb] = (byte)best;
         }
         SpritePalette = SpriteColors.Select(p => p.Select(Map).ToArray()).ToArray();
+        if (AreaIndex == TurtleVillageSurf.Area)
+        {
+            SurfPalette = (byte[])SpritePalette[TurtleVillageSurf.Palette].Clone();
+            for (var pen = 2; pen <= 13; pen++)
+            {
+                var slot = TurtleVillageSurf.PaletteStart + pen - 2;
+                Palette[slot] = TurtleVillageSurf.LiftMidtones(SpriteColors[TurtleVillageSurf.Palette][pen]);
+                SurfPalette[pen] = (byte)slot;
+            }
+        }
         TilePalettes = TileColors.ToDictionary(p => p.Key, p => p.Value.Select(c => Map((int)c)).ToArray());
         if (AreaIndex == 3)
         {

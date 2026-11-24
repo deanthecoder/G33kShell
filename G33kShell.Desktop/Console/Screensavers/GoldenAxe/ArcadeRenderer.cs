@@ -213,6 +213,7 @@ internal sealed class ArcadeRenderer
                 PotionSparkles.DrawBursts(screen, game, m_lightBlue, m_data.White, effectOpacity);
         }
         Layer(screen, m_data.Foreground, (int)u, v, palette, true, false);
+        DrawSurf(screen, game);
         DrawFeathers(screen, game, foreground: true);
         var shake = MagicScreenShake.Sample(game.MagicTick - game.MagicShakeStart,
             game.MagicDuration - game.MagicShakeStart, game.MagicLevel);
@@ -1027,6 +1028,29 @@ internal sealed class ArcadeRenderer
             var feather = EagleFeathers.Sample(i, game.TickCount, game.ViewCamera.X);
             Sprite(screen, feather.Frame, EagleFeathers.Palette, feather.X, feather.Y, feather.Flip);
         }
+    }
+
+    private void DrawSurf(PixelScreenData screen, Game game)
+    {
+        if (game.SurfAge is not { } age)
+            return;
+
+        var index = TurtleVillageSurf.Frame(age);
+        var frame = m_data.Frames[index];
+        var point = game.ProjectView(TurtleVillageSurf.X(age), TurtleVillageSurf.Depth, TurtleVillageSurf.Y(age));
+        var opacity = TurtleVillageSurf.Opacity(ArcadeData.Height - (int)Math.Round(point.Y + frame.Oy));
+        if (opacity == 0)
+            return;
+
+        var width = TurtleVillageSurf.StripWidth;
+        var left = (int)point.X - (frame.Ox + width);
+        left -= (int)Math.Ceiling((double)left / width) * width;
+        if (opacity < 255)
+            screen.BeginTranslucentSprite(opacity);
+        for (; left < ArcadeData.Width; left += width)
+            Sprite(screen, index, TurtleVillageSurf.Palette, left + frame.Ox + width, point.Y, true, paletteOverride: m_data.SurfPalette);
+        if (opacity < 255)
+            screen.EndTranslucentSprite();
     }
 
     private void DrawGoPrompt(PixelScreenData screen)
