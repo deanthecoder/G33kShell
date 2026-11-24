@@ -132,11 +132,44 @@ over its body instead of too far forward while standing, walking and attacking.
 
 `screensaver goldenaxe` plays a native C# recreation of all five main arcade areas with
 skin-tinted monochrome graphics. Use `screensaver goldenaxe_color` for color.
-Add `_fx` for soft ground shadows, softened sprite outlines, campfire effects, drifting ground fog, glowing dragon breath and fireballs with heat haze.
-Use `screensaver goldenaxe_color_fx` for autoplay or `screensaver goldenaxe_play_color_fx` to play.
-The effects mode adds distance shading and soft ground shadows near ledges in the main areas.
+Soft ground shadows, softened sprite outlines, campfire effects, drifting ground fog,
+glowing dragon breath and fireballs with heat haze are enabled by default in color and mono.
+Use `screensaver goldenaxe_color` for autoplay or `screensaver goldenaxe_play_color` to play.
+The renderer also adds distance shading and soft ground shadows near ledges in the main areas.
 Add `_ao` to inspect the terrain shading mask. White means no adjustment and darker tones show stronger shading.
 For short effect clips, run `python3 tools/capture-golden-axe.py --output ~/Movies/GoldenAxe --gif` with the .NET SDK and FFmpeg installed.
+Use `--scene skeleton-dust` for the eagle-area skeleton emergence, including the
+mud mound, dust particles and wind; `--scene landing-dust` captures a knockdown.
+The script writes MP4 clips and, with `--gif`, looping GIFs. On Windows, for example:
+`python tools/capture-golden-axe.py --scene skeleton-dust --output ~/Videos/GoldenAxe --gif`.
+It finds FFmpeg on PATH or uses an installed `imageio-ffmpeg` package; `--ffmpeg`
+can select a specific executable. No encoder is downloaded automatically.
+Weapon-trail previews are available as `weapon-swipes-ax`, `weapon-swipes-tyris`,
+`weapon-swipes-gilius` and `weapon-swipes-enemies`, showing swings in both directions.
+The `turtle-eye` and `eagle-eye` scenes show the original three-frame eye movements
+at the Turtle Village exit and castle approach. These follow the scenery as the
+camera scrolls and are hidden during camp. The turtle matches the MAME set-6
+position, palette and 100/10/10/10-tick gaze sequence; eagle timing remains approximate.
+Dragon fireballs and flame breath leave smoke that rises, expands and fades after
+the attack has passed. Use `dragon-fire` and `dragon-flame` to preview them.
+The `running-dust` scene shows smaller ground-level puffs from running and barging;
+these use the same terrain tint and eagle-area wind as landing dust.
+The `stone-bodies` scene shows defeated enemies settling into their original prone
+poses and remaining as stone-colored scenery, with contact shadows. Over two seconds,
+their normal colors fade into the MAME-confirmed original palettes: 0x97 warm stone
+for humanoids and 0x72 ochre bone for skeletons.
+Bodies remain until scrolled off or the area/camp changes and do not block progression.
+The two-second fade is an intentional enhancement over the arcade's abrupt palette swap.
+The `castle-camera` capture demonstrates the measured Stage 9 lower camera limit
+of -736 at camera X -632 (25 more pixels than the original extracted path).
+The Stage 5 village-cliff sample at X -666 also reaches its measured limit of -749.
+These are targeted camera-path corrections; player collision and unmeasured route
+limits are unchanged. The `eagle-sunset` capture previews the Stage 7 sky's
+progress-driven blue-to-peach blend from 5055 to 5107, using the MAME reference
+colors in two sky palette groups. Intermediate colors are interpolated; the arcade's
+individual color-step thresholds and later return to blue still need measurement.
+Eight reserved palette entries isolate the sky from actors, terrain and HUD colors,
+while retaining monochrome rendering and scene fades.
 It renders the shadows, campfire, dragon fire and magic scenes headlessly to silent MP4s, with optional looping GIF previews.
 Use `--scene campfire` to regenerate a single clip.
 Use `--ffmpeg /path/to/ffmpeg` to select a specific encoder executable.
@@ -153,6 +186,9 @@ attack, press **Tab** for magic and **Space** to jump. Magic and jumping work on
 and in the saddle. Press
 **Shift+Space** to dismount. **Ctrl+Space** performs a
 back attack; double-tap Left or Right to run, then attack for a shoulder charge.
+Ridden chickens and both dragons also run and charge using these controls, leaving
+foot dust and knocking down each enemy struck once. Mounted charges currently use
+the original run poses with an approximate body-impact hitbox and timing.
 **Escape** returns to the console. Held keys clear when the window loses focus.
 Press **1** for Ax Battler, **2** for Tyris Flare, or **3** for Gilius Thunderhead
 (the dwarf). Selection is saved across runs and app restarts. A switch preserves
@@ -200,10 +236,29 @@ of the recorded effect. Grounded enemies collapse when the spell ends, then reco
 or die according to their remaining health. The hero mixes walking, running, running jumps and shoulder
 charges. Running jumps cross the broken bridge; missing a jump costs a life and
 respawns the hero on safe ground. The HUD includes the hero's portrait, three health
-bars and potion icons aligned within their slots;
-each area and camp fades in and fades out. Defeating Death Adder and clearing his
+bars and potion icons aligned within their slots. The MAGIC heading uses original
+letter tiles, and filled slots pulse brighter red while empty slots remain dark;
+the portrait and HUD potion use the original text tiles. Invulnerability and brief
+magic-animation gaps deliberately pulse opacity without disappearing.
+Gilius lightning surrounds the caster and visible enemies with the original cage
+sprites. Victims blend between red and white at five cycles per second. Enemy
+placement and timing across spell strengths reuse the first captured cage sequence
+and still need detailed MAME verification.
+Waiting potions emit subtle blue motes; collecting one releases a sparkle burst
+and sends three glints towards its HUD slot. Collected potions and food fade out
+over a quarter of a second, with their rewards applied immediately. Stolen camp
+potions use the same fade without pickup sparkles. Food has no expiry timer. These added effects follow the selected
+color or monochrome palette, and full-meter pickups only produce the local burst.
+The visual camera eases towards the arcade camera with roughly 0.6 seconds of
+settling, bounded lag and whole-pixel positions. Gameplay progression and stage
+locks continue to use the original camera. Each area and camp fades in and fades out. Defeating Death Adder and clearing his
 guards shows a victory message. Completing the campaign or losing all lives starts
 another run after a short pause; random mode receives a cycle event then.
+The coded player walks through cleared scenery and waits when scrolling is locked.
+It keeps running for gap crossings and selected approaches to distant opponents.
+Villagers use five original running sequences rather than two shared appearances.
+Their routine-to-variant mapping, counts and original movement still need MAME verification.
+Fleeing villagers now route around height-map walls and pits instead of passing through buildings.
 The coded player routes around holes and rocks. Potion thieves now check terrain,
 jump onto low ledges and turn away from walls or holes instead of walking through rock.
 Stepping off a ledge now falls under gravity, including while mounted; downward
@@ -213,9 +268,26 @@ wait about one second within mounting range before climbing aboard; getting hit
 interrupts the attempt.
 Riderless Chicken Legs and dragons wait five seconds, then run towards the nearer
 screen edge and leave. Remounting resets that wait; fleeing beasts cannot be mounted.
-A flashing **GO ->** prompt appears while the route ahead is clear and scrolling is
-available. Palette fades use a private display copy, so death/restart and area
+A flashing **GO!** sword prompt uses original sprite frame 646 while the route ahead
+is clear and scrolling is available. Its gold palette, placement and flashing cadence
+remain approximations pending comparison with a set-6 capture.
+Palette fades use a private display copy, so death/restart and area
 transitions preserve the original artwork colors.
+
+The six skeleton spawn points on the eagle's mud platforms show the original mound
+(frame 853), then open using frames 853–857 and rise animation 0x24a00. Opened mounds
+remain behind. Stone-floor skeletons arrive normally. Mound skeletons use the white-bone
+palette. The ground and skeleton share their anchor and advance together every eight
+ticks, with normal AI starting at tick 48, matching the MAME trace. Which individual
+spawns use this entrance, including Stage 9, still needs verification.
+Landing and emergence dust particles rise, disperse and fade over 2–2.5 seconds,
+with gentle leftward drift where the eagle's wind blows.
+Magic shakes the scene after the casting potions disappear until the spell ends,
+scaling with spell strength and easing in and out while the HUD stays fixed.
+Matching hero sword/axe swings, Heninger mace swings and skeleton sword swings use
+original swipe sprites around their active attack frame. Kicks, stabs and charges
+do not receive a sweep. Trail attachments, timing and silver/gold palettes are
+approximations pending arcade comparison; the effects do not change attack damage or reach.
 
 The set-6 assets are bundled in `G33kShell.Desktop/Assets/GoldenAxe` and included
 in build and publish output. See `NOTICE.txt` there for their source and Sega attribution;

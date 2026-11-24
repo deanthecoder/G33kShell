@@ -19,7 +19,9 @@ import subprocess
 import tempfile
 
 
-SCENES = ("shadows", "campfire", "dragon-fire", "magic")
+SCENES = ("shadows", "campfire", "dragon-fire", "magic", "landing-dust", "skeleton-dust",
+          "weapon-swipes-ax", "weapon-swipes-tyris", "weapon-swipes-gilius", "weapon-swipes-enemies",
+          "turtle-eye", "eagle-eye", "dragon-flame", "running-dust", "stone-bodies", "eagle-sunset", "castle-camera", "potion-sparkles", "camera-follow", "dwarf-lightning", "villagers", "village-routing")
 REPO = Path(__file__).resolve().parent.parent
 TEST_PROJECT = REPO / "G33kShell.Desktop.Tests" / "G33kShell.Desktop.Tests.csproj"
 CAPTURE_TEST = "G33kShell.Desktop.Tests.GoldenAxeCaptureTests.RenderClips"
@@ -39,12 +41,18 @@ def main():
     parser.add_argument("--output", type=Path, required=True, help="Directory for the finished clips.")
     parser.add_argument("--scene", choices=SCENES, action="append", help="Capture one scene. Repeat to select several.")
     parser.add_argument("--gif", action="store_true", help="Also export smaller looping GIF previews.")
-    parser.add_argument("--ffmpeg", default="ffmpeg", help="FFmpeg executable to use. Defaults to ffmpeg on PATH.")
+    parser.add_argument("--ffmpeg", help="FFmpeg executable to use. Defaults to PATH, then an installed imageio-ffmpeg copy.")
     args = parser.parse_args()
     dotnet = shutil.which("dotnet")
-    ffmpeg = shutil.which(os.path.expanduser(args.ffmpeg))
+    ffmpeg = shutil.which(os.path.expanduser(args.ffmpeg or "ffmpeg"))
+    if not ffmpeg and not args.ffmpeg:
+        try:
+            import imageio_ffmpeg
+            ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+        except (ImportError, RuntimeError):
+            pass
     if not dotnet or not ffmpeg:
-        parser.error("Install the .NET SDK and FFmpeg first.")
+        parser.error("The .NET SDK and FFmpeg are required. Supply --ffmpeg, add FFmpeg to PATH, or install imageio-ffmpeg.")
     if subprocess.run([ffmpeg, "-version"], stdout=subprocess.DEVNULL).returncode:
         parser.error("FFmpeg failed to start. Use --ffmpeg to select a working executable.")
 
