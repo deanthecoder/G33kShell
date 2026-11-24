@@ -48,6 +48,7 @@ internal sealed class Game
     public int TickCount { get; private set; }
     public double CameraX { get; private set; }
     public double CameraY { get; private set; }
+    public FollowCamera ViewCamera { get; } = new();
     public int AreaIndex => m_data.AreaIndex;
     public double Progress => 4096 - CameraX - 7;
     public int Potions { get; private set; } = 1;
@@ -77,6 +78,7 @@ internal sealed class Game
         Hero.Facing = 1;
         Hero.Z = FindFloor(Hero.X, Hero.Z, keepVisible: true);
         Hero.Y = Ground(Hero.X, Hero.Z);
+        ViewCamera.Reset(CameraX, CameraY);
     }
 
     public Game ContinueIn(ArcadeData nextArea)
@@ -99,6 +101,7 @@ internal sealed class Game
         m_landingDust.Clear();
         var range = CameraRange();
         CameraY = Math.Clamp(150 - (Project(Hero.X, Hero.Z, Hero.Y).Y - CameraY), range[0], range[1]);
+        ViewCamera.Reset(CameraX, CameraY);
     }
 
     public void SelectCharacter(int character) => m_pendingHero = Math.Clamp(character, 0, 2);
@@ -154,9 +157,21 @@ internal sealed class Game
 
     public (double X, double Y) Project(double x, double z, double y) => (x - 4096 + CameraX + 8, z - 4096 - Math.Floor((z - 4096) / 4) + y - 4096 + CameraY);
 
+    public (double X, double Y) ProjectView(double x, double z, double y)
+    {
+        var point = Project(x, z, y);
+        return (point.X + ViewCamera.X - CameraX, point.Y + ViewCamera.Y - CameraY);
+    }
+
     private int[] CameraRange() => m_data.CameraPath.OrderBy(p => Math.Abs(p.Key - (int)Math.Floor(CameraX / 8))).First().Value;
 
     public void Tick(GameInput input)
+    {
+        TickSimulation(input);
+        ViewCamera.Tick(this, m_data);
+    }
+
+    private void TickSimulation(GameInput input)
     {
         ApplyCharacterSelection();
         if (Complete || GameOver)
@@ -340,8 +355,24 @@ internal sealed class Game
                 break;
             case 0x99c0: case 0x99c8: case 0x99da: case 0x99ec: case 0x99fe: case 0x9a9a:
             case 0x9c08: case 0x9eb6: case 0x9a5a:
-                var villager = Add(ActorKind.Villager, Moves.Thief, spawn.Routine == 0x9a9a ? 0x64 : 0x4d, 1, spawn.X, spawn.Z);
-                villager.Animation.Play(spawn.Routine is 0x99fe or 0x9a9a ? 0xa10e : 0x9fe8);
+                var villagerPalette = spawn.Routine switch
+                {
+                    0x99da => 0x4e,
+                    0x99ec => 0x4b,
+                    0x99fe => 0x4c,
+                    0x9a9a => 0x42,
+                    _ => 0x4d
+                };
+                var villager = Add(ActorKind.Villager, Moves.Thief, villagerPalette, 1, spawn.X, spawn.Z);
+                // Distinct extracted civilian run sequences; routine-to-variant mapping still needs MAME verification.
+                villager.Animation.Play(spawn.Routine switch
+                {
+                    0x99da => 0xa04a,
+                    0x99ec => 0xa0ac,
+                    0x99fe => 0xa10e,
+                    0x9a9a => 0xa170,
+                    _ => 0x9fe8
+                });
                 break;
         }
     }
@@ -1243,6 +1274,35 @@ internal sealed class Game
         }
     }
 
+    private void MoveVillager(Fighter actor)
+    {
+        // The injured man's animation carries travel offsets; collide at his displayed position.
+        var poseX = actor.Animation.Address == 0xa170 ? actor.Animation.Current.Dx * actor.Facing : 0;
+        actor.X += poseX;
+        var screenX = Project(actor.X, actor.Z, actor.Y).X;
+        if (actor.Facing < 0 && screenX < 8 || actor.Facing > 0 && screenX > 312)
+            actor.X += actor.Facing * 1.8;
+        else
+        {
+            var ground = Ground(actor.X, actor.Z);
+            var ahead = Ground(actor.X + actor.Facing * 12, actor.Z);
+            bool Walkable(double floor) => floor is > 3840 and < 5248 && Math.Abs(floor - ground) <= 12;
+            var route = Walkable(ahead)
+                ? new GameInput(X: actor.Facing)
+                : TerrainNavigator.Towards(this, actor, Progress + (actor.Facing < 0 ? -64 : 384), actor.Z, allowExit: true);
+            var dx = route.X * 1.8;
+            var dz = route.Z * 1.2;
+            if (Walkable(Ground(actor.X + dx + Math.Sign(dx) * 8, actor.Z)))
+                actor.X += dx;
+            if (Walkable(Ground(actor.X, actor.Z + dz)))
+                actor.Z += dz;
+            var floor = Ground(actor.X, actor.Z);
+            if (Walkable(floor))
+                actor.Y = floor;
+        }
+        actor.X -= poseX;
+    }
+
     private void MoveThief(Fighter actor, bool fleeingCamp = false)
     {
         var screenX = Project(actor.X, actor.Z, actor.Y).X;
@@ -1349,7 +1409,12 @@ internal sealed class Game
             }
             return;
         }
+        var previousPoseX = actor.Animation.Current.Dx;
         actor.Animation.Tick();
+        // The injured villager's script contains cumulative travel (0..36), not ordinary pose bobbing.
+        // Our prop movement already supplies travel, so cancel frame changes, including the loop reset.
+        if (actor.Kind == ActorKind.Villager && actor.Animation.Address == 0xa170)
+            actor.X += (previousPoseX - actor.Animation.Current.Dx) * actor.Facing;
         if (actor.Kind == ActorKind.Thief && Camp?.TimeExpired == true)
         {
             RunThiefOutOfCamp(actor);
@@ -1387,7 +1452,7 @@ internal sealed class Game
                 MoveThief(actor);
         }
         else
-            actor.X += actor.Facing * 1.8;
+            MoveVillager(actor);
         var sx = Project(actor.X, actor.Z, actor.Y).X;
         if (sx is > 0 and < 320)
             actor.Entered = true;

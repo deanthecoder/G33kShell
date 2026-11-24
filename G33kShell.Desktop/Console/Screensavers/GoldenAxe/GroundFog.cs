@@ -25,8 +25,8 @@ internal static class GroundFog
 
         var camp = game.IsCamp;
         var fire = camp ? game.Actors.FirstOrDefault(actor => actor.Kind == ActorKind.Campfire && !actor.IsGone) : null;
-        (double X, double Y)? flame = fire == null ? null : game.Project(fire.X, fire.Z, fire.Y);
-        var height = camp ? (flame?.Y ?? 145) - 38 : 103 + game.CameraY - initialCameraY;
+        (double X, double Y)? flame = fire == null ? null : game.ProjectView(fire.X, fire.Z, fire.Y);
+        var height = camp ? (flame?.Y ?? 145) - 38 : 103 + game.ViewCamera.Y - initialCameraY;
         screen.FogColor = tint ?? (camp ? new Rgb(175, 188, 204) : new Rgb(190, 203, 206));
         screen.FogOpacity = opacityScale;
 
@@ -37,7 +37,7 @@ internal static class GroundFog
         var thinStrength = camp ? 29 : 36;
         for (var x = 0; x < screen.Width; x++)
         {
-            var worldX = x - game.CameraX;
+            var worldX = x - game.ViewCamera.X;
             var slow = worldX - time * 0.18;
             var fast = worldX - time * 0.33;
             var broadY = height + 7 * Math.Sin(slow * 0.028) + 3 * Math.Sin(slow * 0.083);

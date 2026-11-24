@@ -56,13 +56,37 @@ internal sealed class ArcadeRenderer
         bool showTerrainShade = false)
     {
         screen.Clear(m_data.Black);
-        var u = -7 - game.CameraX;
-        var v = (int)Math.Round(-512 - game.CameraY);
+        if (game.AreaIndex == 3 && !game.IsCamp)
+        {
+            var black = screen.Palette[m_data.Black];
+            var white = screen.Palette[m_data.White];
+            for (var pen = 0; pen < 8; pen++)
+            {
+                var color = EagleSky.Color(EagleSky.Blue[pen], m_data.TileColors[m_data.BossPalette][114 * 8 + pen], game.Progress);
+                // Keep scene fades and monochrome rendering, without changing reusable asset palettes.
+                if (tint != null)
+                {
+                    var brightness = (color.R * 0.299 + color.G * 0.587 + color.B * 0.114) / 255;
+                    color = new Rgb((byte)(black.R + (white.R - black.R) * brightness),
+                        (byte)(black.G + (white.G - black.G) * brightness), (byte)(black.B + (white.B - black.B) * brightness));
+                }
+                else
+                    color = new Rgb((byte)(color.R * white.R / 255), (byte)(color.G * white.G / 255), (byte)(color.B * white.B / 255));
+                screen.Palette[EagleSky.PaletteStart + pen] = color;
+            }
+        }
+        var u = -7 - game.ViewCamera.X;
+        var v = (int)Math.Round(-512 - game.ViewCamera.Y);
         var palette = m_data.TilePalettes[game.IsCamp ? "0" : game.Boss ? m_data.BossPalette : m_data.DayPalette];
         var backgroundX = (int)Math.Floor(u * m_data.Parallax[0][0] + m_data.Parallax[0][1]);
         var backgroundY = (int)(v * m_data.Parallax[1][0] + m_data.Parallax[1][1]);
         Layer(screen, m_data.Background, backgroundX, backgroundY, palette, false, true);
         Layer(screen, m_data.Foreground, (int)u, v, palette, false, false);
+        if (SceneryEyes.Sample(game.AreaIndex, game.IsCamp, game.TickCount) is { } eye)
+        {
+            var frame = m_data.Frames[eye.Frame];
+            Sprite(screen, eye.Frame, eye.Palette, eye.X - (int)u - frame.Ox, eye.Y - v - frame.Oy, false);
+        }
         if (showTerrainShade || effects && !game.IsCamp && effectOpacity != 0)
         {
             m_terrainShading ??= new TerrainShading(m_data);
@@ -94,10 +118,10 @@ internal sealed class ArcadeRenderer
             var flip = IsFlipped(actor, step);
             if (!effects && actor.Kind == ActorKind.Fireball && actor.State != FighterState.Dying)
             {
-                var shadow = game.Project(actor.X, actor.Z + 8, game.Ground(actor.X, actor.Z));
+                var shadow = game.ProjectView(actor.X, actor.Z + 8, game.Ground(actor.X, actor.Z));
                 Sprite(screen, step.Frame, 0, shadow.X + step.Dx * actor.Facing, shadow.Y, flip);
             }
-            var point = game.Project(actor.X, actor.Z, actor.Y);
+            var point = game.ProjectView(actor.X, actor.Z, actor.Y);
             var pulse = actor.Invulnerable % 12;
             var translucent = pulse != 0;
             if (translucent)
@@ -149,7 +173,7 @@ internal sealed class ArcadeRenderer
             if (fireball.Kind != ActorKind.Fireball || fireball.State is FighterState.Dying or FighterState.Gone)
                 continue;
 
-            var point = game.Project(fireball.X, fireball.Z, fireball.Y);
+            var point = game.ProjectView(fireball.X, fireball.Z, fireball.Y);
             var centerX = point.X + (fireball.Animation.Current.Dx - 11) * fireball.Facing;
             var centerY = point.Y - 16;
             var left = Math.Max(1, (int)Math.Floor(centerX - radiusX));
@@ -190,7 +214,7 @@ internal sealed class ArcadeRenderer
 
             if (actor.Kind == ActorKind.Campfire)
             {
-                var foot = game.Project(actor.X, actor.Z, actor.Y);
+                var foot = game.ProjectView(actor.X, actor.Z, actor.Y);
                 var time = game.TickCount / 60.0;
                 var flicker = 1 + 0.10 * Math.Sin(time * 11) + 0.06 * Math.Sin(time * 29);
                 DrawSoftEllipse(screen, foot.X, foot.Y + 1, 78, 33, 82 * flicker, occludedByGround: true);
@@ -214,7 +238,7 @@ internal sealed class ArcadeRenderer
             return;
 
         var frame = m_data.Frames[step.Frame];
-        var point = game.Project(flame.X, flame.Z, flame.Y);
+        var point = game.ProjectView(flame.X, flame.Z, flame.Y);
         var direction = IsFlipped(flame, step) ? -1 : 1;
         var offsetX = step.Dx * flame.Facing + (frame.Ox + frame.Width / 2.0) * direction;
         var centerX = point.X + offsetX;
@@ -225,7 +249,7 @@ internal sealed class ArcadeRenderer
         var ground = game.Ground(flame.X + offsetX, flame.Z);
         if (ground is <= 3840 or >= 5248)
             return;
-        var foot = game.Project(flame.X, flame.Z, ground);
+        var foot = game.ProjectView(flame.X, flame.Z, ground);
         DrawSoftEllipse(screen, centerX, foot.Y + 1, frame.Width * 0.95, 21, 86 * intensity);
     }
 
@@ -235,7 +259,7 @@ internal sealed class ArcadeRenderer
             ? Math.Max(0, 1 - fireball.StateTicks / (double)Game.FireballImpactTicks)
             : 1;
         var step = fireball.Animation.Current;
-        var ball = game.Project(fireball.X, fireball.Z, fireball.Y);
+        var ball = game.ProjectView(fireball.X, fireball.Z, fireball.Y);
         var x = ball.X + step.Dx * fireball.Facing;
         DrawSoftEllipse(screen, x, ball.Y - 6, 23, 15, 100 * fade);
 
@@ -243,13 +267,13 @@ internal sealed class ArcadeRenderer
         if (ground is <= 3840 or >= 5248)
             return;
 
-        var foot = game.Project(fireball.X, fireball.Z, ground);
+        var foot = game.ProjectView(fireball.X, fireball.Z, ground);
         var height = Math.Max(0, ground - fireball.Y);
         DrawSoftEllipse(screen, x, foot.Y + 2, 51, 20, 120 * fade / (1 + height / 65));
     }
 
     private static (double X, double Y) ProjectMagic(Game game, int[] effect) =>
-        game.Project(game.Hero.X + effect[3], game.Hero.Z + effect[4], game.Hero.Y + effect[5]);
+        game.ProjectView(game.Hero.X + effect[3], game.Hero.Z + effect[4], game.Hero.Y + effect[5]);
 
     private void DrawMagic(PixelScreenData screen, Game game, bool effects, Rgb tint, byte effectOpacity)
     {
@@ -356,7 +380,7 @@ internal sealed class ArcadeRenderer
         {
             var puff = game.LandingDust[i];
             var ground = game.Ground(puff.X, puff.Z);
-            var point = game.Project(puff.X, puff.Z, ground is > 3840 and < 5248 ? ground : puff.Y);
+            var point = game.ProjectView(puff.X, puff.Z, ground is > 3840 and < 5248 ? ground : puff.Y);
             var centerX = Math.Clamp((int)Math.Round(point.X), 0, screen.Width - 1);
             var centerY = Math.Clamp((int)Math.Round(point.Y), 0, screen.Height - 1);
             var red = 0;
@@ -472,7 +496,7 @@ internal sealed class ArcadeRenderer
             if (ground is <= 3840 or >= 5248 || actor.Y > ground + 12)
                 continue;
 
-            var point = game.Project(actor.X, actor.Z, ground);
+            var point = game.ProjectView(actor.X, actor.Z, ground);
             var step = actor.Animation.Current;
             if (potion && (uint)step.Frame >= (uint)m_data.Frames.Length)
                 continue;
@@ -735,7 +759,7 @@ internal sealed class ArcadeRenderer
             if (ground is <= 3840 or >= 5248 || actor.Y > ground + 12)
                 continue;
 
-            var foot = game.Project(actor.X, actor.Z, ground);
+            var foot = game.ProjectView(actor.X, actor.Z, ground);
             var sprite = GetIdleSprite(actor);
             var posture = actor.State is FighterState.Sleeping or FighterState.Down or FighterState.Dying ? 0.55 : 1;
             var length = Math.Clamp(12 + distance * 1.15, 18, 58) * posture;
@@ -810,7 +834,7 @@ internal sealed class ArcadeRenderer
         var end = foreground ? EagleFeathers.Count : EagleFeathers.BackgroundCount;
         for (var i = first; i < end; i++)
         {
-            var feather = EagleFeathers.Sample(i, game.TickCount, game.CameraX);
+            var feather = EagleFeathers.Sample(i, game.TickCount, game.ViewCamera.X);
             Sprite(screen, feather.Frame, EagleFeathers.Palette, feather.X, feather.Y, feather.Flip);
         }
     }
@@ -823,7 +847,7 @@ internal sealed class ArcadeRenderer
             Fill(screen, 299, 52 + row, 7 - Math.Abs(row), 1, m_yellow);
     }
 
-    private byte Color(int red, int green, int blue) => (byte)Enumerable.Range(0, m_data.Palette.Length)
+    private byte Color(int red, int green, int blue) => (byte)Enumerable.Range(0, m_data.StaticPaletteCount)
         .OrderBy(i => Math.Pow(m_data.Palette[i].R - red, 2) + Math.Pow(m_data.Palette[i].G - green, 2) + Math.Pow(m_data.Palette[i].B - blue, 2)).First();
 
     private void DrawHud(PixelScreenData screen, Game game)

@@ -23,7 +23,7 @@ internal static class TerrainNavigator
 {
     private static readonly (int X, int Z)[] m_directions = [(1, 0), (-1, 0), (0, 1), (0, -1)];
 
-    public static GameInput Towards(Game game, Fighter actor, double targetX, double targetZ)
+    public static GameInput Towards(Game game, Fighter actor, double targetX, double targetZ, bool allowExit = false)
     {
         const int cellSize = 8;
         var canJump = !actor.IsMount && actor.Moves.Jump != 0;
@@ -51,14 +51,14 @@ internal static class TerrainNavigator
                 var next = (X: cell.X + direction.X, Z: cell.Z + direction.Z);
                 var x = next.X * cellSize + 4;
                 var z = next.Z * cellSize + 4;
-                if (x < game.Progress + 12 || x > game.Progress + 360 || z < 3976 || z > 4472)
+                if (x < game.Progress + (allowExit ? -64 : 12) || x > game.Progress + (allowExit ? 448 : 360) || z < 3976 || z > 4472)
                     continue;
                 var floor = game.Ground(x, z);
-                if (floor <= 3840 || floor >= 5248 || height - floor > (canJump ? 56 : 12))
+                if (floor <= 3840 || floor >= 5248 || height - floor > (canJump ? 56 : 12) || allowExit && floor - height > 12)
                     continue;
                 // Check the same forward clearance used by the movement collision code.
                 var edge = game.Ground(x + direction.X * 8, z);
-                if (edge <= 3840 || edge >= 5248 || height - edge > (canJump ? 56 : 12))
+                if (edge <= 3840 || edge >= 5248 || height - edge > (canJump ? 56 : 12) || allowExit && edge - height > 12)
                     continue;
                 var nextCost = cost[cell] + 8 + (height - floor > 12 ? 24 : 0);
                 if (cost.TryGetValue(next, out var oldCost) && oldCost <= nextCost)

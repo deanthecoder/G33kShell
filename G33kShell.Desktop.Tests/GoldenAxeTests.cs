@@ -30,6 +30,33 @@ namespace G33kShell.Desktop.Tests;
 public class GoldenAxeTests
 {
     [Test]
+    public void EagleSunsetChangesOnlyReservedSkyColorsAndRespectsMonochrome()
+    {
+        var data = new ArcadeData(ArcadeData.AssetDirectory, 3);
+        var original = data.Palette.Select(c => (c.R, c.G, c.B)).ToArray();
+        var game = new Game(data);
+        var renderer = new ArcadeRenderer(data);
+        var screen = new PixelScreenData(320, 224, data.Palette);
+        foreach (var progress in new[] { 5055, 5079, 5107, 5312 })
+        {
+            typeof(Game).GetProperty(nameof(Game.CameraX))!.SetValue(game, (double)(4096 - 7 - progress));
+            renderer.Draw(screen, game, effects: false);
+            var expected = EagleSky.Color(0x8cc5e6, 0xffa57b, progress);
+            var actual = screen.Palette[EagleSky.PaletteStart + 3];
+            Assert.That((actual.R, actual.G, actual.B), Is.EqualTo((expected.R, expected.G, expected.B)));
+            Assert.That(screen.Palette.Take(EagleSky.PaletteStart).Select(c => (c.R, c.G, c.B)),
+                Is.EqualTo(original.Take(EagleSky.PaletteStart)));
+        }
+        Assert.That(data.SpritePalette.SelectMany(p => p).All(p => p < EagleSky.PaletteStart), Is.True);
+        screen.SetPalette(PixelScreenData.CreateGreyscalePalette(data.Palette, Rgb.Black, Rgb.White));
+        renderer.Draw(screen, game, effects: false, tint: Rgb.White);
+        var mono = screen.Palette[EagleSky.PaletteStart + 3];
+        Assert.That(mono.R, Is.EqualTo(mono.G));
+        Assert.That(mono.G, Is.EqualTo(mono.B));
+        Assert.That(data.Palette.Select(c => (c.R, c.G, c.B)), Is.EqualTo(original));
+    }
+
+    [Test]
     public void MagicFlickerFillsOnlyBriefDropoutsAtTheSamePosition()
     {
         int[] sprite = [643, 38, 0, 40, 0, -20];

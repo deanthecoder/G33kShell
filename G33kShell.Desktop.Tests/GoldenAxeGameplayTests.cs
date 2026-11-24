@@ -59,6 +59,52 @@ public class GoldenAxeGameplayTests
     }
 
     [Test]
+    public void TurtleVillageCrowdRoutesAroundBuildingsAndLeavesTheScreen()
+    {
+        var data = m_areas[1];
+        var game = new Game(data);
+        typeof(Game).GetProperty(nameof(Game.CameraX))!.SetValue(game, 4096.0 - 7 - 4768);
+        game.Hero.X = game.Progress + 70;
+        game.Hero.Z = game.FindFloor(game.Hero.X, 4240, keepVisible: true);
+        game.Hero.Y = game.Ground(game.Hero.X, game.Hero.Z);
+        game.Tick(default);
+        game.Actors.RemoveAll(a => a != game.Hero);
+        foreach (var spawn in data.Spawns.Where(s => s.Trigger is >= 4768 and <= 4784 && s.Routine is >= 0x99c0 and <= 0x9a9a))
+            game.Spawn(spawn);
+        var crowd = game.Actors.Where(a => a.Kind == ActorKind.Villager).ToArray();
+        var initialDepths = crowd.Select(a => a.Z).ToArray();
+        Assert.That(crowd, Has.Length.GreaterThan(5));
+        for (var tick = 0; tick < 600; tick++)
+        {
+            game.Actors.RemoveAll(a => a != game.Hero && a.Kind != ActorKind.Villager);
+            var heights = crowd.Select(a => a.Y).ToArray();
+            game.Tick(default);
+            for (var i = 0; i < crowd.Length; i++)
+                Assert.That(Math.Abs(crowd[i].Y - heights[i]), Is.LessThanOrEqualTo(12), "Walk around walls instead of teleporting onto their tops.");
+        }
+        Assert.That(crowd.Where((a, i) => Math.Abs(a.Z - initialDepths[i]) > 8), Is.Not.Empty, "The crowd must detour around the building.");
+        Assert.That(crowd.All(a => a.IsGone), Is.True, "Routing must not leave the crowd stuck at the building.");
+    }
+
+    [TestCase(-1)]
+    [TestCase(1)]
+    public void InjuredVillagerDoesNotSnapBackWhenHisWalkLoops(int facing)
+    {
+        var game = new Game(m_areas[0]);
+        game.Spawn(new SpawnDefinition((int)game.Progress, (int)game.Progress + 160, (int)game.Hero.Z, 0, 0x9a9a));
+        var villager = game.Actors.Single(a => a.Kind == ActorKind.Villager);
+        villager.Facing = facing;
+        var previous = villager.X + villager.Animation.Current.Dx * facing;
+        for (var tick = 0; tick < 65; tick++)
+        {
+            game.Tick(default);
+            var displayed = villager.X + villager.Animation.Current.Dx * facing;
+            Assert.That(displayed - previous, Is.EqualTo(1.8 * facing).Within(0.001));
+            previous = displayed;
+        }
+    }
+
+    [Test]
     public void FullMagicMeterKeepsNumbersInFrontOfPotions()
     {
         var data = m_areas[0];
@@ -79,6 +125,31 @@ public class GoldenAxeGameplayTests
         Assert.That(game.Potions, Is.Zero);
         renderer.Draw(screen, game);
         Assert.That(withPotion, Is.EqualTo(screen.Pixels[overlap]));
+    }
+
+    [Test]
+    public void VisualCameraSettlesAfterStoppingWithoutAdvancingTheLevel()
+    {
+        var game = new Game(m_areas[0]);
+        for (var tick = 0; tick < 130; tick++)
+        {
+            game.Actors.RemoveAll(a => a != game.Hero);
+            game.Tick(new GameInput(X: 1));
+            Assert.That(game.ViewCamera.X, Is.InRange(Math.Floor(game.CameraX), Math.Ceiling(game.CameraX + 28)));
+        }
+        Assert.That(game.ViewCamera.X, Is.GreaterThan(game.CameraX + 2));
+        var progress = game.Progress;
+        var lag = Math.Abs(game.ViewCamera.X - game.CameraX);
+        for (var tick = 0; tick < 90; tick++)
+        {
+            game.Actors.RemoveAll(a => a != game.Hero);
+            game.Tick(default);
+            Assert.That(game.Progress, Is.EqualTo(progress));
+            var nextLag = Math.Abs(game.ViewCamera.X - game.CameraX);
+            Assert.That(nextLag, Is.LessThanOrEqualTo(lag));
+            lag = nextLag;
+        }
+        Assert.That(lag, Is.LessThanOrEqualTo(0.5));
     }
 
     [Test]

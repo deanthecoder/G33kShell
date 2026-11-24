@@ -67,6 +67,7 @@ internal sealed class ArcadeData
     public Dictionary<string, byte[]> TilePalettes { get; }
     public Dictionary<int, byte[]> PortraitPalettes { get; }
     public Rgb[] Palette { get; }
+    public int StaticPaletteCount => AreaIndex == 3 ? EagleSky.PaletteStart : 256;
     public byte White { get; }
     public byte Black { get; }
 
@@ -118,13 +119,21 @@ internal sealed class ArcadeData
         }
         var actorPalettes = new HashSet<int> { 0x13, 0x14, 0x15, 0x18, 0x1a, 0x1b, 0x77, 0x78, 0x79, 0x38, 0x3d, 0x4a, 0x4d, 0x63, 0x64, 0x65, 0x7b, 0x23, 0x43, 0x44, 0x45, 0x1c, 0x1d, 0x86, 0x87, 0x73, 0x6f, 0x70, 0x50, 0x52, 0x39, 0x7a, 0x3c, 0x7f };
         foreach (var effect in Magic.Values.SelectMany(h => h).SelectMany(l => l).SelectMany(t => t)) actorPalettes.Add(effect[1]);
+        actorPalettes.UnionWith(new[] { 0x4b, 0x4c, 0x4d, 0x4e }); // Dean-selected civilian palettes.
+        actorPalettes.Add(0x42); // Injured villager: grey clothes and red wounds, matched to Dean's MAME image.
+        if (AreaIndex == 2)
+            actorPalettes.Add(SceneryEyes.TurtlePalette);
+        if (AreaIndex == 4)
+            actorPalettes.Add(SceneryEyes.EaglePalette);
         if (AreaIndex == 3)
             actorPalettes.Add(EagleFeathers.Palette);
         foreach (var p in actorPalettes)
         for (var i = 1; i < 15; i++) Count(SpriteColors[p][i], 500);
         Count(0, 10000);
         Count(0xffffff, 10000);
-        Palette = Quantize(histogram);
+        // Keep the arcade lives color exact within the 256-color palette.
+        Palette = Quantize(histogram, StaticPaletteCount - 1);
+        Palette[StaticPaletteCount - 1] = new Rgb(255, 203, 0);
         var cache = new Dictionary<int, byte>();
         byte Map(int rgb)
         {
@@ -132,7 +141,7 @@ internal sealed class ArcadeData
                 return found;
             var best = 0;
             var distance = int.MaxValue;
-            for (var i = 0; i < Palette.Length; i++)
+            for (var i = 0; i < StaticPaletteCount; i++)
             {
                 var dr = (rgb >> 16 & 255) - Palette[i].R;
                 var dg = (rgb >> 8 & 255) - Palette[i].G;
@@ -148,6 +157,16 @@ internal sealed class ArcadeData
         }
         SpritePalette = SpriteColors.Select(p => p.Select(Map).ToArray()).ToArray();
         TilePalettes = TileColors.ToDictionary(p => p.Key, p => p.Value.Select(c => Map((int)c)).ToArray());
+        if (AreaIndex == 3)
+        {
+            for (var pen = 0; pen < 8; pen++)
+            {
+                Palette[EagleSky.PaletteStart + pen] = EagleSky.Color(EagleSky.Blue[pen], 0, 5055);
+                foreach (var key in new[] { DayPalette, BossPalette })
+                foreach (var group in new[] { 114, 115 })
+                    TilePalettes[key][group * 8 + pen] = (byte)(EagleSky.PaletteStart + pen);
+            }
+        }
         PortraitPalettes = HeroDefinition.All.ToDictionary(hero => hero.PortraitTile, hero => hero.PortraitColors.Select(Map).ToArray());
         Black = Map(0);
         White = Map(0xffffff);
@@ -227,13 +246,13 @@ internal sealed class ArcadeData
     /// Weighted median-cut palette shared by day, sunset and sprites, avoiding palette flicker.
     /// Black and white are reserved for fades and the HUD.
     /// </summary>
-    private static Rgb[] Quantize(Dictionary<int, int> histogram)
+    private static Rgb[] Quantize(Dictionary<int, int> histogram, int colorCount)
     {
         histogram.Remove(0);
         histogram.Remove(0xffffff);
         var boxes = new List<List<KeyValuePair<int, int>>> { histogram.OrderBy(p => p.Key).ToList() };
         int Channel(int rgb, int shift) => rgb >> shift & 255;
-        while (boxes.Count < 254)
+        while (boxes.Count < colorCount - 2)
         {
             var candidate = boxes.Where(b => b.Count > 1).Select(b =>
             {

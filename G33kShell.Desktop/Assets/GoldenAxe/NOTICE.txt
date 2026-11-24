@@ -18,9 +18,22 @@ The first four area files also supply the camp spawn lists and night palettes.
 The eagle area's drifting feathers use original atlas frames 1024-1041.
 Their drift timing, placement and palette selection are native approximations.
 
-The loader fills uncaptured background cells using the nearest captured tile.
+On 24 November 2026, Dean's MAME US set-6 lower-edge capture repaired 191
+previously uncaptured map cells: 4 in level2.json, 49 in level3.json, and 138 in
+level5.json. Of these, 174 reuse existing atlas patterns. The remaining 17 use
+nine original tile patterns appended as atlas IDs 8064-8072 (the final atlas row).
+Palette groups and priority bits come from the captured arcade tilemap words.
+All previous atlas pixels and previously captured map cells are unchanged.
+Reference: Brain bf201b5ac180d4cf, golden-axe-bottom-tile-handoff.zip,
+missing-cells.csv and nine-missing-atlas-tiles.png, captured 23 November 2026.
+These repairs cover five sampled scenes, not every lower edge or camera position.
+The camera paths also include the measured lower limits at Stage 5 camera X -666
+(bucket -84, minimum Y -749) and Stage 9 X -632 (bucket -79, minimum Y -736).
+Other recorded camera bounds and all height/collision data remain unchanged.
+
+The loader fills remaining uncaptured background cells using the nearest captured tile.
 This hides gaps at camera edges; it is a visual approximation, not recovered ROM
-data. Captured tiles, foreground transparency and the source JSON remain unchanged.
+data. This runtime fallback does not overwrite the recovered source JSON cells.
 
 These extracted JSON/PNG assets are bundled with the repository and copied into
 build and publish output. No upstream TypeScript source is included in the
