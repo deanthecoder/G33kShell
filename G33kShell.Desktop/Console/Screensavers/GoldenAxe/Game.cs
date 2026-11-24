@@ -25,6 +25,11 @@ internal sealed class Game
     internal const int FireballImpactTicks = 14;
     internal const int LandingDustTicks = 150;
     internal const int PickupFadeTicks = 15;
+    internal const int BrotherDoorPalette = 0x68;
+    internal const int BrotherDoorAjarFrame = 770;
+    internal const int BrotherDoorOpenFrame = 771;
+    internal const int BrotherDoorOpeningTicks = 8;
+    internal const int BrotherDoorClosingTick = 32;
     private const double JumpVelocity = -5.75;
     private const double RunningJumpVelocity = -7.875;
     private const int KnockdownTicks = 36;
@@ -48,6 +53,7 @@ internal sealed class Game
     private int m_magicPeak;
     private int m_pendingHero = -1;
     private int? m_surfStartTick;
+    private readonly Queue<(SpawnDefinition Spawn, int Tick)> m_brotherEntrances = new();
     public HeroDefinition Character { get; private set; }
     public int[][][][] MagicEffects => m_data.Magic[Character.MagicKey];
     public List<Fighter> Actors { get; } = [];
@@ -85,7 +91,7 @@ internal sealed class Game
     public int[][][] ActiveMagicEffects { get; private set; } = [];
     private bool FinalWaveSpawned => m_stopIndex == m_data.Stops.Length - 1 && m_spawnIndex == m_data.Spawns.Length;
     public bool CanAdvance => !IsCamp && !Complete && !GameOver && Hero.Health > 0 && !FinalWaveSpawned && Progress < m_data.Stops[m_stopIndex] &&
-        !Actors.Any(a => a.IsEnemy && !a.IsGone);
+        m_brotherEntrances.Count == 0 && !Actors.Any(a => a.IsEnemy && !a.IsGone);
     public bool Boss => Progress >= m_data.Stops[^1];
 
     public Game(ArcadeData data, int character = 0, Random random = null, bool startInCamp = false)
@@ -131,6 +137,7 @@ internal sealed class Game
         m_magicTargets.Clear();
         m_stoneBodies.Clear();
         m_openedSkeletonMounds.Clear();
+        m_brotherEntrances.Clear();
         var range = CameraRange();
         CameraY = Math.Clamp(150 - (Project(Hero.X, Hero.Z, Hero.Y).Y - CameraY), range[0], range[1]);
         ViewCamera.Reset(CameraX, CameraY);
@@ -230,7 +237,7 @@ internal sealed class Game
                     if (point.X is >= 0 and < ArcadeData.Width && point.Y is >= 0 and <= ArcadeData.Height)
                         Hit(Hero, thief, 0, false);
                 }
-                foreach (var enemy in Actors.Where(a => a.IsEnemy && a.State != FighterState.Emerging && a.Health > 0 && a.HeldBy == null && Project(a.X, a.Z, a.Y).X is >= -20 and <= 340).ToArray())
+                foreach (var enemy in Actors.Where(a => a.IsEnemy && a.State is not (FighterState.Emerging or FighterState.Entering) && a.Health > 0 && a.HeldBy == null && Project(a.X, a.Z, a.Y).X is >= -20 and <= 340).ToArray())
                 {
                     Hit(Hero, enemy, new[] { 0, 4, 8, 16, 24, 32, 48 }[MagicLevel], true);
                     // Grounded victims crumple after the spell; airborne victims still fall naturally.
@@ -264,6 +271,11 @@ internal sealed class Game
         }
         while (!IsCamp && m_spawnIndex < m_data.Spawns.Length && m_data.Spawns[m_spawnIndex].Trigger <= Progress)
             Spawn(m_data.Spawns[m_spawnIndex++]);
+        while (m_brotherEntrances.TryPeek(out var brother) && TickCount >= brother.Tick)
+        {
+            m_brotherEntrances.Dequeue();
+            EnterBadBrother(brother.Spawn);
+        }
         if (!IsCamp && AreaIndex == 0 && m_stopIndex == 0 && !Actors.Any(a => a.IsEnemy && !a.IsGone && a.State != FighterState.Sleeping))
         {
             foreach (var enemy in Actors.Where(a => a.IsEnemy && a.State == FighterState.Sleeping))
@@ -354,7 +366,7 @@ internal sealed class Game
             ? CameraY + Math.Max(0, 64 - Project(body.X, body.Z, body.Y).Y)
             : 150 - (z - Math.Floor(z / 4) + Math.Min(body.Y, floor) - 4096);
         CameraY += Math.Clamp(Math.Clamp(desiredY, cameraRange[0], cameraRange[1]) - CameraY, -2, 2);
-        var enemies = Actors.Any(a => a.IsEnemy && !a.IsGone);
+        var enemies = m_brotherEntrances.Count != 0 || Actors.Any(a => a.IsEnemy && !a.IsGone);
         if (!enemies && (Progress >= stop || FinalWaveSpawned))
         {
             if (++m_clearTicks > 30)
@@ -404,7 +416,11 @@ internal sealed class Game
             case 0x1c846: Add(ActorKind.Longmoan, Moves.Longmoan, 0x79, 16, spawn.X, spawn.Z); break;
             case 0x1c868: Add(ActorKind.Longmoan, Moves.Longmoan, 0x78, 16, spawn.X, spawn.Z); break;
             case 0x1dc3e: SpawnForestReinforcement(spawn, ActorKind.Longmoan, Moves.FastLongmoan, 0x77); break;
-            case 0x282ec: case 0x282d4: Add(ActorKind.BadBrother, Moves.Brother, 0x38, 32, spawn.X, spawn.Z); break;
+            case 0x282ec:
+                // The two Stage 5 records share a trigger and doorway, but carry separate delays.
+                m_brotherEntrances.Enqueue((spawn, TickCount + spawn.Parameter));
+                break;
+            case 0x282d4: Add(ActorKind.BadBrother, Moves.Brother, 0x38, 32, spawn.X, spawn.Z); break;
             case 0x2c264: case 0x2c276: case 0x2b10c: SpawnMount(ActorKind.Chicken, spawn); break;
             case 0x17c7c: case 0x17d00: case 0x17d0e: case 0x17d24:
                 var food = spawn.Routine == 0x17d00;
@@ -437,6 +453,12 @@ internal sealed class Game
                 });
                 break;
         }
+    }
+
+    private void EnterBadBrother(SpawnDefinition spawn)
+    {
+        var brother = Add(ActorKind.BadBrother, Moves.Brother, 0x38, 32, spawn.X, spawn.Z);
+        brother.SetState(FighterState.Entering, 0x2915a, attack: true);
     }
 
     private void SpawnSkeletonMound(SpawnDefinition spawn)
@@ -707,6 +729,18 @@ internal sealed class Game
         }
         switch (actor.State)
         {
+            case FighterState.Entering:
+                if (actor.StateTicks >= BrotherDoorClosingTick)
+                {
+                    actor.Animation.Play(actor.Moves.Walk);
+                    actor.Animation.Tick();
+                    Move(actor, -0.5, 0.5);
+                    if (actor.StateTicks >= BrotherDoorClosingTick + 32)
+                        actor.SetState(FighterState.Idle, actor.Moves.Idle);
+                }
+                else if (actor.StateTicks > BrotherDoorOpeningTicks)
+                    actor.Animation.Tick();
+                return;
             case FighterState.Emerging:
                 if (actor.StateTicks is 8 or 24)
                     AddLandingDust(actor, heavy: true);
@@ -1042,7 +1076,7 @@ internal sealed class Game
 
         m_potionPickups.Clear();
         m_magicTargets.Clear();
-        m_magicTargets.AddRange(Actors.Where(a => a.IsEnemy && a.State != FighterState.Emerging && a.Health > 0 &&
+        m_magicTargets.AddRange(Actors.Where(a => a.IsEnemy && a.State is not (FighterState.Emerging or FighterState.Entering) && a.Health > 0 &&
             a.HeldBy == null && ProjectView(a.X, a.Z, a.Y) is { X: >= -20 and <= 340, Y: >= 0 and <= 224 }));
         MagicLevel = Character.GetMagicLevel(Potions);
         // The export indexes recordings by the potion count fed to the arcade.

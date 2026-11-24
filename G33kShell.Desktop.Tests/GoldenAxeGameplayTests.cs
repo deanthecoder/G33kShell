@@ -1953,6 +1953,50 @@ public class GoldenAxeGameplayTests
     }
 
     [Test]
+    public void StageFiveBadBrothersEnterOneAtATimeAndHoldTheScrollStop()
+    {
+        var game = new Game(m_areas[2]);
+        AdvanceTo(game, 4910);
+        game.Hero.X = game.Progress + 180;
+        game.Hero.Z = 4192;
+        game.Hero.Y = game.Ground(game.Hero.X, game.Hero.Z);
+        game.Tick(default);
+        var waveTick = game.TickCount;
+        const int firstDelay = 64, secondDelay = 512;
+        while (game.TickCount < waveTick + firstDelay)
+        {
+            Assert.That(game.CanAdvance, Is.False);
+            Assert.That(game.Progress, Is.EqualTo(4910));
+            Assert.That(game.Actors.Any(a => a.Kind == ActorKind.BadBrother), Is.False);
+            game.Tick(default);
+        }
+        var first = game.Actors.Single(a => a.Kind == ActorKind.BadBrother);
+        Assert.That(first.State, Is.EqualTo(FighterState.Entering));
+        Assert.That(first.Vulnerable, Is.False);
+
+        for (var tick = 0; tick < 65; tick++)
+            game.Tick(default);
+        Assert.That(first.State, Is.Not.EqualTo(FighterState.Entering));
+        Assert.That(first.X, Is.LessThan(5136));
+        Assert.That(first.Z, Is.GreaterThan(4168));
+
+        // Defeating the first brother early must not unlock the scroll stop.
+        first.SetState(FighterState.Gone);
+        game.Hero.X = game.Progress + 180;
+        while (game.TickCount < waveTick + secondDelay - 1)
+        {
+            game.Tick(default);
+            Assert.That(game.CanAdvance, Is.False);
+            Assert.That(game.Progress, Is.EqualTo(4910));
+        }
+        Assert.That(game.Actors.Any(a => a.Kind == ActorKind.BadBrother), Is.False);
+        game.Tick(default);
+        var second = game.Actors.Single(a => a.Kind == ActorKind.BadBrother);
+        Assert.That(second.State, Is.EqualTo(FighterState.Entering));
+        Assert.That(second.X, Is.EqualTo(5136));
+    }
+
+    [Test]
     public void FirstAreaClearsAfterTheTwoBadBrothersWithoutFurtherScrolling()
     {
         var data = m_areas[0];

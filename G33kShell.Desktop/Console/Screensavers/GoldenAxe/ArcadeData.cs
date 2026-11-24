@@ -133,7 +133,10 @@ internal sealed class ArcadeData
         actorPalettes.Add(0x97); // MAME-confirmed warm stone for fallen humanoids.
         actorPalettes.Add(0x72); // MAME-confirmed ochre bone for fallen skeletons.
         if (AreaIndex == 2)
+        {
             actorPalettes.Add(SceneryEyes.TurtlePalette);
+            actorPalettes.Add(Game.BrotherDoorPalette);
+        }
         if (AreaIndex == 4)
             actorPalettes.Add(SceneryEyes.EaglePalette);
         if (AreaIndex == 3)

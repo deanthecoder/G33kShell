@@ -136,6 +136,15 @@ internal sealed class ArcadeRenderer
             if (actor.Mount != null || actor.State == FighterState.Gone && actor.PickupTick < 0 || actor.State == FighterState.Respawning ||
                 actor.State == FighterState.Dying && game.TickCount % 4 < 2)
                 continue;
+            if (actor.State == FighterState.Entering && actor.StateTicks < Game.BrotherDoorClosingTick)
+            {
+                var door = game.ProjectView(actor.X - 1, actor.Z, actor.Y);
+                var open = actor.StateTicks is >= Game.BrotherDoorOpeningTicks and < 24;
+                Sprite(screen, open ? Game.BrotherDoorOpenFrame : Game.BrotherDoorAjarFrame,
+                    Game.BrotherDoorPalette, door.X, door.Y + (open ? 2 : -3), false);
+                if (actor.StateTicks < Game.BrotherDoorOpeningTicks)
+                    continue;
+            }
             if (actor.State == FighterState.Emerging)
             {
                 var ground = game.ProjectView(actor.X, actor.Z, actor.Y);
@@ -679,6 +688,7 @@ internal sealed class ArcadeRenderer
         {
             var potion = actor.Kind is ActorKind.Potion or ActorKind.CampPotion or ActorKind.Food;
             if (actor.Mount != null || actor.State == FighterState.Gone && actor.PickupTick < 0 || actor.State == FighterState.Respawning ||
+                actor.State == FighterState.Entering && actor.StateTicks < Game.BrotherDoorOpeningTicks ||
                 (!potion && !IsCharacter(actor)))
                 continue;
 

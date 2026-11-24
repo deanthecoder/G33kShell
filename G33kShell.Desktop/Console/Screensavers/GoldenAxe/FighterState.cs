@@ -15,6 +15,7 @@ internal enum FighterState
     Idle,
     Sleeping,
     Emerging,
+    Entering,
     Walking,
     Attacking,
     Hurt,
