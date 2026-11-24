@@ -30,6 +30,7 @@ internal sealed class Fighter
     public int UnmountedTicks, EscapeDirection, EscapeBlockedTicks;
     public int KnockdownVariation;
     public int FlankSide;
+    public int NextChuckleAge = -1;
     public int PetrifiedTick;
     public int PickupTick = -1;
     public Fighter Mount, Rider, Victim, HeldBy, Owner, PendingMount;

@@ -1976,7 +1976,7 @@ public class GoldenAxeGameplayTests
 
         for (var tick = 0; tick < 65; tick++)
             game.Tick(default);
-        Assert.That(first.State, Is.Not.EqualTo(FighterState.Entering));
+        Assert.That(first.State, Is.EqualTo(FighterState.Chuckling));
         Assert.That(first.X, Is.LessThan(5136));
         Assert.That(first.Z, Is.GreaterThan(4168));
 
@@ -1994,6 +1994,37 @@ public class GoldenAxeGameplayTests
         var second = game.Actors.Single(a => a.Kind == ActorKind.BadBrother);
         Assert.That(second.State, Is.EqualTo(FighterState.Entering));
         Assert.That(second.X, Is.EqualTo(5136));
+    }
+
+    [Test]
+    public void BadBrotherChuckleHoldsPositionAndCanRecurDuringCombat()
+    {
+        var game = new Game(m_areas[0]);
+        var hero = game.Hero;
+        hero.Z = 4224;
+        hero.Y = game.Ground(hero.X, hero.Z);
+        game.Spawn(new SpawnDefinition((int)game.Progress, (int)hero.X + 80, (int)hero.Z, 0, 0x282d4));
+        var brother = game.Actors.Single(a => a.Kind == ActorKind.BadBrother);
+        var start = (brother.X, brother.Z);
+        var frames = new HashSet<int>();
+        for (var tick = 0; tick < 100; tick++)
+        {
+            game.Tick(default);
+            Assert.That(brother.State, Is.EqualTo(FighterState.Chuckling));
+            Assert.That((brother.X, brother.Z), Is.EqualTo(start));
+            Assert.That(brother.Vulnerable, Is.True);
+            frames.Add(brother.Animation.Current.Frame);
+        }
+        Assert.That(frames, Is.EquivalentTo(new[] { 270, 271 }));
+
+        game.Tick(default);
+        game.Tick(default);
+        Assert.That(brother.State, Is.EqualTo(FighterState.Walking));
+        Assert.That(brother.X, Is.LessThan(start.X));
+
+        brother.Age = brother.NextChuckleAge - 1;
+        game.Tick(default);
+        Assert.That(brother.State, Is.EqualTo(FighterState.Chuckling));
     }
 
     [TestCase((int)ActorKind.BadBrother, (int)ActorKind.BadBrother)]

@@ -30,6 +30,7 @@ internal sealed class Game
     internal const int BrotherDoorOpenFrame = 771;
     internal const int BrotherDoorOpeningTicks = 8;
     internal const int BrotherDoorClosingTick = 32;
+    private const int BrotherChuckleTicks = 100;
     private const double JumpVelocity = -5.75;
     private const double RunningJumpVelocity = -7.875;
     private const int KnockdownTicks = 36;
@@ -400,7 +401,7 @@ internal sealed class Game
                     Add(ActorKind.Skeleton, Moves.Skeleton, 0x70, 16, spawn.X, spawn.Z);
                 break;
             case 0x2a338: Add(ActorKind.Knight, Moves.Knight, 0x87, 32, spawn.X, spawn.Z); break;
-            case 0x29364: Add(ActorKind.BadBrother, Moves.Brother, 0x39, 32, spawn.X, spawn.Z); break;
+            case 0x29364: AddBadBrother(spawn, 0x39); break;
             case 0x1a0a8: Add(ActorKind.Heninger, Moves.Heninger, 0x1a, 16, spawn.X, spawn.Z); break;
             case 0x1f016: Add(ActorKind.Longmoan, Moves.FastLongmoan, 0x7b, 16, spawn.X, spawn.Z); break;
             case 0x21854: Add(ActorKind.Amazon, Moves.Amazon, 0x63, 16, spawn.X, spawn.Z); break;
@@ -420,7 +421,7 @@ internal sealed class Game
                 // The two Stage 5 records share a trigger and doorway, but carry separate delays.
                 m_brotherEntrances.Enqueue((spawn, TickCount + spawn.Parameter));
                 break;
-            case 0x282d4: Add(ActorKind.BadBrother, Moves.Brother, 0x38, 32, spawn.X, spawn.Z); break;
+            case 0x282d4: AddBadBrother(spawn, 0x38); break;
             case 0x2c264: case 0x2c276: case 0x2b10c: SpawnMount(ActorKind.Chicken, spawn); break;
             case 0x17c7c: case 0x17d00: case 0x17d0e: case 0x17d24:
                 var food = spawn.Routine == 0x17d00;
@@ -457,8 +458,15 @@ internal sealed class Game
 
     private void EnterBadBrother(SpawnDefinition spawn)
     {
-        var brother = Add(ActorKind.BadBrother, Moves.Brother, 0x38, 32, spawn.X, spawn.Z);
+        var brother = AddBadBrother(spawn, 0x38);
         brother.SetState(FighterState.Entering, 0x2915a, attack: true);
+    }
+
+    private Fighter AddBadBrother(SpawnDefinition spawn, int palette)
+    {
+        var brother = Add(ActorKind.BadBrother, Moves.Brother, palette, 32, spawn.X, spawn.Z);
+        brother.NextChuckleAge = 0;
+        return brother;
     }
 
     private void SpawnSkeletonMound(SpawnDefinition spawn)
@@ -622,6 +630,8 @@ internal sealed class Game
         }
         var dx = target.X - actor.X;
         var dz = target.Z - actor.Z;
+        if (TryStartBrotherChuckle(actor, target, dx, dz))
+            return default;
         if (actor.IsHeavyEnemy && actor.IsFree && Hero.Health > 0 && HeavyEnemyFlank(actor, target) is { } flank)
             return flank;
         if (actor.IsFree)
@@ -636,6 +646,27 @@ internal sealed class Game
             Math.Abs(dx) < reach + 6 && Math.Abs(dz) < 6 && HasAttackWindow(actor, target);
         return new GameInput(Math.Abs(dx) > reach ? Math.Sign(dx) : 0, Math.Abs(dz) > 2 ? Math.Sign(dz) : 0,
             attack);
+    }
+
+    private bool TryStartBrotherChuckle(Fighter actor, Fighter target, double dx, double dz)
+    {
+        if (actor.NextChuckleAge < 0 || actor.Age < actor.NextChuckleAge || !actor.IsFree ||
+            actor.FlankSide != 0 || Hero.Health <= 0 || Math.Abs(target.Y - actor.Y) > 12 ||
+            Project(actor.X, actor.Z, actor.Y) is not { X: >= 20 and <= 300, Y: >= 64 and <= 220 })
+            return false;
+
+        // Start with the standing laugh. Later pauses depend on spacing and alternate between brothers.
+        if (actor.NextChuckleAge != 0 &&
+            (Math.Abs(dx) > 104 || Math.Abs(dz) > 32 ||
+             actor.Cooldown == 0 && Math.Abs(dx) < 44 && Math.Abs(dz) < 6 ||
+             Actors.Any(other => other.State == FighterState.Chuckling)))
+            return false;
+
+        actor.Facing = dx < 0 ? -1 : 1;
+        actor.Vx = 0;
+        actor.NextChuckleAge = actor.Age + BrotherChuckleTicks + 300 + actor.Id % 4 * 36;
+        actor.SetState(FighterState.Chuckling, actor.Moves.Idle);
+        return true;
     }
 
     private GameInput? HeavyEnemyFlank(Fighter actor, Fighter target)
@@ -802,6 +833,11 @@ internal sealed class Game
         }
         switch (actor.State)
         {
+            case FighterState.Chuckling:
+                actor.Animation.Tick();
+                if (actor.StateTicks >= BrotherChuckleTicks)
+                    actor.SetState(FighterState.Idle, actor.Moves.Idle);
+                return;
             case FighterState.Entering:
                 if (actor.StateTicks >= BrotherDoorClosingTick)
                 {
