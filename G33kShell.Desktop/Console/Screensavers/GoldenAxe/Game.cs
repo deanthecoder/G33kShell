@@ -859,7 +859,21 @@ internal sealed class Game
                 }
                 actor.Y += actor.Vy;
                 actor.Vy += 0.25;
-                actor.Y = Math.Min(actor.Y, Ground(actor.X, actor.Z));
+                var dashFloor = Ground(actor.X, actor.Z);
+                if (actor == Hero && dashFloor >= 5248)
+                {
+                    if (FellIntoPit(actor))
+                        return;
+                    if (actor.StateTicks >= 18)
+                    {
+                        actor.Vx = 0;
+                        actor.SetState(FighterState.Falling, actor.Moves.Jump);
+                        actor.Animation.Seek(2);
+                        return;
+                    }
+                }
+                else
+                    actor.Y = Math.Min(actor.Y, dashFloor);
                 if (actor.StateTicks < 18)
                     ResolveAttack(actor);
                 if (actor.StateTicks >= 34)
@@ -1217,7 +1231,8 @@ internal sealed class Game
 
     private void Move(Fighter actor, double dx, double dz)
     {
-        var airborne = actor.State is FighterState.Jumping or FighterState.Falling;
+        var airborne = actor.State is FighterState.Jumping or FighterState.Falling ||
+            actor == Hero && actor.State == FighterState.Dashing;
         var canEnterPit = airborne || !IsCamp && actor.IsFree && (actor == Hero || actor.Rider == Hero);
         var next = Ground(actor.X + dx + Math.Sign(dx) * 8, actor.Z);
         if (next >= actor.Y - 12 && (next < 5248 || canEnterPit))

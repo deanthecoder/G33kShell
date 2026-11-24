@@ -685,6 +685,48 @@ public class GoldenAxeGameplayTests
         Assert.That(game.GameOver, Is.False);
     }
 
+    [TestCase(1, 4778, 4840)]
+    [TestCase(-1, 4862, 4799)]
+    public void ShoulderBargeCrossesTheStageFiveBridge(int direction, int start, int farBank)
+    {
+        var game = new Game(m_areas[2], 1);
+        AdvanceTo(game, 4625);
+        var hero = game.Hero;
+        hero.X = start;
+        hero.Z = 4184;
+        hero.Y = game.Ground(hero.X, hero.Z);
+        for (var tick = 0; tick < 6; tick++)
+            game.Tick(new GameInput(X: direction, Run: true));
+        game.Tick(new GameInput(X: direction, Run: true, Attack: true));
+        Assert.That(hero.State, Is.EqualTo(FighterState.Dashing));
+        for (var tick = 0; tick < 40; tick++)
+            game.Tick(default);
+
+        Assert.That((hero.X - farBank) * direction, Is.GreaterThanOrEqualTo(0));
+        Assert.That(hero.Y, Is.EqualTo(game.Ground(hero.X, hero.Z)));
+        Assert.That(game.Lives, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void ShoulderBargeThatFallsShortOfTheStageFiveBridgeCostsALife()
+    {
+        var game = new Game(m_areas[2], 1);
+        AdvanceTo(game, 4610);
+        var hero = game.Hero;
+        hero.X = 4730;
+        hero.Z = 4184;
+        hero.Y = game.Ground(hero.X, hero.Z);
+        for (var tick = 0; tick < 6; tick++)
+            game.Tick(new GameInput(X: 1, Run: true));
+        game.Tick(new GameInput(X: 1, Run: true, Attack: true));
+        Assert.That(hero.State, Is.EqualTo(FighterState.Dashing));
+        for (var tick = 0; tick < 240 && game.Lives == 2; tick++)
+            game.Tick(default);
+
+        Assert.That(game.Lives, Is.EqualTo(1));
+        Assert.That(game.Ground(hero.X, hero.Z), Is.LessThan(5248));
+    }
+
     [TestCase(false)]
     [TestCase(true)]
     public void WalkingOffLedgeFallsOverSeveralTicksAndLands(bool mounted)
