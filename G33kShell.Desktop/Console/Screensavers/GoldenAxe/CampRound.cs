@@ -47,7 +47,8 @@ internal sealed class CampRound
         hero.Z = game.FindFloor(hero.X, spot.Z - 24, keepVisible: true);
         DepthOffset = (int)hero.Z - spot.Z;
         hero.Y = game.Ground(hero.X, hero.Z);
-        hero.SetState(FighterState.Sleeping, game.Character.Sleep);
+        hero.SetState(FighterState.Sleeping);
+        hero.Animation.HoldFrame(game.Character.SleepFrame);
         var fireX = hero.X + 24;
         var fire = game.Add(ActorKind.Campfire, Moves.Thief, 0x45, 1, fireX, game.FindFloor(fireX, hero.Z + 2));
         fire.Animation.Play(0x18aa6);

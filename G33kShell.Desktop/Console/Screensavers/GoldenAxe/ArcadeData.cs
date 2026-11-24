@@ -121,6 +121,9 @@ internal sealed class ArcadeData
         foreach (var effect in Magic.Values.SelectMany(h => h).SelectMany(l => l).SelectMany(t => t)) actorPalettes.Add(effect[1]);
         actorPalettes.UnionWith(new[] { 0x4b, 0x4c, 0x4d, 0x4e }); // Dean-selected civilian palettes.
         actorPalettes.Add(0x42); // Injured villager: grey clothes and red wounds, matched to Dean's MAME image.
+        actorPalettes.Add(SkeletonEmergence.GroundPalette);
+        actorPalettes.Add(0x97); // MAME-confirmed warm stone for fallen humanoids.
+        actorPalettes.Add(0x72); // MAME-confirmed ochre bone for fallen skeletons.
         if (AreaIndex == 2)
             actorPalettes.Add(SceneryEyes.TurtlePalette);
         if (AreaIndex == 4)

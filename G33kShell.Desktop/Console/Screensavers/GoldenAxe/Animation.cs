@@ -57,6 +57,14 @@ internal sealed class Animation
 
     public void Seek(int index) => SelectFrame(index, Current);
 
+    public void HoldFrame(int frame)
+    {
+        var previous = Current;
+        Address = 0;
+        Steps = [new AnimationStep(frame, 255, 1, 0, 0, [0, 0, 0, 0])];
+        SelectFrame(0, previous);
+    }
+
     private void SelectFrame(int index, AnimationStep previous)
     {
         Index = Math.Clamp(index, 0, Steps.Length - 1);

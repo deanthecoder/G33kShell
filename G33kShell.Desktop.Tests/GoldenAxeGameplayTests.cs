@@ -321,6 +321,25 @@ public class GoldenAxeGameplayTests
     }
 
     [Test]
+    public void AutoplayWalksThroughClearSceneryAndWaitsForUnavailableTargets()
+    {
+        var game = new Game(m_areas[0]);
+        var controller = new CodedController();
+        for (var tick = 0; tick < 180; tick++)
+        {
+            game.Actors.RemoveAll(a => a != game.Hero);
+            var input = controller.Read(game);
+            Assert.That(input.Run, Is.False, "Ordinary stage advancement should be a walk.");
+            game.Tick(input);
+        }
+        game.Actors.RemoveAll(a => a != game.Hero);
+        var enemy = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, game.Hero.X + 90, game.Hero.Z);
+        enemy.Invulnerable = 60;
+        Assert.That(game.CanAdvance, Is.False);
+        Assert.That(controller.Read(game), Is.EqualTo(default(GameInput)), "Wait for the fight instead of running to the screen edge.");
+    }
+
+    [Test]
     public void AutoplaySidestepsAnEnemyBarge()
     {
         var game = new Game(m_areas[0], 2);
@@ -879,6 +898,41 @@ public class GoldenAxeGameplayTests
     }
 
     [Test]
+    public void RiddenBeastsRunAndBargeWithoutLosingTheirRider(
+        [Range(0, 2)] int character, [Range(0, 2)] int mount)
+    {
+        var data = m_areas[0];
+        var game = new Game(data, character, new Random(0));
+        var hero = game.Hero;
+        var kind = new[] { ActorKind.Chicken, ActorKind.BlueDragon, ActorKind.RedDragon }[mount];
+        var beast = game.Add(kind, game.Character.RidingMoves(kind), 0x23, 99, hero.X, hero.Z);
+        beast.Rider = hero;
+        hero.Mount = beast;
+        var startX = beast.X;
+        for (var tick = 0; tick < 20; tick++)
+            game.Tick(new GameInput(X: 1, Run: true));
+        Assert.That(beast.X - startX, Is.GreaterThan(60));
+        Assert.That(beast.Animation.Address, Is.EqualTo(beast.Moves.Run));
+        Assert.That(data.Riders.ContainsKey(beast.Moves.Run), Is.True);
+        Assert.That(game.LandingDust.Any(p => p.Running), Is.True);
+
+        var enemies = new[] { 36, 56 }.Select(offset =>
+            game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 99, beast.X + offset, beast.Z)).ToArray();
+        foreach (var enemy in enemies)
+            enemy.Cooldown = 10000;
+        game.Tick(new GameInput(X: 1, Run: true, Attack: true));
+        Assert.That(beast.State, Is.EqualTo(FighterState.Dashing));
+        for (var tick = 0; tick < 35; tick++)
+            game.Tick(default);
+        Assert.That(enemies.Select(a => a.Health), Is.EqualTo(new[] { 95, 95 }), "Each target takes one body impact.");
+        Assert.That(beast.Rider, Is.SameAs(hero));
+        Assert.That(hero.Mount, Is.SameAs(beast));
+        Assert.That((hero.X, hero.Z, hero.Y), Is.EqualTo((beast.X, beast.Z, beast.Y)));
+        Assert.That(beast.State, Is.EqualTo(FighterState.Idle));
+        Assert.That(game.Actors.Any(a => a.Kind is ActorKind.Fireball or ActorKind.Flame), Is.False);
+    }
+
+    [Test]
     public void MountedJumpUsesBothAirbornePosesAndKeepsTheRider(
         [Range(0, 2)] int character, [Range(0, 2)] int mount)
     {
@@ -1284,6 +1338,104 @@ public class GoldenAxeGameplayTests
             new ArcadeRenderer(data).Draw(screen, game);
             Assert.That(screen.Pixels.Count(p => screen.Palette[p] != Rgb.Black), Is.GreaterThan(1000));
         }
+    }
+
+    [TestCase(1, 0x2536e)]
+    [TestCase(4, 0x2538a)]
+    [TestCase(4, 0x25352)]
+    [TestCase(3, 0x23bda)]
+    public void SkeletonDoesNotEmergeAwayFromAuthoredMudMounds(int area, int routine)
+    {
+        var game = new Game(m_areas[area]);
+        game.Spawn(new SpawnDefinition((int)game.Progress, (int)game.Hero.X, (int)game.Hero.Z, 0, routine));
+        var skeleton = game.Actors.Single(a => a.Kind == ActorKind.Skeleton);
+        Assert.That(skeleton.State, Is.EqualTo(FighterState.Idle));
+        Assert.That(skeleton.Vulnerable, Is.True);
+    }
+
+    [TestCase(0, 65)]
+    [TestCase(1, 359)]
+    [TestCase(2, 934)]
+    public void KnockedDownHeroesLieFlatThenSitUpAndStand(int character, int flatFrame)
+    {
+        var game = new Game(m_areas[0], character);
+        var hero = game.Hero;
+        hero.Invulnerable = 10000;
+        hero.SetState(FighterState.Flying, hero.Moves.Fly);
+        hero.Y -= 1;
+        hero.Vy = 1;
+        game.Tick(default);
+        Assert.That(hero.State, Is.EqualTo(FighterState.Down));
+        for (var tick = 0; tick < 36; tick++)
+        {
+            Assert.That(hero.Animation.Current.Frame, Is.EqualTo(flatFrame), "Hold the original flat-on-back artwork on the floor.");
+            game.Tick(default);
+        }
+        Assert.That(hero.State, Is.EqualTo(FighterState.GettingUp));
+        for (var tick = 0; tick < 24; tick++)
+        {
+            Assert.That(hero.Animation.Current.Frame, Is.Not.EqualTo(flatFrame), "Recovery must not loop back into the lying pose.");
+            game.Tick(default);
+        }
+        Assert.That(hero.State, Is.EqualTo(FighterState.Idle));
+        Assert.That(hero.Animation.Address, Is.EqualTo(hero.Moves.Idle));
+    }
+
+    [Test]
+    public void SkeletonEmergesBeforeEnteringCombat()
+    {
+        var data = m_areas[3];
+        var game = new Game(data);
+        var mound = data.Spawns.First(s => s.Routine == 0x23bda);
+        AdvanceTo(game, mound.Trigger);
+        Assert.That(game.SkeletonMounds, Does.Contain(mound), "Show the undisturbed mound before its spawn triggers.");
+        game.Hero.X = game.Progress + 60;
+        game.Tick(default);
+        Assert.That(game.SkeletonMounds, Does.Not.Contain(mound), "The active entrance replaces the undisturbed mound.");
+        var skeleton = game.Actors.Single(a => a.Kind == ActorKind.Skeleton);
+        var origin = (skeleton.X, skeleton.Z, skeleton.Y);
+        var renderer = new ArcadeRenderer(data);
+        var screen = new PixelScreenData(320, 224, data.Palette);
+        using var contactSheet = new SKBitmap(1280, 448);
+        var sample = 0;
+        game.Hero.X -= 48;
+        game.Hero.Invulnerable = 10000;
+        for (var tick = 1; tick <= 48; tick++)
+        {
+            if (tick < 48)
+            {
+                Assert.That(skeleton.State, Is.EqualTo(FighterState.Emerging));
+                Assert.That(skeleton.Vulnerable, Is.False);
+                Assert.That((skeleton.X, skeleton.Z, skeleton.Y), Is.EqualTo(origin));
+                var expectedFrames = new[] { 846, 847, 848, 849, 850, 780 };
+                Assert.That(skeleton.Animation.Current.Frame, Is.EqualTo(expectedFrames[tick / 8]));
+                Assert.That(SkeletonEmergence.GroundFrame(tick), Is.EqualTo(853 + Math.Min(4, tick / 8)));
+            }
+            if (tick is 1 or 8 or 16 or 24 or 32 or 40 or 47 or 48)
+            {
+                renderer.Draw(screen, game);
+                var pixels = new int[320 * 224];
+                screen.CopyToBgra(pixels);
+                for (var y = 0; y < 224; y++)
+                for (var x = 0; x < 320; x++)
+                    contactSheet.SetPixel(sample % 4 * 320 + x, sample / 4 * 224 + y, new SKColor((uint)pixels[y * 320 + x]));
+                sample++;
+            }
+            if (tick < 48)
+                game.Tick(default);
+        }
+        Assert.That(skeleton.State, Is.EqualTo(FighterState.Idle));
+        Assert.That(skeleton.Vulnerable, Is.True);
+        Assert.That(skeleton.Animation.Address, Is.EqualTo(Moves.Skeleton.Idle));
+        Assert.That(skeleton.Palette, Is.EqualTo(0x6f));
+        Assert.That(game.OpenedSkeletonMounds, Does.Contain(mound));
+        Assert.That(game.LandingDust.Count(p => p.Heavy && p.X == skeleton.X), Is.EqualTo(2));
+        game.Actors.Remove(skeleton);
+        Assert.That(game.OpenedSkeletonMounds, Does.Contain(mound), "The opened ground outlives the skeleton.");
+        using var image = SKImage.FromBitmap(contactSheet);
+        using var encoded = image.Encode(SKEncodedImageFormat.Png, 100);
+        using var file = File.Create(Path.Combine(TestContext.CurrentContext.WorkDirectory, "goldenaxe-skeleton-emergence.png"));
+        encoded.SaveTo(file);
     }
 
     [TestCase(false)]

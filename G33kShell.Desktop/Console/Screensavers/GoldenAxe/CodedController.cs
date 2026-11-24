@@ -68,7 +68,7 @@ internal sealed class CodedController
             .ThenBy(a => Math.Abs(a.X - hero.X) + Math.Abs(a.Z - hero.Z) * 3).FirstOrDefault();
         if (game.IsCamp && needsFood && target?.FoodThief == true && item?.Kind == ActorKind.Potion)
             item = null;
-        if (target == null && item == null && (game.IsCamp || !game.CanAdvance && hero.X >= game.Progress + 296))
+        if (target == null && item == null && (game.IsCamp || !game.CanAdvance))
             return default;
         var tx = item?.X ?? target?.X ?? hero.X + 80;
         var tz = item?.Z ?? target?.Z ?? game.FindFloor(hero.X + 24, hero.Z);
@@ -109,7 +109,11 @@ internal sealed class CodedController
             var route = TerrainNavigator.Towards(game, hero, tx, tz);
             return hero.IsMount && route == default ? new GameInput(Dismount: true) : route;
         }
-        var run = hero == game.Hero && (target == null || target.Id % 2 == 0) && Math.Abs(dx) > 55 && Math.Abs(dz) < 5 &&
+        // Walk through cleared scenery. Sprint only for a deliberate approach to a distant visible opponent;
+        // gap crossing above and an already committed barge keep their explicit running inputs.
+        var run = hero == game.Hero && item == null && target != null && target.Id % 2 == 0 &&
+            Math.Abs(dx) is > 90 and < 160 && Math.Abs(dz) < 5 &&
+            game.ProjectView(target.X, target.Z, target.Y).X is >= 24 and <= 296 &&
             Math.Abs(game.Ground(hero.X + x * 32, hero.Z) - hero.Y) < 8;
         return new GameInput(x, z, Run: run);
     }

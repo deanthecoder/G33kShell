@@ -20,7 +20,7 @@ internal sealed record HeroDefinition(string Name, string MagicKey, int Palette,
     public int PotionCapacity => MagicThresholds[^1];
     public int GetMagicLevel(int potions) => Array.FindLastIndex(MagicThresholds, threshold => threshold <= potions) + 1;
 
-    public int Sleep => MagicKey switch { "ax" => 0xe7dc, "tyris" => 0x1209a, _ => 0x15896 };
+    public int SleepFrame => MagicKey switch { "ax" => 830, "tyris" => 831, _ => 832 };
 
     public Moves DragonMoves => MagicKey switch
     {

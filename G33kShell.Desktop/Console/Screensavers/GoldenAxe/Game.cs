@@ -29,11 +29,13 @@ internal sealed class Game
     private const int KnockdownTicks = 36;
     private const int EnemyKnockdownVariation = 2;
     private const int ArcadeLightHitTicks = 81;
-    internal readonly record struct DustPuff(double X, double Z, double Y, double Spread, int Tick, bool Heavy);
+    internal readonly record struct DustPuff(double X, double Z, double Y, double Spread, int Tick, bool Heavy, bool Running = false);
 
     private readonly ArcadeData m_data;
     private readonly Random m_random;
     private readonly List<DustPuff> m_landingDust = [];
+    private readonly List<Fighter> m_stoneBodies = [];
+    private readonly List<SpawnDefinition> m_openedSkeletonMounds = [];
     private int m_nextId;
     private int m_spawnIndex;
     private int m_stopIndex;
@@ -44,6 +46,11 @@ internal sealed class Game
     public int[][][][] MagicEffects => m_data.Magic[Character.MagicKey];
     public List<Fighter> Actors { get; } = [];
     public IReadOnlyList<DustPuff> LandingDust => m_landingDust;
+    public IReadOnlyList<Fighter> StoneBodies => m_stoneBodies;
+    public IReadOnlyList<SpawnDefinition> OpenedSkeletonMounds => m_openedSkeletonMounds;
+    public IEnumerable<SpawnDefinition> SkeletonMounds => IsCamp ? [] : m_data.Spawns.Skip(m_spawnIndex).Where(IsSkeletonMound);
+
+    private bool IsSkeletonMound(SpawnDefinition spawn) => AreaIndex == 3 && spawn.Routine == 0x23bda;
     public Fighter Hero { get; }
     public int TickCount { get; private set; }
     public double CameraX { get; private set; }
@@ -99,6 +106,8 @@ internal sealed class Game
         Complete = false;
         TickCount = 0;
         m_landingDust.Clear();
+        m_stoneBodies.Clear();
+        m_openedSkeletonMounds.Clear();
         var range = CameraRange();
         CameraY = Math.Clamp(150 - (Project(Hero.X, Hero.Z, Hero.Y).Y - CameraY), range[0], range[1]);
         ViewCamera.Reset(CameraX, CameraY);
@@ -177,6 +186,7 @@ internal sealed class Game
         if (Complete || GameOver)
             return;
         TickCount++;
+        m_stoneBodies.RemoveAll(body => body.X < Progress - 100);
         if (m_landingDust.Count > 0)
             m_landingDust.RemoveAll(puff => TickCount - puff.Tick >= LandingDustTicks);
         Camp?.BeforeTick();
@@ -186,7 +196,7 @@ internal sealed class Game
             Hero.Animation.Tick();
             if (MagicTick == m_magicPeak)
             {
-                foreach (var enemy in Actors.Where(a => a.IsEnemy && a.Health > 0 && a.HeldBy == null && Project(a.X, a.Z, a.Y).X is >= -20 and <= 340).ToArray())
+                foreach (var enemy in Actors.Where(a => a.IsEnemy && a.State != FighterState.Emerging && a.Health > 0 && a.HeldBy == null && Project(a.X, a.Z, a.Y).X is >= -20 and <= 340).ToArray())
                 {
                     Hit(Hero, enemy, new[] { 0, 4, 8, 16, 24, 32, 48 }[MagicLevel], true);
                     // Grounded victims crumple after the spell; airborne victims still fall naturally.
@@ -265,7 +275,13 @@ internal sealed class Game
                 continue;
             }
             var command = actor == Hero || actor.Rider == Hero ? input : EnemyInput(actor);
+            var previousX = actor.X;
             UpdateFighter(actor, command);
+            if (TickCount % 10 == 0 && Math.Abs(actor.X - previousX) >= 2 &&
+                actor.State is FighterState.Walking or FighterState.Dashing &&
+                Math.Abs(actor.Y - Ground(actor.X, actor.Z)) < 1 &&
+                Project(actor.X, actor.Z, actor.Y).X is > 16 and < 300)
+                m_landingDust.Add(new DustPuff(actor.X - actor.Facing * 5, actor.Z, actor.Y, 2, TickCount, false, true));
             if (actor.Rider != null)
             {
                 actor.Rider.X = actor.X;
@@ -316,7 +332,7 @@ internal sealed class Game
         {
             case 0x1b454: Add(ActorKind.Heninger, Moves.StrongHeninger, 0x1c, 16, spawn.X, spawn.Z); break;
             case 0x20414: Add(ActorKind.Longmoan, Moves.StrongLongmoan, 0x7a, 16, spawn.X, spawn.Z); break;
-            case 0x23bda: Add(ActorKind.Skeleton, Moves.Skeleton, 0x73, 16, spawn.X, spawn.Z); break;
+            case 0x23bda: SpawnSkeletonMound(spawn); break;
             case 0x2536e: Add(ActorKind.Skeleton, Moves.Skeleton, 0x6f, 24, spawn.X, spawn.Z); break;
             case 0x2538a: Add(ActorKind.Skeleton, Moves.Skeleton, 0x6f, 16, spawn.X, spawn.Z); break;
             case 0x25352:
@@ -375,6 +391,19 @@ internal sealed class Game
                 });
                 break;
         }
+    }
+
+    private void SpawnSkeletonMound(SpawnDefinition spawn)
+    {
+        var skeleton = Add(ActorKind.Skeleton, Moves.Skeleton, 0x73, 16, spawn.X, spawn.Z);
+        // These authored eagle-area positions are cracked mud, not the stone streets or castle.
+        if (!m_data.Spawns.Any(s => IsSkeletonMound(s) && s.X == spawn.X && s.Z == spawn.Z))
+            return;
+
+        skeleton.Palette = 0x6f; // Original white-bone palette; mound variety awaits arcade confirmation.
+        skeleton.Facing = Hero.X < spawn.X ? -1 : 1;
+        skeleton.SetState(FighterState.Emerging, SkeletonEmergence.Animation);
+        skeleton.Animation.Seek(1); // The script starts with a standing setup pose before the buried skull.
     }
 
     private void SpawnForestReinforcement(SpawnDefinition spawn, ActorKind kind, Moves moves, int palette)
@@ -632,6 +661,17 @@ internal sealed class Game
         }
         switch (actor.State)
         {
+            case FighterState.Emerging:
+                if (actor.StateTicks is 8 or 24)
+                    AddLandingDust(actor, heavy: true);
+                actor.Animation.Tick();
+                if (actor.StateTicks >= SkeletonEmergence.Duration)
+                {
+                    m_openedSkeletonMounds.Add(m_data.Spawns.First(s => IsSkeletonMound(s) && s.X == actor.X && s.Z == actor.Z));
+                    actor.SetState(FighterState.Idle, actor.Moves.Idle);
+                    actor.Cooldown = 30;
+                }
+                return;
             case FighterState.Sleeping:
                 return;
             case FighterState.Held:
@@ -678,13 +718,16 @@ internal sealed class Game
                     else
                     {
                         actor.SetState(FighterState.GettingUp, actor.Moves.GetUp);
-                        if (actor.IsEnemy)
+                        if (actor.IsEnemy || actor.Kind == ActorKind.Hero)
                             actor.Animation.Seek(2);
                     }
                 }
                 return;
             case FighterState.GettingUp:
-                if (!actor.IsEnemy || actor.Animation.Index < actor.Animation.Steps.Length - 1)
+                // Hero recovery runs from sitting up (last step) to crouching (step zero), then stands.
+                // Stop before the script loops back through its flat-on-back hold.
+                if (actor.Kind == ActorKind.Hero ? actor.Animation.Index != 0 :
+                    !actor.IsEnemy || actor.Animation.Index < actor.Animation.Steps.Length - 1)
                     actor.Animation.Tick();
                 if (actor.StateTicks >= 24)
                 {
@@ -761,6 +804,17 @@ internal sealed class Game
                 return;
             case FighterState.Dashing:
                 Move(actor, actor.StateTicks < 18 ? actor.Facing * 4 : 0, 0);
+                if (actor.IsMount)
+                {
+                    actor.Animation.Tick();
+                    var chargeFloor = Ground(actor.X, actor.Z);
+                    if (chargeFloor - actor.Y > 12)
+                    {
+                        actor.Vy = 0;
+                        actor.SetState(FighterState.Falling, actor.Moves.Walk);
+                        return;
+                    }
+                }
                 actor.Y += actor.Vy;
                 actor.Vy += 0.25;
                 actor.Y = Math.Min(actor.Y, Ground(actor.X, actor.Z));
@@ -844,6 +898,14 @@ internal sealed class Game
             actor.Facing = Math.Sign(input.X);
         if (input.Attack && actor.Moves.Attacks.Length > 0)
         {
+            if (actor.IsMount && actor.Rider != null && input.Run && Math.Abs(actor.Vx) >= 3)
+            {
+                actor.Vy = 0;
+                actor.Connected = false;
+                actor.Struck.Clear();
+                actor.SetState(FighterState.Dashing, actor.Moves.Run);
+                return;
+            }
             if (actor.IsEnemy && input.Run)
             {
                 actor.Cooldown = 105;
@@ -882,10 +944,10 @@ internal sealed class Game
             ActorKind.Skeleton => 0.8,
             _ => actor.Moves.WalkSpeed
         };
-        var run = (actor == Hero || actor.IsEnemy) && input.Run && input.X != 0;
+        var run = (actor == Hero || actor.IsEnemy || actor.Rider != null) && input.Run && input.X != 0;
         if (run)
         {
-            actor.Vx = Math.Sign(input.X) * Math.Min(actor == Hero ? 4 : actor.Moves.RunSpeed, Math.Abs(actor.Vx) + 0.5);
+            actor.Vx = Math.Sign(input.X) * Math.Min(actor == Hero || actor.Rider != null ? 4 : actor.Moves.RunSpeed, Math.Abs(actor.Vx) + 0.5);
             speed = Math.Abs(actor.Vx);
         }
         else
@@ -1143,7 +1205,10 @@ internal sealed class Game
 
     private void ResolveAttack(Fighter actor)
     {
-        if (!m_data.Attacks.TryGetValue(actor.Animation.Address, out var attack) || actor.Animation.Index != attack[2])
+        var mountedCharge = actor.IsMount && actor.State == FighterState.Dashing;
+        // No separate beast-charge script is mapped: use a body impact while its run poses play.
+        var attack = mountedCharge ? new[] { 5, 4, 0, 8, 44, -42, 0 } : m_data.Attacks.GetValueOrDefault(actor.Animation.Address);
+        if (attack == null || !mountedCharge && actor.Animation.Index != attack[2])
             return;
         var step = actor.Animation.Current;
         var origin = actor.X + step.Dx * actor.Facing;
@@ -1233,12 +1298,12 @@ internal sealed class Game
 
     private void LandKnockdown(Fighter actor)
     {
-        if (actor.IsEnemy)
+        if (actor.IsEnemy || actor.Kind == ActorKind.Hero)
         {
-            if (actor.Health > 0)
+            if (actor.IsEnemy && actor.Health > 0)
                 actor.KnockdownVariation = m_random.Next(-EnemyKnockdownVariation, EnemyKnockdownVariation + 1);
             actor.SetState(FighterState.Down, actor.Moves.GetUp);
-            // Enemy recovery scripts hold their grounded back pose in the second frame.
+            // Recovery scripts hold their grounded back pose in the second frame.
             actor.Animation.Seek(1);
         }
         else
@@ -1270,7 +1335,15 @@ internal sealed class Game
         else
         {
             Kills++;
-            actor.SetState(FighterState.Dying);
+            if (actor.IsEnemy)
+            {
+                actor.Flash = actor.Invulnerable = 0;
+                actor.PetrifiedTick = TickCount;
+                actor.SetState(FighterState.Petrified);
+                m_stoneBodies.Add(actor);
+            }
+            else
+                actor.SetState(FighterState.Dying);
         }
     }
 

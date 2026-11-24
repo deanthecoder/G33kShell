@@ -109,11 +109,27 @@ internal sealed class ArcadeRenderer
                 DrawCampfireShadows(screen, game);
         }
         DrawFeathers(screen, game, foreground: false);
-        foreach (var actor in game.Actors.OrderBy(a => a.Z).ThenByDescending(a => a.Y))
+        foreach (var mound in game.SkeletonMounds)
+        {
+            var point = game.ProjectView(mound.X, mound.Z, game.Ground(mound.X, mound.Z));
+            Sprite(screen, SkeletonEmergence.MoundFrame, SkeletonEmergence.GroundPalette, point.X, point.Y, false);
+        }
+        foreach (var mound in game.OpenedSkeletonMounds)
+        {
+            var point = game.ProjectView(mound.X, mound.Z, game.Ground(mound.X, mound.Z));
+            Sprite(screen, SkeletonEmergence.OpenFrame, SkeletonEmergence.GroundPalette, point.X, point.Y, false);
+        }
+        foreach (var actor in game.Actors.Concat(game.StoneBodies).OrderBy(a => a.Z).ThenByDescending(a => a.Y))
         {
             if (actor.Mount != null || actor.State is FighterState.Gone or FighterState.Respawning ||
                 actor.State == FighterState.Dying && game.TickCount % 4 < 2)
                 continue;
+            if (actor.State == FighterState.Emerging)
+            {
+                var ground = game.ProjectView(actor.X, actor.Z, actor.Y);
+                Sprite(screen, SkeletonEmergence.GroundFrame(actor.StateTicks), SkeletonEmergence.GroundPalette,
+                    ground.X, ground.Y, false);
+            }
             var step = actor.Animation.Current;
             var flip = IsFlipped(actor, step);
             if (!effects && actor.Kind == ActorKind.Fireball && actor.State != FighterState.Dying)
@@ -129,6 +145,17 @@ internal sealed class ArcadeRenderer
             Sprite(screen, step.Frame, actor.Palette, point.X + step.Dx * actor.Facing, point.Y + step.Dy, flip,
                 flash: actor.Flash > 0, softFlash: effects, softenOutline: effects && IsCharacter(actor),
                 campfireWood: effects && actor.Kind == ActorKind.Campfire);
+            if (actor.State == FighterState.Petrified)
+            {
+                var stoneOpacity = (byte)(255 * Math.Clamp((game.TickCount - actor.PetrifiedTick) / 120.0, 0, 1));
+                if (stoneOpacity > 0)
+                {
+                    screen.BeginTranslucentSprite(stoneOpacity);
+                    Sprite(screen, step.Frame, actor.Palette, point.X + step.Dx * actor.Facing, point.Y + step.Dy,
+                        flip, paletteOverride: m_data.SpritePalette[actor.Kind == ActorKind.Skeleton ? 0x72 : 0x97]);
+                    screen.EndTranslucentSprite();
+                }
+            }
             if (actor.Rider != null && m_data.Riders.TryGetValue(actor.Animation.Address, out var riders))
             {
                 var rider = riders[Math.Min(actor.Animation.Index, riders.Length - 1)];
@@ -485,7 +512,7 @@ internal sealed class ArcadeRenderer
 
     private void DrawContactShadows(PixelScreenData screen, Game game)
     {
-        foreach (var actor in game.Actors)
+        foreach (var actor in game.Actors.Concat(game.StoneBodies))
         {
             var potion = actor.Kind is ActorKind.Potion or ActorKind.CampPotion or ActorKind.Food;
             if (actor.Mount != null || actor.State is FighterState.Gone or FighterState.Respawning ||
@@ -509,7 +536,7 @@ internal sealed class ArcadeRenderer
             var height = Math.Max(0, ground - actor.Y);
             var strength = 100 / (1 + height / 36);
             var validPose = (uint)step.Frame < (uint)m_data.Frames.Length;
-            if (!potion && actor.State is FighterState.Down or FighterState.Dying && validPose)
+            if (!potion && actor.State is FighterState.Down or FighterState.Dying or FighterState.Petrified && validPose)
             {
                 var prone = m_data.Frames[step.Frame];
                 var pose = ProjectFootprint(actor, step);
@@ -824,7 +851,8 @@ internal sealed class ArcadeRenderer
     private static bool IsFlipped(Fighter actor, AnimationStep step) => (step.Flags & 1) != 0 ^ actor.Facing < 0;
 
     private static bool IsCharacter(Fighter actor) =>
-        actor.IsEnemy || actor.IsMount || actor.Kind is ActorKind.Hero or ActorKind.Thief or ActorKind.Villager;
+        actor.State != FighterState.Emerging &&
+        (actor.IsEnemy || actor.IsMount || actor.Kind is ActorKind.Hero or ActorKind.Thief or ActorKind.Villager);
 
     private void DrawFeathers(PixelScreenData screen, Game game, bool foreground)
     {
@@ -944,14 +972,15 @@ internal sealed class ArcadeRenderer
     }
 
     private void Sprite(PixelScreenData screen, int index, int palette, double anchorX, double anchorY, bool flip,
-        bool flash = false, int divisor = 1, bool softFlash = false, bool softenOutline = false, bool campfireWood = false)
+        bool flash = false, int divisor = 1, bool softFlash = false, bool softenOutline = false, bool campfireWood = false,
+        byte[] paletteOverride = null)
     {
         if (index < 0 || index >= m_data.Frames.Length)
             return;
         var frame = m_data.Frames[index];
         var left = (int)Math.Round(flip ? anchorX - (frame.Ox + frame.Width) / (double)divisor : anchorX + frame.Ox / (double)divisor);
         var top = (int)Math.Round(anchorY + frame.Oy / (double)divisor);
-        var spritePalette = m_data.SpritePalette[palette];
+        var spritePalette = paletteOverride ?? m_data.SpritePalette[palette];
         var sourceColors = softenOutline ? m_data.SpriteColors[palette] : null;
         var stride = m_data.SpriteStride;
         for (var y = Math.Max(0, -top); y < frame.Height / divisor && top + y < ArcadeData.Height; y++)
