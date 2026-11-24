@@ -50,7 +50,7 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
 
     public GoldenAxeCanvas(int width, int height) : base(width, height, 60) => Name = "goldenaxe";
     public override bool IsReadyToRun => ArcadeData.IsAvailable;
-    private int StartingArea => Enumerable.Range(0, ArcadeData.AreaCount).LastOrDefault(i => HasSwitch($"area{i + 1}"));
+    private int StartingStage => Enumerable.Range(1, ArcadeData.AreaCount * 2 - 1).LastOrDefault(i => HasSwitch($"stage{i}"), 1);
     private int EndDelayTicks => m_game.IsCamp && m_game.Complete ? EndFadeTicks : StageEndTicks;
     public bool IsInteractive => HasSwitch("play");
     public void SetKey(Key key, bool down)
@@ -217,8 +217,9 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
 
     private void StartCycle()
     {
-        LoadArea(StartingArea);
-        m_game = new Game(m_data, Settings.Instance.GoldenAxeCharacter);
+        var stage = StartingStage;
+        LoadArea((stage - 1) / 2);
+        m_game = new Game(m_data, Settings.Instance.GoldenAxeCharacter, startInCamp: stage % 2 == 0);
         m_endTicks = 0;
         m_titleTicks = m_title == null ? 0 : ArcadeTitleCard.DurationTicks;
     }

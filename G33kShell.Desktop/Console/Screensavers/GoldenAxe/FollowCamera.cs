@@ -29,14 +29,17 @@ internal sealed class FollowCamera
 
         // At 60 Hz this settles 95% of a stationary offset in about 0.6 seconds.
         const double follow = 0.08;
+        var previousY = m_y;
         m_x += (game.CameraX - m_x) * follow;
         m_y += (game.CameraY - m_y) * follow;
         var feet = game.Project(game.Hero.X, game.Hero.Z, game.Hero.Y);
         // Never lead the logical camera into a locked stage, or leave a moving hero off-screen.
         m_x = Math.Clamp(m_x, game.CameraX, game.CameraX + Math.Clamp(304 - feet.X, 0, 28));
         m_y = Math.Clamp(m_y, game.CameraY + Math.Max(-16, Math.Min(0, 32 - feet.Y)),
-            game.CameraY + Math.Min(16, Math.Max(0, 198 - feet.Y)));
+            game.CameraY + Math.Min(16, Math.Max(0, game.BottomFeetLimit + 2 - feet.Y)));
         var range = data.CameraPath.OrderBy(p => Math.Abs(p.Key - (int)Math.Floor(X / 8))).First().Value;
         m_y = Math.Clamp(m_y, range[0], range[1]);
+        // A changing terrain range or feet guard must not bypass the smooth follow.
+        m_y = Math.Clamp(m_y, previousY - 2, previousY + 2);
     }
 }

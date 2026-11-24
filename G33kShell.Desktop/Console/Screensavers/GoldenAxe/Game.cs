@@ -74,6 +74,7 @@ internal sealed class Game
     public bool Complete { get; private set; }
     public CampRound Camp { get; private set; }
     public bool IsCamp => Camp != null;
+    internal int BottomFeetLimit => IsCamp ? 196 : ArcadeData.Height - 12;
     public bool GameOver { get; private set; }
     public int MagicTick { get; private set; } = -1;
     public int MagicLevel { get; private set; }
@@ -85,7 +86,7 @@ internal sealed class Game
         !Actors.Any(a => a.IsEnemy && !a.IsGone);
     public bool Boss => Progress >= m_data.Stops[^1];
 
-    public Game(ArcadeData data, int character = 0, Random random = null)
+    public Game(ArcadeData data, int character = 0, Random random = null, bool startInCamp = false)
     {
         m_data = data;
         m_random = random ?? Random.Shared;
@@ -97,6 +98,11 @@ internal sealed class Game
         Hero.Z = FindFloor(Hero.X, Hero.Z, keepVisible: true);
         Hero.Y = Ground(Hero.X, Hero.Z);
         ViewCamera.Reset(CameraX, CameraY);
+        if (startInCamp)
+        {
+            Complete = true;
+            StartCamp();
+        }
     }
 
     public Game ContinueIn(ArcadeData nextArea)
@@ -338,7 +344,11 @@ internal sealed class Game
             CameraX = Math.Max(4096 - 7 - stop, CameraX - Math.Min(4, screenX - 160));
         var cameraRange = CameraRange();
         var z = body.Z - 4096;
-        var desiredY = 150 - (z - Math.Floor(z / 4) + Math.Min(body.Y, Ground(body.X, body.Z)) - 4096);
+        var floor = Ground(body.X, body.Z);
+        // Do not chase the jump arc. Falls still lower the view to reveal the landing.
+        var desiredY = body.State == FighterState.Jumping
+            ? CameraY + Math.Max(0, 64 - Project(body.X, body.Z, body.Y).Y)
+            : 150 - (z - Math.Floor(z / 4) + Math.Min(body.Y, floor) - 4096);
         CameraY += Math.Clamp(Math.Clamp(desiredY, cameraRange[0], cameraRange[1]) - CameraY, -2, 2);
         var enemies = Actors.Any(a => a.IsEnemy && !a.IsGone);
         if (!enemies && (Progress >= stop || FinalWaveSpawned))
@@ -1222,7 +1232,7 @@ internal sealed class Game
         if (actor != Hero && actor.Rider != Hero)
             return true;
         var lowestCamera = IsCamp ? CameraY : CameraRange()[0];
-        if (Project(actor.X, z, ground).Y + lowestCamera - CameraY <= 196)
+        if (Project(actor.X, z, ground).Y + lowestCamera - CameraY <= BottomFeetLimit)
             return true;
         if (IsCamp)
             return false;

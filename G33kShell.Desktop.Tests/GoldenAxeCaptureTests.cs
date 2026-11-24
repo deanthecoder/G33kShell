@@ -48,6 +48,7 @@ public sealed class GoldenAxeCaptureTests
                 "running-dust" => RunningDust(data),
                 "potion-sparkles" => PotionSparklesScene(data),
                 "camera-follow" => CameraFollow(data),
+                "ledge-camera" => LedgeCamera(data),
                 "dwarf-lightning" => DwarfLightning(data),
                 "villagers" => Villagers(data),
                 "village-routing" => VillageRouting(data),
@@ -123,6 +124,28 @@ public sealed class GoldenAxeCaptureTests
         foreach (var enemy in game.Actors.Where(a => a.IsEnemy))
             enemy.Health = 48;
         return (game, 330, tick => new GameInput(Magic: tick == 45));
+    }
+
+    private static (Game, int, Func<int, GameInput>) LedgeCamera(ArcadeData data)
+    {
+        var game = new Game(data, character: 2, random: new Random(0));
+        typeof(Game).GetProperty(nameof(Game.CameraX))!.SetValue(game, 4096.0 - 7 - 4700);
+        game.Hero.X = 4833;
+        game.Hero.Z = 4168;
+        game.Hero.Y = game.Ground(game.Hero.X, game.Hero.Z);
+        for (var tick = 0; tick < 180; tick++)
+        {
+            game.Actors.RemoveAll(a => a != game.Hero);
+            game.Tick(default);
+        }
+        var previousY = game.ViewCamera.Y;
+        return (game, 300, tick =>
+        {
+            Assert.That(Math.Abs(game.ViewCamera.Y - previousY), Is.LessThanOrEqualTo(2), "The view must not snap across the ledge.");
+            previousY = game.ViewCamera.Y;
+            game.Actors.RemoveAll(a => a != game.Hero);
+            return new GameInput(X: tick is >= 90 and < 110 ? -1 : 0);
+        });
     }
 
     private static (Game, int, Func<int, GameInput>) CameraFollow(ArcadeData data)

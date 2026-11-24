@@ -274,6 +274,28 @@ public class GoldenAxeTests
         }
     }
 
+    [TestCase(1)]
+    [TestCase(2)]
+    [TestCase(3)]
+    [TestCase(4)]
+    [TestCase(5)]
+    [TestCase(6)]
+    [TestCase(7)]
+    [TestCase(8)]
+    [TestCase(9)]
+    public void StageSelectorStartsTheMatchingHudStage(int stage)
+    {
+        var canvas = new GoldenAxeCanvas(80, 25) { ActivationName = $"goldenaxe_stage{stage}_play_color" };
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        typeof(GoldenAxeCanvas).GetMethod("StartCycle", flags)!.Invoke(canvas, null);
+        var game = (Game)typeof(GoldenAxeCanvas).GetField("m_game", flags)!.GetValue(canvas)!;
+        Assert.That(game.AreaIndex * 2 + (game.IsCamp ? 2 : 1), Is.EqualTo(stage));
+        Assert.That(game.Complete, Is.False);
+        Assert.That(canvas.IsInteractive, Is.True);
+        if (stage % 2 == 0)
+            Assert.That(game.Hero.State, Is.EqualTo(FighterState.Sleeping));
+    }
+
     [TestCase("goldenaxe_play_color", true)]
     [TestCase("goldenaxe_color", false)]
     [TestCase("goldenaxe_play", true)]

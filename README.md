@@ -198,12 +198,14 @@ Clearing each area continues through the campaign, preserving the selected hero,
 health, remaining lives and potions. Fresh starts and respawns grant one magic potion.
 Four playable camp bonus rounds separate the five main areas, so the arcade stage
 counter advances through stages 1 to 9. To start directly
-in Turtle Village, use `screensaver goldenaxe_area2_play_color` (omit `_play` for
-the coded player, or `_color` for monochrome). Use `screensaver goldenaxe_area3_play_color`
+in Turtle Village, use `screensaver goldenaxe_stage3_play_color` (omit `_play` for
+the coded player, or `_color` for monochrome). Use `screensaver goldenaxe_stage5_play_color`
 for the third area, with its broken bridge, red dragon and armoured knight.
-`screensaver goldenaxe_area4_play_color` and `screensaver goldenaxe_area5_play_color`
+`screensaver goldenaxe_stage7_play_color` and `screensaver goldenaxe_stage9_play_color`
 start the last two areas directly, including skeletons, stronger soldier variants,
 additional knights and the final Death Adder fight with his skeleton guards.
+The `_stage1` through `_stage9` selectors match the HUD; stages 2, 4, 6 and 8
+start directly in the intervening camps. These replace the old `_areaN` selectors.
 On the eagle's back in the fourth area, original feather sprites tumble past behind
 and in front of the fighters. The effect works in color and mono, stops during camp,
 and uses approximate drift timing, placement and palette selection.
@@ -251,7 +253,11 @@ potions use the same fade without pickup sparkles. Food has no expiry timer. The
 color or monochrome palette, and full-meter pickups only produce the local burst.
 The visual camera eases towards the arcade camera with roughly 0.6 seconds of
 settling, bounded lag and whole-pixel positions. Gameplay progression and stage
-locks continue to use the original camera. Each area and camp fades in and fades out. Defeating Death Adder and clearing his
+locks continue to use the original camera. Jumps leave the vertical view steady unless
+the hero approaches the top; ledge and terrain-boundary adjustments ease vertically
+by at most two pixels per tick. Solid-floor movement can reach 12 pixels from the
+bottom of the screen, while camps retain their more generous HUD clearance.
+Each area and camp fades in and fades out. Defeating Death Adder and clearing his
 guards shows a victory message. Completing the campaign or losing all lives starts
 another run after a short pause; random mode receives a cycle event then.
 The coded player walks through cleared scenery and waits when scrolling is locked.

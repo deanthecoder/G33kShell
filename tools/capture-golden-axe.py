@@ -21,7 +21,7 @@ import tempfile
 
 SCENES = ("shadows", "campfire", "dragon-fire", "magic", "landing-dust", "skeleton-dust",
           "weapon-swipes-ax", "weapon-swipes-tyris", "weapon-swipes-gilius", "weapon-swipes-enemies",
-          "turtle-eye", "eagle-eye", "dragon-flame", "running-dust", "stone-bodies", "eagle-sunset", "castle-camera", "potion-sparkles", "camera-follow", "dwarf-lightning", "villagers", "village-routing")
+          "turtle-eye", "eagle-eye", "dragon-flame", "running-dust", "stone-bodies", "eagle-sunset", "castle-camera", "potion-sparkles", "camera-follow", "ledge-camera", "dwarf-lightning", "villagers", "village-routing")
 REPO = Path(__file__).resolve().parent.parent
 TEST_PROJECT = REPO / "G33kShell.Desktop.Tests" / "G33kShell.Desktop.Tests.csproj"
 CAPTURE_TEST = "G33kShell.Desktop.Tests.GoldenAxeCaptureTests.RenderClips"

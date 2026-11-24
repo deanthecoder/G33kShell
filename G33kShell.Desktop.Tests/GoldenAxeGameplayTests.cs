@@ -794,7 +794,7 @@ public class GoldenAxeGameplayTests
     [TestCase(2)]
     [TestCase(3)]
     [TestCase(4)]
-    public void HoldingDownKeepsFeetAboveHudAwayFromDropOffs(int area)
+    public void HoldingDownKeepsFeetOnScreenAwayFromDropOffs(int area)
     {
         var game = new Game(m_areas[area], 2);
         Assert.That(game.Project(game.Hero.X, game.Hero.Z, game.Hero.Y).Y, Is.InRange(48, 196), "The player must spawn on screen.");
@@ -811,8 +811,46 @@ public class GoldenAxeGameplayTests
                 game.Actors.RemoveAll(a => a != game.Hero);
                 game.Tick(new GameInput(Z: 1));
                 if (tick > 30)
-                    Assert.That(game.Project(game.Hero.X, game.Hero.Z, game.Hero.Y).Y, Is.LessThanOrEqualTo(198), $"Area {area}, progress {progress}");
+                    Assert.That(game.Project(game.Hero.X, game.Hero.Z, game.Hero.Y).Y, Is.LessThanOrEqualTo(game.BottomFeetLimit + 2), $"Area {area}, progress {progress}");
             }
+        }
+    }
+
+    [Test]
+    public void EagleFrontLaneUsesTheVisibleFloorBelowTheHud()
+    {
+        var game = new Game(m_areas[3]);
+        for (var tick = 0; tick < 400; tick++)
+        {
+            game.Actors.RemoveAll(a => a != game.Hero);
+            game.Tick(new GameInput(Z: 1));
+        }
+        Assert.That(game.ProjectView(game.Hero.X, game.Hero.Z, game.Hero.Y).Y, Is.InRange(210, 214));
+        Assert.That(game.Hero.Y, Is.EqualTo(game.Ground(game.Hero.X, game.Hero.Z)));
+        Assert.That(game.Lives, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void JumpingDoesNotPullTheVerticalCameraUpAndDown()
+    {
+        var game = new Game(m_areas[3]);
+        for (var tick = 0; tick < 120; tick++)
+        {
+            game.Actors.RemoveAll(a => a != game.Hero);
+            game.Tick(default);
+        }
+        var cameraY = game.CameraY;
+        var viewY = game.ViewCamera.Y;
+        game.Tick(new GameInput(Jump: true));
+        for (var tick = 0; tick < 20 && game.Hero.State == FighterState.Crouching; tick++)
+            game.Tick(default);
+        Assert.That(game.Hero.State, Is.EqualTo(FighterState.Jumping));
+        for (var tick = 0; tick < 80; tick++)
+        {
+            game.Actors.RemoveAll(a => a != game.Hero);
+            game.Tick(default);
+            Assert.That(game.CameraY, Is.EqualTo(cameraY));
+            Assert.That(game.ViewCamera.Y, Is.EqualTo(viewY));
         }
     }
 
@@ -835,7 +873,7 @@ public class GoldenAxeGameplayTests
         Assert.That(game.CameraX, Is.EqualTo(cameraX));
         Assert.That(game.CameraY, Is.EqualTo(expectedY));
         Assert.That(game.Lives, Is.EqualTo(lives));
-        Assert.That(game.Project(game.Hero.X, game.Hero.Z, game.Hero.Y).Y, Is.LessThanOrEqualTo(198));
+        Assert.That(game.Project(game.Hero.X, game.Hero.Z, game.Hero.Y).Y, Is.LessThanOrEqualTo(game.BottomFeetLimit + 2));
     }
 
     [TestCase(0)]
