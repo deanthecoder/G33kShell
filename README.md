@@ -252,7 +252,10 @@ over a quarter of a second, with their rewards applied immediately. Stolen camp
 potions use the same fade without pickup sparkles. Food has no expiry timer. These added effects follow the selected
 color or monochrome palette, and full-meter pickups only produce the local burst.
 The visual camera eases towards the arcade camera with roughly 0.6 seconds of
-settling, bounded lag and whole-pixel positions. Gameplay progression and stage
+settling. Golden Axe's finished gameplay image uses a 1.5 power curve for richer
+shadows and midtones, including lighting and HUD colors, without changing the source
+artwork or other screensavers. Camera movement uses bounded lag and whole-pixel
+positions. Gameplay progression and stage
 locks continue to use the original camera. Jumps leave the vertical view steady unless
 the hero approaches the top; ledge and terrain-boundary adjustments ease vertically
 by at most two pixels per tick. Solid-floor movement can reach 12 pixels from the

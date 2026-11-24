@@ -25,6 +25,8 @@ internal sealed class ArcadeRenderer
 {
     public static readonly Rgb FireLightColor = new(255, 148, 55);
     public static readonly Rgb CampSmokeColor = new(157, 159, 164);
+    private static readonly byte[] s_outputColorCurve = Enumerable.Range(0, 256)
+        .Select(value => (byte)Math.Round(255 * Math.Pow(value / 255.0, 1.5))).ToArray();
     private readonly ArcadeData m_data;
     private readonly PoseFootprint?[] m_footprints;
     private readonly SunShadow[,] m_sunShadows;
@@ -226,6 +228,8 @@ internal sealed class ArcadeRenderer
             var message = game.GameOver ? "GAME OVER" : game.IsCamp ? "DAYBREAK" : game.AreaIndex == ArcadeData.AreaCount - 1 ? "YOU WIN" : "STAGE CLEAR";
             Text(screen, message, (ArcadeData.Width - message.Length * 8) / 2, 96);
         }
+        // Apply the approved contrast after lighting, translucency, screen shake and HUD composition.
+        screen.OutputColorCurve = s_outputColorCurve;
     }
 
     private static void DrawFireballHeatHaze(PixelScreenData screen, Game game)

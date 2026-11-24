@@ -44,6 +44,7 @@ public class PixelScreenData
     internal Rgb FogColor { private get; set; }
     internal byte FogOpacity { private get; set; } = 255;
     internal byte TerrainShadeOpacity { private get; set; }
+    internal byte[] OutputColorCurve { private get; set; }
 
     public int Width { get; }
     public int Height { get; }
@@ -69,6 +70,7 @@ public class PixelScreenData
     public void Clear(byte colorIndex = 0)
     {
         m_hasBgraFrame = false;
+        OutputColorCurve = null;
         Array.Fill(Pixels, colorIndex);
         if (m_shade != null)
             Array.Clear(m_shade);
@@ -175,18 +177,28 @@ public class PixelScreenData
         m_fog[offset] = opacity;
     }
 
-    internal void CopyToBgra(Span<int> destination)
+    internal void CopyToBgra(Span<int> destination, bool applyOutputCurve = true)
     {
         if (m_hasBgraFrame)
         {
             m_bgraFrame.AsSpan().CopyTo(destination);
-            return;
         }
-
-        for (var i = 0; i < Pixels.Length; i++)
+        else
         {
-            var color = GetColorAtOffset(i);
-            destination[i] = color.B | (color.G << 8) | (color.R << 16) | unchecked((int)0xff000000);
+            for (var i = 0; i < Pixels.Length; i++)
+            {
+                var color = GetColorAtOffset(i);
+                destination[i] = color.B | (color.G << 8) | (color.R << 16) | unchecked((int)0xff000000);
+            }
+        }
+        if (applyOutputCurve && OutputColorCurve != null)
+        {
+            for (var i = 0; i < Pixels.Length; i++)
+            {
+                var pixel = destination[i];
+                destination[i] = OutputColorCurve[pixel & 255] | OutputColorCurve[(pixel >> 8) & 255] << 8 |
+                    OutputColorCurve[(pixel >> 16) & 255] << 16 | unchecked((int)0xff000000);
+            }
         }
     }
 
@@ -196,7 +208,7 @@ public class PixelScreenData
     internal void OffsetScene(int dx, int dy)
     {
         m_sceneSnapshot ??= new int[Pixels.Length];
-        CopyToBgra(m_sceneSnapshot);
+        CopyToBgra(m_sceneSnapshot, applyOutputCurve: false);
         m_bgraFrame ??= new int[Pixels.Length];
         for (var y = 0; y < Height; y++)
         for (var x = 0; x < Width; x++)

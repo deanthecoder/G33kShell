@@ -185,6 +185,7 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
         {
             if (m_map != null)
             {
+                pixels.OutputColorCurve = null;
                 if (!HasSwitch("color"))
                     m_mapTint ??= ArcadeMapRecording.CreateTint(Background ?? Rgb.Black, Foreground ?? Rgb.White);
                 m_map.Draw(pixels, HasSwitch("color") ? null : m_mapTint, m_mapSeconds);

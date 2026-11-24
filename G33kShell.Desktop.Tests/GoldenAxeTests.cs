@@ -274,6 +274,32 @@ public class GoldenAxeTests
         }
     }
 
+    [Test]
+    public void ContrastMatchesTheApprovedFinalImageAndDoesNotAccumulate()
+    {
+        var data = new ArcadeData(ArcadeData.AssetDirectory);
+        var game = new Game(data);
+        var frame = new PixelScreenData(320, 224, data.Palette);
+        new ArcadeRenderer(data).Draw(frame, game);
+        var raw = new int[frame.Pixels.Length];
+        var actual = new int[raw.Length];
+        frame.CopyToBgra(raw, applyOutputCurve: false);
+        frame.CopyToBgra(actual);
+        var expected = raw.Select(pixel =>
+        {
+            int Map(int shift) => (int)Math.Round(255 * Math.Pow(((pixel >> shift) & 255) / 255.0, 1.5)) << shift;
+            return unchecked((int)0xff000000) | Map(16) | Map(8) | Map(0);
+        }).ToArray();
+        Assert.That(actual, Is.EqualTo(expected));
+        frame.OffsetScene(0, 0);
+        frame.CopyToBgra(actual);
+        Assert.That(actual, Is.EqualTo(expected), "Scene snapshots must not apply contrast twice.");
+        frame.Clear();
+        frame.CopyToBgra(actual);
+        frame.CopyToBgra(raw, applyOutputCurve: false);
+        Assert.That(actual, Is.EqualTo(raw), "Clearing the surface must reset the game-specific curve.");
+    }
+
     [TestCase(1)]
     [TestCase(2)]
     [TestCase(3)]
@@ -349,7 +375,7 @@ public class GoldenAxeTests
             .All(i => colors[i] == -1), Is.True);
 
         renderer.Draw(frame, game, effects: false);
-        frame.CopyToBgra(colors);
+        CopyWithoutTerrainAtmosphere(frame, colors);
         Assert.That(colors.All(color => color == -1), Is.True);
     }
 
@@ -384,7 +410,7 @@ public class GoldenAxeTests
         Assert.That(colors[sample], Is.GreaterThan(grounded).And.LessThan(-1));
 
         renderer.Draw(frame, game, effects: false);
-        frame.CopyToBgra(colors);
+        CopyWithoutTerrainAtmosphere(frame, colors);
         Assert.That(colors[sample], Is.EqualTo(-1));
     }
 
@@ -515,6 +541,8 @@ public class GoldenAxeTests
     {
         frame.FogOpacity = 0;
         frame.TerrainShadeOpacity = 0;
+        // These checks measure individual light/shadow strengths before the final contrast curve.
+        frame.OutputColorCurve = null;
         frame.CopyToBgra(colors);
     }
 
@@ -651,7 +679,7 @@ public class GoldenAxeTests
 
         frame.SetPalette(Enumerable.Repeat(new Rgb(40, 40, 40), frame.Palette.Length).ToArray());
         renderer.Draw(frame, game, effects: false);
-        frame.CopyToBgra(colors);
+        CopyWithoutTerrainAtmosphere(frame, colors);
         Assert.That(colors.All(color => color == unlit), Is.True);
 
         for (var tick = 0; tick < 100; tick++)
@@ -963,7 +991,7 @@ public class GoldenAxeTests
         Assert.That(colors[opposite], Is.EqualTo(unlit));
 
         renderer.Draw(frame, game, effects: false);
-        frame.CopyToBgra(colors);
+        CopyWithoutTerrainAtmosphere(frame, colors);
         Assert.That(colors[lit], Is.EqualTo(unlit));
     }
 
@@ -1011,7 +1039,8 @@ public class GoldenAxeTests
         {
             renderer.Draw(frame, game, effects);
             var colors = new int[frame.Pixels.Length];
-            frame.CopyToBgra(colors);
+            // Alpha blending happens before the nonlinear output curve.
+            frame.CopyToBgra(colors, applyOutputCurve: false);
             return colors;
         }
 
