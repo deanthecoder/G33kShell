@@ -138,6 +138,13 @@ Use `screensaver goldenaxe_color` for autoplay or `screensaver goldenaxe_play_co
 The renderer also adds distance shading and soft ground shadows near ledges in the main areas.
 Add `_ao` to inspect the terrain shading mask. White means no adjustment and darker tones show stronger shading.
 For short effect clips, run `python3 tools/capture-golden-axe.py --output ~/Movies/GoldenAxe --gif` with the .NET SDK and FFmpeg installed.
+
+For repeatable final-battle CPU profiling, set `G33K_GOLDEN_AXE_PROFILE_DIR` to an output directory and run
+`dotnet test G33kShell.Desktop.Tests -c Release --filter FullyQualifiedName~GoldenAxeProfileTests.ProfileFinalBattle`.
+The opt-in profile warms up and replays all three heroes with effects on/off, reporting simulation,
+rendering stages, pixel conversion, allocations and screenshots in `profile.json` and PNG files.
+It uses the final-area spawns with Death Adder alive, protects the hero and raises enemy health for repeatability.
+Asset loading and desktop scaling/presentation are excluded; renderer timing callbacks are inactive during normal play.
 Use `--scene skeleton-dust` for the eagle-area skeleton emergence, including the
 mud mound, dust particles and wind; `--scene landing-dust` captures a knockdown.
 The script writes MP4 clips and, with `--gif`, looping GIFs. On Windows, for example:
@@ -170,6 +177,14 @@ colors in two sky palette groups. Intermediate colors are interpolated; the arca
 individual color-step thresholds and later return to blue still need measurement.
 Eight reserved palette entries isolate the sky from actors, terrain and HUD colors,
 while retaining monochrome rendering and scene fades.
+The eagle sky now uses a complete 512x256 repeating cloud map recovered from
+Dean's MAME hardware-page capture, reusing all 120 original atlas tiles. Clouds
+scroll independently of the foreground, including while the player stands still.
+The captured acceleration and vertical motion match the 642-sample reference;
+the native clock starts at the first captured progress (4990), then continues the
+last measured rate of 6 pixels left and 1.5 pixels down per tick. The exact earlier
+activation and any later change in direction/rate still need MAME verification.
+Use `--scene eagle-clouds` for a ten-second stationary-camera preview.
 It renders the shadows, campfire, dragon fire and magic scenes headlessly to silent MP4s, with optional looping GIF previews.
 Use `--scene campfire` to regenerate a single clip.
 Use `--ffmpeg /path/to/ffmpeg` to select a specific encoder executable.
@@ -196,6 +211,16 @@ health and position and waits for an active move or spell to finish. Each hero u
 their own attacks, magic, portrait and mounted animations.
 Clearing each area continues through the campaign, preserving the selected hero,
 health, remaining lives and potions. Fresh starts and respawns grant one magic potion.
+Tyris's seven-, eight- and nine-potion casts now use the original fire pillars,
+mirrored molten core/rock rim, and giant dragon with multipart breath. Frame families,
+palettes and effect windows follow the MAME timing handoff; trajectories, the larger
+potion fan and entrance/exit motion are native reconstructions pending a full trace.
+The dragon's piece alignment matches the supplied arcade still; its shallow right-to-left
+sweep follows Dean's recollection and remains to be checked against a motion trace. Flames cast warm light
+and emit smoke that rises and fades after the spell. Existing recordings for one
+through six potions are preserved; the other characters' higher potion counts still
+need the separate magic audit. Review `tyris-seven`, `tyris-eight` and `tyris-dragon`
+with the capture tool.
 Four playable camp bonus rounds separate the five main areas, so the arcade stage
 counter advances through stages 1 to 9. To start directly
 in Turtle Village, use `screensaver goldenaxe_stage3_play_color` (omit `_play` for
@@ -206,9 +231,11 @@ start the last two areas directly, including skeletons, stronger soldier variant
 additional knights and the final Death Adder fight with his skeleton guards.
 The `_stage1` through `_stage9` selectors match the HUD; stages 2, 4, 6 and 8
 start directly in the intervening camps. These replace the old `_areaN` selectors.
-On the eagle's back in the fourth area, original feather sprites tumble past behind
-and in front of the fighters. The effect works in color and mono, stops during camp,
-and uses approximate drift timing, placement and palette selection.
+On the eagle's back in the fourth area, original feather sprite 1042 drifts in
+front of the finished scene, at half size with a muted grey-brown palette (0x87).
+Horizontal drift is three times the initial native approximation.
+The effect works in color and mono and stops during camp; exact arcade scaling,
+drift timing, placement and palette selection remain unverified.
 After recovering from a knockdown, Death Adder winds up a cast and sends a lightning
 bolt along the floor. It uses the extracted casting frames and projectile damage
 boxes, deals one health bar of damage, and can be jumped. The recovery trigger,
@@ -264,9 +291,28 @@ Each area and camp fades in and fades out. Defeating Death Adder and clearing hi
 guards shows a victory message. Completing the campaign or losing all lives starts
 another run after a short pause; random mode receives a cycle event then.
 The coded player walks through cleared scenery and waits when scrolling is locked.
+Magic decisions anticipate nearby scripted enemies within the current scroll stop,
+including delayed doorway entrances, and wait up to two seconds for the group to become
+visible and hittable while continuing to fight. Low health plus an imminent nearby strike
+can override that wait. Tyris saves for her second spell level outside boss fights and
+emergencies. Death Adder's recovery and casting animation warn the controller to make
+space for lightning; jump timing accounts for the hero's crouch delay and mounts' immediate
+take-off. All three characters complete the fixed-seed progression tests, though these
+heuristics do not guarantee every autonomous playthrough.
 It keeps running for gap crossings and selected approaches to distant opponents.
 Villagers use five original running sequences rather than two shared appearances.
-Their routine-to-variant mapping, counts and original movement still need MAME verification.
+MAME confirms six villagers in the opening Turtle Village crowd and nine in the
+later crowd. Civilian speeds now use the spawn parameter's low byte divided by 16,
+matching the measured per-actor variation instead of a uniform 1.8 pixels/tick.
+The opening and late crowds now approach their measured depth lanes at one pixel
+per tick, using the signed high parameter byte as a lane offset. Those lane centres
+come from the captured routes; their selection elsewhere remains unverified.
+The opening injured man uses poses 611 then 612 and stays on the ground; his soldier
+partner uses the original running script. The later waiting child uses poses 737/738
+and palette 0x4c before switching to its running sequence. Its proximity-based release
+is provisional because the MAME trace does not identify the exact trigger.
+No extra crowd members were added. Capture `village-opening` or `village-routing`
+with `tools/capture-golden-axe.py` to review the two crowds.
 Fleeing villagers now route around height-map walls and pits instead of passing through buildings.
 The coded player routes around holes and rocks. Potion thieves now check terrain,
 jump onto low ledges and turn away from walls or holes instead of walking through rock.

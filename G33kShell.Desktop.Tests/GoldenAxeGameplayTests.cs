@@ -33,6 +33,344 @@ public class GoldenAxeGameplayTests
     [OneTimeSetUp]
     public void LoadAreas() => m_areas = Enumerable.Range(0, ArcadeData.AreaCount).Select(i => new ArcadeData(ArcadeData.AssetDirectory, i)).ToArray();
 
+    [TestCase(168)]
+    [TestCase(176)]
+    [TestCase(192)]
+    public void EagleHouseMeetsThePavementWithoutABlueSeam(int scrollY)
+    {
+        var data = m_areas[3];
+        var game = new Game(data);
+        typeof(Game).GetProperty(nameof(Game.CameraX))!.SetValue(game, -207.0);
+        typeof(Game).GetProperty(nameof(Game.CameraY))!.SetValue(game, -512.0 - scrollY);
+        game.ViewCamera.Reset(game.CameraX, game.CameraY);
+        var screen = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
+        new ArcadeRenderer(data).Draw(screen, game, effects: false);
+        // The house ends at world Y=384. The original pavement tile must start on that same row.
+        const int worldX = 416;
+        const int worldY = 384;
+        var layer = data.Background;
+        var cell = layer.Cells[(worldY - layer.Y) / 8 * layer.Width + (worldX - layer.X) / 8];
+        var tile = (int)(cell & 65535);
+        var pen = data.TilePens[(tile / 128 * 8) * data.TileStride + tile % 128 * 8];
+        var pavement = data.TilePalettes[data.DayPalette][(cell >> 16 & 127) * 8 + pen];
+        Assert.That(screen.Pixels[(worldY - scrollY) * screen.Width + worldX - 200], Is.EqualTo(pavement));
+    }
+
+    [Test]
+    public void LastReserveLifeDisplaysAHollowZero()
+    {
+        var data = m_areas[0];
+        var game = new Game(data, character: 2);
+        typeof(Game).GetProperty(nameof(Game.Lives))!.SetValue(game, 0);
+        var screen = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
+        new ArcadeRenderer(data).Draw(screen, game);
+        var topInk = Enumerable.Range(0, 64).First(i =>
+            data.TilePens[(0x60 / 128 * 8 + i / 8) * data.TileStride + 0x60 % 128 * 8 + i % 8] != 0);
+        var yellow = screen.Pixels[(200 + topInk / 8) * screen.Width + 128 + topInk % 8];
+        for (var y = 0; y < 8; y++)
+        for (var x = 0; x < 8; x++)
+        {
+            var pen = data.TilePens[(0x69 / 128 * 8 + y) * data.TileStride + 0x69 % 128 * 8 + x];
+            Assert.That(screen.Pixels[(208 + y) * screen.Width + 128 + x] == yellow,
+                Is.EqualTo(pen != 0), $"Zero lower half ({x}, {y})");
+        }
+        for (var y = 203; y < 214; y++)
+            Assert.That(screen.Pixels[y * screen.Width + 131], Is.Not.EqualTo(yellow),
+                "Zero must have an uninterrupted hollow center, without the crossbar from six or eight.");
+    }
+
+    [TestCase(0)]
+    [TestCase(1)]
+    [TestCase(2)]
+    public void AutoplaySavesMagicUntilEnemiesHaveEnteredTheVisibleBattle(int character)
+    {
+        var game = new Game(m_areas[0], character);
+        game.Actors.RemoveAll(a => a != game.Hero);
+        typeof(Game).GetField("m_spawnIndex", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .SetValue(game, m_areas[0].Spawns.Length);
+        typeof(Game).GetProperty(nameof(Game.Potions))!.SetValue(game, character == 1 ? 5 : 3);
+        var enemies = Enumerable.Range(0, 3).Select(i =>
+            game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, game.Progress + 400 + i * 20, game.Hero.Z)).ToArray();
+        var controller = new CodedController();
+        Assert.That(controller.Read(game).Magic, Is.False, "Off-screen enemies must not trigger a cast.");
+        foreach (var enemy in enemies)
+        {
+            enemy.X = game.Hero.X + 90;
+            enemy.SetState(FighterState.Entering);
+        }
+        Assert.That(controller.Read(game).Magic, Is.False, "Entering enemies cannot yet be hit.");
+        foreach (var enemy in enemies)
+            enemy.SetState(FighterState.Idle);
+        if (character == 1)
+        {
+            typeof(Game).GetProperty(nameof(Game.Potions))!.SetValue(game, 3);
+            Assert.That(controller.Read(game).Magic, Is.False, "Tyris should save for her second spell level.");
+            typeof(Game).GetProperty(nameof(Game.Potions))!.SetValue(game, 5);
+        }
+        Assert.That(controller.Read(game).Magic, Is.True, "A visible, hittable group warrants magic.");
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void AutoplayWaitsForTheRestOfTheWaveButNotForever(bool entering)
+    {
+        var game = new Game(m_areas[0], 2);
+        game.Actors.RemoveAll(a => a != game.Hero);
+        typeof(Game).GetField("m_spawnIndex", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .SetValue(game, m_areas[0].Spawns.Length);
+        typeof(Game).GetProperty(nameof(Game.Potions))!.SetValue(game, 2);
+        for (var i = 0; i < 2; i++)
+            game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, game.Hero.X + 90 + i * 10, game.Hero.Z);
+        var late = game.Add(ActorKind.Longmoan, Moves.Longmoan, 0x78, 16,
+            entering ? game.Hero.X + 110 : game.Progress + 400, game.Hero.Z);
+        if (entering)
+            late.SetState(FighterState.Entering);
+        var controller = new CodedController();
+        Assert.That(controller.Read(game).Magic, Is.False, "Wait for the third enemy to become a valid target.");
+        typeof(Game).GetProperty(nameof(Game.TickCount))!.SetValue(game, 119);
+        Assert.That(controller.Read(game).Magic, Is.False);
+        typeof(Game).GetProperty(nameof(Game.TickCount))!.SetValue(game, 120);
+        Assert.That(controller.Read(game).Magic, Is.True, "A stuck straggler must not postpone magic indefinitely.");
+        // A fresh decision casts immediately when the whole group has assembled.
+        late.X = game.Hero.X + 110;
+        late.SetState(FighterState.Idle);
+        Assert.That(new CodedController().Read(game).Magic, Is.True);
+    }
+
+    [Test]
+    public void AutoplayAnticipatesDelayedDoorEnemiesButCastsToSaveLowHealth()
+    {
+        var game = new Game(m_areas[2], 2);
+        game.Actors.RemoveAll(a => a != game.Hero);
+        typeof(Game).GetProperty(nameof(Game.Potions))!.SetValue(game, 2);
+        var first = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, game.Hero.X + 40, game.Hero.Z);
+        game.Add(ActorKind.Longmoan, Moves.Longmoan, 0x78, 16, game.Hero.X + 90, game.Hero.Z);
+        game.Spawn(m_areas[2].Spawns.First(s => s.Routine == 0x282ec));
+        Assert.That(game.HasUpcomingEnemies, Is.True);
+        var controller = new CodedController();
+        Assert.That(controller.Read(game).Magic, Is.False, "Do not spend the spell before the door wave arrives.");
+        game.Hero.Health = 8;
+        first.SetState(FighterState.Attacking, first.Moves.Attacks[0], true);
+        first.Animation.Seek(m_areas[2].Attacks[first.Animation.Address][2]);
+        Assert.That(game.CanHitWithMagic(first), Is.True);
+        Assert.That(controller.Read(game).Magic, Is.True, "Low-health survival takes priority over waiting.");
+    }
+
+    [TestCase(7, 660, 170)]
+    [TestCase(8, 518, 292)]
+    [TestCase(9, 680, 366)]
+    public void TyrisHigherPotionCountsSelectTheirDistinctSpell(int potions, int frame, int duration)
+    {
+        var game = new Game(m_areas[0], 1);
+        typeof(Game).GetProperty(nameof(Game.Potions))!.SetValue(game, potions);
+        game.Tick(new GameInput(Magic: true));
+        Assert.That(game.MagicLevel, Is.EqualTo(potions - 3));
+        Assert.That(game.MagicDuration, Is.EqualTo(duration));
+        Assert.That(game.ActiveMagicEffects[0].Count(s => s[0] == 517), Is.EqualTo(potions));
+        Assert.That(game.ActiveMagicEffects.Take(48).SelectMany(s => s).All(s => s[1] == 0x4a), Is.True);
+        Assert.That(game.ActiveMagicEffects[48].Any(s => s[0] == frame), Is.True);
+        if (potions == 8)
+        {
+            var core = game.ActiveMagicEffects[100].Where(s => s[0] == 518).ToArray();
+            Assert.That(core, Has.Length.EqualTo(2), "The molten core needs both halves, not a rectangular cut-off.");
+            Assert.That(core.Select(s => s[2]), Is.EquivalentTo(new[] { 0, 1 }));
+        }
+    }
+
+    [TestCase(-1, false)]
+    [TestCase(1, false)]
+    [TestCase(-1, true)]
+    [TestCase(1, true)]
+    public void AutoplayMakesRoomForOffscreenArrivals(int direction, bool mounted)
+    {
+        var game = new Game(m_areas[0], 2);
+        var hero = game.Hero;
+        hero.X += (direction > 0 ? 300 : 20) - game.ProjectView(hero.X, hero.Z, hero.Y).X;
+        hero.Y = game.Ground(hero.X, hero.Z);
+        var controlled = hero;
+        if (mounted)
+        {
+            controlled = game.Add(ActorKind.Chicken, game.Character.MountedMoves, 0x23, 99, hero.X, hero.Z);
+            controlled.Rider = hero;
+            hero.Mount = controlled;
+        }
+        var enemy = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 24, controlled.X + direction * 70, hero.Z);
+        var controller = new CodedController();
+        var retreat = controller.Read(game);
+        Assert.That(retreat.X, Is.EqualTo(-direction));
+        Assert.That(retreat.Attack || retreat.Run, Is.False);
+        controlled.X -= direction * 32;
+        hero.X = controlled.X;
+        Assert.That(controller.Read(game), Is.EqualTo(default(GameInput)), "Wait inside the shot instead of walking back to the edge.");
+        enemy.X = controlled.X + direction * 36;
+        Assert.That(controller.Read(game).Attack, Is.True, "Resume combat once the opponent enters the shot.");
+    }
+
+    [TestCase(20, -1, false)]
+    [TestCase(300, 1, false)]
+    [TestCase(160, -1, true)]
+    [TestCase(160, 1, true)]
+    public void AutoplayOnlyBargesWhenTheChargeStaysOnScreen(int screenX, int direction, bool expectedRun)
+    {
+        var game = new Game(m_areas[0], 2);
+        var hero = game.Hero;
+        hero.X += screenX - game.ProjectView(hero.X, hero.Z, hero.Y).X;
+        hero.Y = game.Ground(hero.X, hero.Z);
+        hero.Facing = direction;
+        hero.Vx = direction * 3;
+        game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 24, hero.X + direction * 36, hero.Z);
+        var input = new CodedController().Read(game);
+        Assert.That(input.Attack, Is.EqualTo(expectedRun), "Bring edge opponents into the shot before attacking.");
+        if (!expectedRun)
+            Assert.That(input.X, Is.EqualTo(-direction), "Walk inward instead of rolling into the boundary.");
+        Assert.That(input.Attack && input.Run, Is.EqualTo(expectedRun), "Only commit to a rolling attack with room to finish it on screen.");
+    }
+
+    [Test]
+    public void DragonFireLeavesGroundHeatAfterTheProjectileIsGone()
+    {
+        var game = new Game(m_areas[0]);
+        var fireball = game.Add(ActorKind.Fireball, Moves.BlueDragon, 0x45, 1, game.Hero.X + 30, game.Hero.Z);
+        fireball.Y -= 28;
+        fireball.Animation.Play(0x32b00);
+        for (var tick = 0; tick < 20; tick++)
+            game.Tick(default);
+        Assert.That(game.MagicGroundGlows, Is.Not.Empty);
+        var patch = game.MagicGroundGlows.Last();
+        Assert.That(patch.Y, Is.EqualTo(game.Ground(patch.X, patch.Z)));
+        fireball.SetState(FighterState.Gone);
+        for (var tick = 0; tick < 60; tick++)
+            game.Tick(default);
+        Assert.That(game.MagicGroundGlows, Does.Contain(patch), "The heat remains anchored after the projectile disappears.");
+        for (var tick = 0; tick < 60; tick++)
+            game.Tick(default);
+        Assert.That(game.MagicGroundGlows, Is.Empty);
+    }
+
+    [Test]
+    public void InterruptedDragonBreathFadesAtItsLastPosition()
+    {
+        var game = new Game(m_areas[0]);
+        var beast = game.Add(ActorKind.BlueDragon, Moves.BlueDragon, 0x23, 99, game.Hero.X + 60, game.Hero.Z);
+        var flame = game.Add(ActorKind.Flame, Moves.BlueDragon, 0x45, 1, beast.X, beast.Z);
+        flame.Owner = beast;
+        flame.Animation.Play(0x2f422);
+        var pose = flame.Animation.Current;
+        var x = flame.X;
+        game.Tick(default);
+        Assert.That(flame.State, Is.EqualTo(FighterState.Dying));
+        beast.X += 40;
+        for (var tick = 0; tick < Game.FlameFadeTicks / 2; tick++)
+            game.Tick(default);
+        Assert.That(flame.X, Is.EqualTo(x));
+        Assert.That(flame.Animation.Current, Is.EqualTo(pose));
+        Assert.That(ArcadeRenderer.ActorFade(game, flame), Is.EqualTo(0.5));
+        for (var tick = 0; tick < Game.FlameFadeTicks / 2; tick++)
+            game.Tick(default);
+        Assert.That(game.Actors, Does.Not.Contain(flame));
+    }
+
+    [TestCase(0)]
+    [TestCase(1)]
+    [TestCase(2)]
+    public void CampKeepsARespawnedHeroVisibleWhenTheClockRestarts(int character)
+    {
+        var game = new Game(m_areas[2], character);
+        AdvanceTo(game, m_areas[2].Stops[^1]);
+        for (var tick = 0; tick < 40; tick++)
+        {
+            game.Actors.RemoveAll(a => a != game.Hero);
+            game.Tick(default);
+        }
+        Assert.That(game.Complete, Is.True);
+        // A death earlier in a long stage leaves a timestamp beyond the entire camp round.
+        game.Hero.RespawnTick = 2000;
+        game.StartCamp();
+        Assert.That(game.IsCamp, Is.True);
+        Assert.That(game.Hero.State, Is.EqualTo(FighterState.Sleeping));
+        Assert.That(ArcadeRenderer.ActorFade(game, game.Hero), Is.EqualTo(1));
+        for (var tick = 0; tick < 500; tick++)
+        {
+            game.Tick(default);
+            Assert.That(ArcadeRenderer.ActorFade(game, game.Hero), Is.EqualTo(1),
+                "The sleeper and waking hero must stay visible on the restarted camp clock.");
+        }
+        Assert.That(game.Hero.State, Is.Not.EqualTo(FighterState.Sleeping));
+    }
+
+    [Test]
+    public void HeroFadesOutThenBackInAtRespawn()
+    {
+        var game = new Game(m_areas[0]);
+        var hero = game.Hero;
+        hero.Health = 0;
+        hero.SetState(FighterState.Respawning);
+        Assert.That(ArcadeRenderer.ActorFade(game, hero), Is.EqualTo(1));
+        for (var tick = 0; tick < Game.HeroFadeTicks / 2; tick++)
+            game.Tick(default);
+        Assert.That(ArcadeRenderer.ActorFade(game, hero), Is.EqualTo(0.5));
+        while (hero.State == FighterState.Respawning)
+            game.Tick(default);
+        Assert.That(ArcadeRenderer.ActorFade(game, hero), Is.Zero);
+        for (var tick = 0; tick < Game.HeroFadeTicks; tick++)
+            game.Tick(default);
+        Assert.That(ArcadeRenderer.ActorFade(game, hero), Is.EqualTo(1));
+        Assert.That(hero.Health, Is.EqualTo(48));
+    }
+
+    [TestCase(0, 4)]
+    [TestCase(1, 7)]
+    [TestCase(1, 9)]
+    [TestCase(2, 3)]
+    public void MagicGroundGlowStaysOnTheFloorAndFadesAfterMagic(int character, int potions)
+    {
+        var game = new Game(m_areas[0], character);
+        typeof(Game).GetProperty(nameof(Game.Potions))!.SetValue(game, potions);
+        game.Tick(new GameInput(Magic: true));
+        while (game.MagicTick < 120)
+            game.Tick(default);
+        var patch = game.MagicGroundGlows.First();
+        Assert.That(patch.Y, Is.EqualTo(game.Ground(patch.X, patch.Z)));
+        for (var tick = 0; tick < 12; tick++)
+            game.Tick(default);
+        Assert.That(game.MagicGroundGlows.Any(g => g.X == patch.X && g.Z == patch.Z && g.Y == patch.Y), Is.True);
+        while (game.MagicTick >= 0)
+            game.Tick(default);
+        Assert.That(game.MagicGroundGlows, Is.Not.Empty);
+        for (var tick = 0; tick < MagicGroundGlow.FadeTicks; tick++)
+            game.Tick(default);
+        Assert.That(game.MagicGroundGlows, Is.Empty);
+    }
+
+    [Test]
+    public void TyrisDragonBreathPrecedesDamageAndLeavesFadingSmoke()
+    {
+        var game = new Game(m_areas[0], 1);
+        game.Actors.RemoveAll(a => a != game.Hero);
+        typeof(Game).GetProperty(nameof(Game.Potions))!.SetValue(game, 9);
+        var enemy = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 64, game.Hero.X + 90, game.Hero.Z);
+        enemy.Cooldown = 10000;
+        game.Tick(new GameInput(Magic: true));
+        while (game.MagicTick < 105)
+        {
+            game.Tick(default);
+            Assert.That(enemy.Health, Is.EqualTo(64), "Potion fan and dragon entrance must not deal premature damage.");
+            Assert.That(game.DragonSmoke, Is.Empty, "The silver head is not a smoke source.");
+        }
+        game.Tick(default);
+        Assert.That(game.ActiveMagicEffects[game.MagicTick].Any(s => s[0] == 681), Is.True);
+        Assert.That(enemy.Health, Is.EqualTo(16));
+        while (game.MagicTick >= 0)
+            game.Tick(default);
+        Assert.That(game.DragonSmoke, Is.Not.Empty);
+        for (var tick = 0; tick < 121; tick++)
+            game.Tick(default);
+        Assert.That(game.DragonSmoke, Is.Not.Empty, "The plume should linger after the flame has gone.");
+        for (var tick = 0; tick < 120; tick++)
+            game.Tick(default);
+        Assert.That(game.DragonSmoke, Is.Empty);
+    }
+
     [TestCase(0, 0x1a0)]
     [TestCase(1, 0x1a4)]
     [TestCase(2, 0x1a8)]
@@ -106,6 +444,68 @@ public class GoldenAxeGameplayTests
     }
 
     [Test]
+    public void CivilianSpawnParametersGiveEachVillagerTheirMeasuredSpeed()
+    {
+        var game = new Game(m_areas[0]);
+        var opening = m_areas[1].Spawns.Where(s => s.Trigger == 4120).ToArray();
+        // Measured base-X travel from ticks 1048 to 1080 of the MAME area1 trace.
+        var travel = new[] { 80, 64, 48, 62, 60, 56 };
+        Assert.That(opening, Has.Length.EqualTo(travel.Length));
+        foreach (var spawn in opening)
+            game.Spawn(spawn with { X = (int)game.Hero.X + 80, Z = (int)game.Hero.Z });
+        var crowd = game.Actors.Where(a => a.Kind == ActorKind.Villager).ToArray();
+        var startX = crowd.Select(a => a.X).ToArray();
+        for (var tick = 0; tick < 32; tick++)
+            game.Tick(default);
+        for (var i = 0; i < crowd.Length; i++)
+            Assert.That(startX[i] - crowd[i].X, Is.EqualTo(travel[i]).Within(0.001));
+    }
+
+    [Test]
+    public void OpeningVillageCrowdMovesDownIntoTheMeasuredLanes()
+    {
+        var game = new Game(m_areas[1]);
+        foreach (var spawn in m_areas[1].Spawns.Where(s => s.Trigger == 4120))
+            game.Spawn(spawn);
+        var crowd = game.Actors.Where(a => a.Kind == ActorKind.Villager).ToArray();
+        var initialZ = crowd.Select(a => a.Z).ToArray();
+        for (var tick = 0; tick < 12; tick++)
+            game.Tick(default);
+        Assert.That(crowd.Select((a, i) => a.Z - initialZ[i]), Is.All.EqualTo(12));
+        for (var tick = 12; tick < 64; tick++)
+            game.Tick(default);
+        Assert.That(crowd.Select(a => a.Z), Is.EqualTo(new[] { 4192, 4168, 4208, 4195, 4186, 4179 }));
+    }
+
+    [Test]
+    public void OpeningInjuredVillagerFallsAndRemainsInTheScenery()
+    {
+        var game = new Game(m_areas[0]);
+        game.Spawn(m_areas[0].Spawns.Single(s => s.Routine == 0x9c08));
+        var injured = game.Actors.Single(a => a.Kind == ActorKind.Villager);
+        Assert.That((injured.Animation.Current.Frame, injured.Palette, injured.X), Is.EqualTo((611, 0x42, 4365.0)));
+        for (var tick = 0; tick < 120; tick++)
+            game.Tick(default);
+        Assert.That((injured.Animation.Current.Frame, injured.X, injured.Z), Is.EqualTo((612, 4365.0, 4248.0)));
+    }
+
+    [Test]
+    public void WaitingVillageChildUsesItsOwnPosesBeforeFleeing()
+    {
+        var game = new Game(m_areas[1]);
+        var spawn = m_areas[1].Spawns.First(s => s.Routine == 0x9a9a);
+        game.Spawn(spawn);
+        var child = game.Actors.Single(a => a.Kind == ActorKind.Villager);
+        for (var tick = 0; tick < 80; tick++)
+            game.Tick(default);
+        Assert.That((child.Animation.Address, child.Palette, child.X), Is.EqualTo((0xa35c, 0x4c, (double)spawn.X)));
+        game.Hero.X = child.X - 100;
+        game.Tick(default);
+        Assert.That(child.Animation.Address, Is.EqualTo(0xa10e));
+        Assert.That(child.X, Is.LessThan(spawn.X));
+    }
+
+    [Test]
     public void TurtleVillageCrowdRoutesAroundBuildingsAndLeavesTheScreen()
     {
         var data = m_areas[1];
@@ -118,9 +518,9 @@ public class GoldenAxeGameplayTests
         game.Actors.RemoveAll(a => a != game.Hero);
         foreach (var spawn in data.Spawns.Where(s => s.Trigger is >= 4768 and <= 4784 && s.Routine is >= 0x99c0 and <= 0x9a9a))
             game.Spawn(spawn);
-        var crowd = game.Actors.Where(a => a.Kind == ActorKind.Villager).ToArray();
+        var crowd = game.Actors.Where(a => a.Kind == ActorKind.Villager && a.Animation.Address != 0xa35c).ToArray();
         var initialDepths = crowd.Select(a => a.Z).ToArray();
-        Assert.That(crowd, Has.Length.GreaterThan(5));
+        Assert.That(crowd, Has.Length.EqualTo(9));
         for (var tick = 0; tick < 600; tick++)
         {
             game.Actors.RemoveAll(a => a != game.Hero && a.Kind != ActorKind.Villager);
@@ -138,7 +538,7 @@ public class GoldenAxeGameplayTests
     public void InjuredVillagerDoesNotSnapBackWhenHisWalkLoops(int facing)
     {
         var game = new Game(m_areas[0]);
-        game.Spawn(new SpawnDefinition((int)game.Progress, (int)game.Progress + 160, (int)game.Hero.Z, 0, 0x9a9a));
+        game.Spawn(new SpawnDefinition((int)game.Progress, (int)game.Progress + 160, (int)game.Hero.Z, 0, 0x9a5a));
         var villager = game.Actors.Single(a => a.Kind == ActorKind.Villager);
         villager.Facing = facing;
         var previous = villager.X + villager.Animation.Current.Dx * facing;
@@ -525,6 +925,31 @@ public class GoldenAxeGameplayTests
     }
 
     [Test]
+    public void SandwichedAutoplayerCommitsToLeavingTheAttackLane()
+    {
+        var game = new Game(m_areas[0], 2);
+        game.Actors.RemoveAll(a => a != game.Hero);
+        var hero = game.Hero;
+        game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, hero.X - 24, hero.Z);
+        game.Add(ActorKind.Longmoan, Moves.Longmoan, 0x78, 16, hero.X + 24, hero.Z);
+        var controller = new CodedController();
+        var first = controller.Read(game);
+        Assert.That(Math.Abs(first.Z), Is.EqualTo(1), "Two enemies on opposing sides are enough to trigger an escape.");
+        Assert.That(first.X, Is.Zero);
+        var startZ = hero.Z;
+        // Move past the initial threat-depth threshold: the escape must not stop
+        // early and send the hero straight back into the same two attackers.
+        for (var step = 1; step < 19; step++)
+        {
+            hero.Z = startZ + first.Z * step;
+            var input = controller.Read(game);
+            Assert.That(input, Is.EqualTo(first), $"Escape step {step}");
+            Assert.That(Math.Abs(game.Ground(hero.X, hero.Z) - hero.Y), Is.LessThanOrEqualTo(8));
+            Assert.That(game.ProjectView(hero.X, hero.Z, hero.Y).Y, Is.InRange(16, 208));
+        }
+    }
+
+    [Test]
     public void NearbyEnemiesStaggerHitsWhenTheyAreReadyTogether()
     {
         var game = new Game(m_areas[0], 2);
@@ -561,7 +986,8 @@ public class GoldenAxeGameplayTests
         var feather = EagleFeathers.Sample(0, game.TickCount, game.CameraX);
         var later = EagleFeathers.Sample(0, game.TickCount + 10, game.CameraX);
         Assert.That(later.X, Is.LessThan(feather.X), "Wind should carry feathers to the left.");
-        Assert.That(later.Frame, Is.Not.EqualTo(feather.Frame), "The original feather poses should tumble as they drift.");
+        Assert.That(feather.Frame, Is.EqualTo(1042), "Use the feather identified in the MAME reference.");
+        Assert.That(later.Frame, Is.EqualTo(1042), "Do not cycle through the unrelated 1024-1041 frames.");
 
         var renderer = new ArcadeRenderer(data);
         var screen = new PixelScreenData(320, 224, data.Palette);
@@ -1169,6 +1595,7 @@ public class GoldenAxeGameplayTests
         foodThief.Z = game.Hero.Z;
         foodThief.Y = game.Hero.Y;
         foodThief.Facing = -1;
+        foodThief.ThiefPauseTicks = 120; // Exercise the food drop during a stationary opening.
         for (var tick = 0; tick < 120 && !game.Actors.Any(a => a.Kind == ActorKind.Food); tick++)
             game.Tick(new GameInput(1, Attack: true));
         var food = game.Actors.Single(a => a.Kind == ActorKind.Food);
@@ -1192,6 +1619,39 @@ public class GoldenAxeGameplayTests
         Assert.That(next.Hero.Health, Is.EqualTo(32));
         Assert.That(next.Potions, Is.Zero);
         Assert.That(next.Lives, Is.EqualTo(game.Lives));
+    }
+
+    [TestCase(0)]
+    [TestCase(1)]
+    [TestCase(2)]
+    [TestCase(3)]
+    public void CampThievesWalkInThenRunAndPauseOnTheGround(int area)
+    {
+        var game = new Game(m_areas[area], random: new Random(0), startInCamp: true);
+        var movedInDepth = false;
+        var paused = false;
+        var ran = false;
+        for (var tick = 0; tick < 700; tick++)
+        {
+            var previous = game.Actors.Where(a => a.Kind == ActorKind.Thief)
+                .ToDictionary(a => a.Id, a => (a.X, a.Z));
+            game.Tick(default);
+            foreach (var thief in game.Actors.Where(a => a.Kind == ActorKind.Thief))
+            {
+                var floorX = thief.Entered ? thief.X : Math.Clamp(thief.X, game.Progress + 24, game.Progress + 296);
+                Assert.That(thief.Y, Is.EqualTo(game.Ground(floorX, thief.Z)).Within(1), "Walk in at floor height instead of falling from above.");
+                if (!previous.TryGetValue(thief.Id, out var old))
+                    continue;
+                if (thief.ThiefPauseTicks > 0 && thief.State == FighterState.Idle && thief.ThiefRunTicks == 0)
+                    paused |= thief.X == old.X && thief.Z == old.Z;
+                if (thief.ThiefRunTicks > 0)
+                {
+                    ran |= Math.Abs(thief.X - old.X) + Math.Abs(thief.Z - old.Z) > 1;
+                    movedInDepth |= Math.Abs(thief.Z - old.Z) > 0.1;
+                }
+            }
+        }
+        Assert.That(paused && ran && movedInDepth, Is.True, "Choose directions in depth as well as sideways, with stationary pauses between runs.");
     }
 
     [TestCase(0, -11, true)]
@@ -1287,6 +1747,28 @@ public class GoldenAxeGameplayTests
         Assert.That(empty.Items, Is.Zero);
         Assert.That(game.Actors.Count(a => a.Kind == ActorKind.Potion), Is.EqualTo(1));
         Assert.That(game.Actors.Count(a => a.Kind == ActorKind.Food), Is.EqualTo(1));
+    }
+
+    [TestCase(false, 47, 1)]
+    [TestCase(true, 47, 1)]
+    [TestCase(false, 48, -1)]
+    [TestCase(true, 48, -1)]
+    public void MidStageControllerFavorsFoodOverNearbyPotions(bool carriedByThief, int health, int direction)
+    {
+        var game = new Game(m_areas[0], 2);
+        game.Actors.RemoveAll(a => a != game.Hero);
+        game.Hero.Health = health;
+        game.Hero.X = game.Progress + 110;
+        game.Hero.Y = game.Ground(game.Hero.X, game.Hero.Z);
+        game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, game.Hero.X - 35, game.Hero.Z);
+        var potionThief = game.Add(ActorKind.Thief, Moves.Thief, 0x4a, 99, game.Hero.X - 60, game.Hero.Z);
+        potionThief.Items = 2;
+        var food = game.Add(carriedByThief ? ActorKind.Thief : ActorKind.Food, Moves.Thief,
+            carriedByThief ? 0x3c : 0x7f, 99, game.Hero.X + 130, game.Hero.Z);
+        food.FoodThief = carriedByThief;
+        food.Items = 2;
+        Assert.That(new CodedController().Read(game).X, Is.EqualTo(direction),
+            "Even one missing health point should favor food; full health should favor potions.");
     }
 
     [TestCase(false)]
@@ -1412,8 +1894,19 @@ public class GoldenAxeGameplayTests
             enemy.Cooldown = 10000;
         game.Tick(new GameInput(X: 1, Run: true, Attack: true));
         Assert.That(beast.State, Is.EqualTo(FighterState.Dashing));
+        var chargeFrame = kind == ActorKind.Chicken ? 200 : 634;
         for (var tick = 0; tick < 35; tick++)
+        {
+            if (tick < 18)
+            {
+                Assert.That(beast.Animation.Address, Is.EqualTo(beast.Moves.Jump));
+                Assert.That(beast.Animation.Current.Frame, Is.EqualTo(chargeFrame));
+                Assert.That(beast.Animation.Index, Is.Zero, "Hold the paired bracing pose without advancing into the airborne frames.");
+                Assert.That(data.Riders.ContainsKey(beast.Animation.Address), Is.True);
+                Assert.That(beast.Y, Is.EqualTo(game.Ground(beast.X, beast.Z)), "A mounted barge stays grounded.");
+            }
             game.Tick(default);
+        }
         Assert.That(enemies.Select(a => a.Health), Is.EqualTo(new[] { 95, 95 }), "Each target takes one body impact.");
         Assert.That(beast.Rider, Is.SameAs(hero));
         Assert.That(hero.Mount, Is.SameAs(beast));
@@ -1553,6 +2046,43 @@ public class GoldenAxeGameplayTests
         for (var tick = 0; tick < 40; tick++)
             game.Tick(default);
         Assert.That(victim.Y, Is.EqualTo(game.Ground(victim.X, victim.Z)), "The released victim must fall back to the floor.");
+    }
+
+    [TestCase(false, 40)]
+    [TestCase(false, 140)]
+    [TestCase(true, 40)]
+    [TestCase(true, 140)]
+    public void AutoplayDodgesRecoveryLightningOnFootAndMounted(bool mounted, int distance)
+    {
+        var game = new Game(m_areas[0], 2);
+        typeof(Game).GetField("m_spawnIndex", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .SetValue(game, m_areas[0].Spawns.Length);
+        game.Hero.X = game.Progress + 170;
+        game.Hero.Y = game.Ground(game.Hero.X, game.Hero.Z);
+        Fighter beast = null;
+        if (mounted)
+        {
+            beast = game.Add(ActorKind.BlueDragon, Moves.BlueDragon, 0x23, 99, game.Hero.X, game.Hero.Z);
+            game.Tick(default);
+            Assert.That(game.Hero.Mount, Is.SameAs(beast));
+        }
+        var boss = game.Add(ActorKind.DeathAdder, Moves.DeathAdder, 0x50, 64, game.Hero.X - distance, game.Hero.Z);
+        boss.SetState(FighterState.GettingUp, boss.Moves.GetUp);
+        var controller = new CodedController();
+        Fighter bolt = null;
+        for (var tick = 0; tick < 240; tick++)
+        {
+            game.Tick(controller.Read(game));
+            bolt ??= game.Actors.FirstOrDefault(a => a.Kind == ActorKind.Lightning);
+            Assert.That(game.Hero.Health, Is.EqualTo(48), $"Lightning hit at tick {tick}");
+            if (mounted)
+                Assert.That(game.Hero.Mount, Is.SameAs(beast), $"Lightning dismounted the hero at tick {tick}");
+            if (bolt != null && (bolt.IsGone || (bolt.X - game.Hero.X) * bolt.Facing > 40))
+                break;
+        }
+        Assert.That(bolt, Is.Not.Null, "The recovery cast must actually release a bolt.");
+        Assert.That(bolt.IsGone || (bolt.X - game.Hero.X) * bolt.Facing > 40, Is.True,
+            "The bolt must pass safely, rather than the test finishing before impact.");
     }
 
     [TestCase(-1, false)]

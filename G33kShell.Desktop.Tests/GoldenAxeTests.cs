@@ -29,6 +29,52 @@ namespace G33kShell.Desktop.Tests;
 [TestFixture]
 public class GoldenAxeTests
 {
+    [TestCase(-1156, -560)]
+    [TestCase(-1156, -581)]
+    [TestCase(-1059, -624)]
+    public void EagleLowerRightUndersideDoesNotExposeTheSky(int cameraX, int cameraY)
+    {
+        var data = new ArcadeData(ArcadeData.AssetDirectory, 3);
+        var game = new Game(data);
+        game.ViewCamera.Reset(cameraX, cameraY);
+        var screen = new PixelScreenData(320, 224, data.Palette);
+        new ArcadeRenderer(data).Draw(screen, game, effects: false);
+        var corner = Enumerable.Range(208, 16).SelectMany(y => screen.Pixels.Skip(y * 320 + 275).Take(45));
+        Assert.That(corner.All(p => p < EagleSky.PaletteStart), Is.True, "Missing underside cells must not show cloud palette pixels.");
+    }
+
+    [Test]
+    public void EagleSkyUsesCompleteHardwarePatternAndMovesWithAStationaryCamera()
+    {
+        var data = new ArcadeData(ArcadeData.AssetDirectory, 3);
+        Assert.That(data.Sky.Cells, Has.Length.EqualTo(64 * 32));
+        Assert.That(data.Sky.Cells, Has.None.EqualTo(uint.MaxValue));
+        // Independent samples from the long fixed-camera MAME trace, modulo the repeating pages.
+        Assert.That(EagleSky.Scroll(1, data.SkyScrollX), Is.EqualTo((509, 41)));
+        Assert.That(EagleSky.Scroll(193, data.SkyScrollX), Is.EqualTo((347, 9)));
+        Assert.That(EagleSky.Scroll(501, data.SkyScrollX), Is.EqualTo((147, 59)));
+        var game = new Game(data);
+        typeof(Game).GetProperty(nameof(Game.CameraX))!.SetValue(game, -1150.0);
+        typeof(Game).GetProperty(nameof(Game.CameraY))!.SetValue(game, -560.0);
+        game.Hero.X = game.Progress + 100;
+        game.Hero.Z = game.FindFloor(game.Hero.X, 4240, keepVisible: true);
+        game.Hero.Y = game.Ground(game.Hero.X, game.Hero.Z);
+        game.ViewCamera.Reset(game.CameraX, game.CameraY);
+        var screen = new PixelScreenData(320, 224, data.Palette);
+        var renderer = new ArcadeRenderer(data);
+        renderer.Draw(screen, game, effects: false);
+        var before = screen.Pixels.Take(320 * 20).ToArray();
+        var cameraX = game.CameraX;
+        for (var tick = 0; tick < 20; tick++)
+        {
+            game.Actors.RemoveAll(a => a != game.Hero);
+            game.Tick(default);
+        }
+        renderer.Draw(screen, game, effects: false);
+        Assert.That(game.CameraX, Is.EqualTo(cameraX));
+        Assert.That(screen.Pixels.Take(320 * 20), Is.Not.EqualTo(before));
+    }
+
     [Test]
     public void EagleSunsetChangesOnlyReservedSkyColorsAndRespectsMonochrome()
     {
@@ -102,6 +148,23 @@ public class GoldenAxeTests
         Assert.That(opacity[0], Is.GreaterThan(opacity[1]));
         Assert.That(opacity[1], Is.GreaterThan(opacity[2]));
         Assert.That(opacity, Is.EqualTo(opacity.Reverse().ToArray()), "Opacity should smoothly fall and rise across the gap.");
+    }
+
+    [Test]
+    public void MagicInstancesFadeIndependentlyAcrossAnimationFrames()
+    {
+        int[][][] recording = Enumerable.Range(0, 60).Select(tick =>
+        {
+            int[] existing = [378, 0x3a, 0, 0, 0, 0];
+            int[] later = [378 + tick % 5, 0x3a, 0, 100, 0, 0];
+            return tick is >= 10 and <= 45 ? new[] { existing, later } : new[] { existing };
+        }).ToArray();
+        var start = ArcadeRenderer.MagicEffectOpacity(recording, 10, recording[10][1]);
+        var middle = ArcadeRenderer.MagicEffectOpacity(recording, 25, recording[25][1]);
+        var end = ArcadeRenderer.MagicEffectOpacity(recording, 45, recording[45][1]);
+        Assert.That(start, Is.InRange(1, 30), "A later instance fades in even when its palette is already on screen.");
+        Assert.That(middle, Is.EqualTo(204), "Animation pose changes must not restart the fade.");
+        Assert.That(end, Is.EqualTo(start), "Fade out mirrors fade in.");
     }
 
     [TestCase(false)]
@@ -1325,7 +1388,7 @@ public class GoldenAxeTests
             for (var tick = 0; tick < 60 * 300 && !next.Complete && !next.GameOver; tick++)
                 next.Tick(controller.Read(next));
             TestContext.Progress.WriteLine($"Area {nextArea + 1}: complete {next.Complete}, HP {next.Hero.Health}, lives {next.Lives}, potions {next.Potions}, progress {next.Progress}");
-            Assert.That(next.Complete, Is.True, $"The player must also clear area {nextArea + 1} with carried health and lives.");
+            Assert.That(next.Complete, Is.True, $"The player must also clear area {nextArea + 1} with carried health and lives (HP={next.Hero.Health}, lives={next.Lives}, progress={next.Progress}, gameOver={next.GameOver}).");
             game = next;
         }
     }

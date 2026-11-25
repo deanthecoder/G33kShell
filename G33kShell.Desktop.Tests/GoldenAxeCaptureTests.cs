@@ -37,12 +37,13 @@ public sealed class GoldenAxeCaptureTests
 
         foreach (var name in sceneList.Split(','))
         {
-            var area = name switch { "skeleton-dust" or "eagle-sunset" => 3, "village-routing" => 1, "turtle-eye" => 2, "eagle-eye" or "castle-camera" => 4, _ => 0 };
+            var area = name switch { "skeleton-dust" or "eagle-sunset" or "eagle-clouds" => 3, "village-routing" or "village-opening" or "camp-thieves" => 1, "turtle-eye" => 2, "eagle-eye" or "castle-camera" => 4, _ => 0 };
             var data = new ArcadeData(ArcadeData.AssetDirectory, area);
             var (game, ticks, input) = name switch
             {
                 "shadows" => Shadows(data),
                 "campfire" => Campfire(data),
+                "camp-thieves" => (new Game(data, character: 2, random: new Random(0), startInCamp: true), 840, _ => default(GameInput)),
                 "dragon-fire" => DragonFire(data),
                 "dragon-flame" => DragonFire(data, blue: true),
                 "running-dust" => RunningDust(data),
@@ -52,10 +53,27 @@ public sealed class GoldenAxeCaptureTests
                 "dwarf-lightning" => DwarfLightning(data),
                 "villagers" => Villagers(data),
                 "village-routing" => VillageRouting(data),
+                "village-opening" => VillageRouting(data, opening: true),
                 "stone-bodies" => StoneBodies(data),
                 "eagle-sunset" => EagleSunset(data),
+                "eagle-clouds" => EagleClouds(data),
                 "castle-camera" => CastleCamera(data),
+                "mounted-barge-chicken" => MountedBarge(data, ActorKind.Chicken),
+                "mounted-barge-blue" => MountedBarge(data, ActorKind.BlueDragon),
+                "mounted-barge-red" => MountedBarge(data, ActorKind.RedDragon),
+                "autoplay-edge" => AutoplayEdge(data),
+                "hero-respawn" => HeroRespawn(data),
                 "magic" => Magic(data),
+                "gilius-one" => HeroSpell(data, 2, 1),
+                "gilius-two" => HeroSpell(data, 2, 2),
+                "gilius-three" => HeroSpell(data, 2, 3),
+                "ax-one" => HeroSpell(data, 0, 1),
+                "ax-two" => HeroSpell(data, 0, 2),
+                "ax-three" => HeroSpell(data, 0, 3),
+                "ax-four" => HeroSpell(data, 0, 4),
+                "tyris-seven" => HeroSpell(data, 1, 7),
+                "tyris-eight" => HeroSpell(data, 1, 8),
+                "tyris-dragon" => HeroSpell(data, 1, 9),
                 "landing-dust" => LandingDust(data),
                 "skeleton-dust" => SkeletonDust(data),
                 "turtle-eye" or "eagle-eye" => SceneryEye(data),
@@ -69,10 +87,11 @@ public sealed class GoldenAxeCaptureTests
         }
     }
 
-    private static (Game, int, Func<int, GameInput>) VillageRouting(ArcadeData data)
+    private static (Game, int, Func<int, GameInput>) VillageRouting(ArcadeData data, bool opening = false)
     {
         var game = new Game(data, character: 2, random: new Random(0));
-        typeof(Game).GetProperty(nameof(Game.CameraX))!.SetValue(game, 4096.0 - 7 - 4768);
+        var progress = opening ? 4120 : 4768;
+        typeof(Game).GetProperty(nameof(Game.CameraX))!.SetValue(game, 4096.0 - 7 - progress);
         var range = data.CameraPath.OrderBy(p => Math.Abs(p.Key - (int)Math.Floor(game.CameraX / 8))).First().Value;
         typeof(Game).GetProperty(nameof(Game.CameraY))!.SetValue(game, (double)range[0]);
         game.ViewCamera.Reset(game.CameraX, game.CameraY);
@@ -81,7 +100,7 @@ public sealed class GoldenAxeCaptureTests
         game.Hero.Y = game.Ground(game.Hero.X, game.Hero.Z);
         game.Tick(default);
         game.Actors.RemoveAll(a => a != game.Hero);
-        foreach (var spawn in data.Spawns.Where(s => s.Trigger is >= 4768 and <= 4784 && s.Routine is >= 0x99c0 and <= 0x9a9a))
+        foreach (var spawn in data.Spawns.Where(s => s.Trigger >= progress && s.Trigger <= progress + 16 && s.Routine is >= 0x99c0 and <= 0x9a9a))
             game.Spawn(spawn);
         return (game, 600, _ =>
         {
@@ -93,14 +112,14 @@ public sealed class GoldenAxeCaptureTests
     private static (Game, int, Func<int, GameInput>) Villagers(ArcadeData data)
     {
         var game = new Game(data, character: 2, random: new Random(0));
-        var routines = new[] { 0x99c8, 0x99da, 0x99ec, 0x99fe, 0x9a9a };
+        var routines = new[] { 0x99c8, 0x99da, 0x99ec, 0x99fe, 0x9a5a };
         return (game, 270, tick =>
         {
             game.Actors.RemoveAll(a => a != game.Hero && a.Kind != ActorKind.Villager);
             if (tick % 36 == 0 && tick / 36 < routines.Length)
             {
                 var z = game.FindFloor(game.Progress + 295, game.Hero.Z - 24);
-                game.Spawn(new SpawnDefinition((int)game.Progress, (int)game.Progress + 295, (int)z, 0, routines[tick / 36]));
+                game.Spawn(new SpawnDefinition((int)game.Progress, (int)game.Progress + 295, (int)z, 0x20, routines[tick / 36]));
             }
             return default;
         });
@@ -236,6 +255,26 @@ public sealed class GoldenAxeCaptureTests
         return (game, 288, tick => new GameInput(X: tick is >= 28 and < 105 ? 1 : tick is >= 147 and < 214 ? -1 : 0));
     }
 
+    private static (Game, int, Func<int, GameInput>) EagleClouds(ArcadeData data)
+    {
+        var game = new Game(data, character: 2, random: new Random(0));
+        typeof(Game).GetProperty(nameof(Game.CameraX))!.SetValue(game, 4096.0 - 7 - 5245);
+        typeof(Game).GetProperty(nameof(Game.CameraY))!.SetValue(game, -560.0);
+        game.Hero.X = game.Progress + 110;
+        game.Hero.Z = game.FindFloor(game.Hero.X, 4240, keepVisible: true);
+        game.Hero.Y = game.Ground(game.Hero.X, game.Hero.Z);
+        for (var tick = 0; tick < 120; tick++)
+        {
+            game.Actors.RemoveAll(a => a != game.Hero);
+            game.Tick(default);
+        }
+        return (game, 600, _ =>
+        {
+            game.Actors.RemoveAll(a => a != game.Hero);
+            return default;
+        });
+    }
+
     private static (Game, int, Func<int, GameInput>) EagleSunset(ArcadeData data)
     {
         var game = new Game(data, character: 2, random: new Random(0));
@@ -314,6 +353,64 @@ public sealed class GoldenAxeCaptureTests
         return (game, 216, tick => new GameInput(Attack: tick is 22 or 126));
     }
 
+    private static (Game, int, Func<int, GameInput>) MountedBarge(ArcadeData data, ActorKind kind)
+    {
+        var game = new Game(data, character: 2, random: new Random(0));
+        var hero = game.Hero;
+        hero.X = game.Progress + 70;
+        var beast = game.Add(kind, game.Character.RidingMoves(kind), kind == ActorKind.RedDragon ? 0x25 : 0x23,
+            99, hero.X, hero.Z);
+        beast.Rider = hero;
+        hero.Mount = beast;
+        game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 99, hero.X + 125, hero.Z);
+        return (game, 210, tick =>
+        {
+            foreach (var enemy in game.Actors.Where(a => a.IsEnemy))
+                enemy.Cooldown = 10000;
+            if (tick is >= 15 and <= 33)
+                return new GameInput(X: 1, Run: true, Attack: tick == 33);
+            if (tick is >= 110 and <= 128)
+                return new GameInput(X: -1, Run: true, Attack: tick == 128);
+            return default;
+        });
+    }
+
+    private static (Game, int, Func<int, GameInput>) AutoplayEdge(ArcadeData data)
+    {
+        var game = new Game(data, character: 2, random: new Random(0));
+        game.Tick(default);
+        game.Actors.RemoveAll(a => a != game.Hero);
+        typeof(Game).GetField("m_spawnIndex", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .SetValue(game, data.Spawns.Length);
+        var hero = game.Hero;
+        hero.X += 300 - game.ProjectView(hero.X, hero.Z, hero.Y).X;
+        hero.Y = game.Ground(hero.X, hero.Z);
+        var enemy = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 48, hero.X + 36, hero.Z);
+        enemy.Cooldown = 100;
+        var arrival = game.Add(ActorKind.Longmoan, Moves.Longmoan, 0x78, 32, hero.X + 90, hero.Z + 10);
+        arrival.Cooldown = 100;
+        var controller = new CodedController();
+        return (game, 600, _ => controller.Read(game));
+    }
+
+    private static (Game, int, Func<int, GameInput>) HeroRespawn(ArcadeData data)
+    {
+        var game = new Game(data, character: 2, random: new Random(0));
+        game.Hero.X = game.Progress + 150;
+        return (game, 240, tick =>
+        {
+            foreach (var enemy in game.Actors.Where(a => a.IsEnemy))
+                enemy.Cooldown = 10000;
+            if (tick == 36)
+            {
+                game.Hero.Health = 0;
+                game.Hero.SetState(FighterState.Respawning, game.Hero.Moves.GetUp);
+                game.Hero.Animation.Seek(1);
+            }
+            return default;
+        });
+    }
+
     private static (Game, int, Func<int, GameInput>) Magic(ArcadeData data)
     {
         var game = new Game(data, character: 2, random: new Random(0));
@@ -325,6 +422,24 @@ public sealed class GoldenAxeCaptureTests
         AddTarget(game, ActorKind.Amazon, Moves.Amazon, 0x63, 150, 8);
 
         return (game, 270, tick => new GameInput(Magic: tick == 36));
+    }
+
+    private static (Game, int, Func<int, GameInput>) HeroSpell(ArcadeData data, int character, int potions)
+    {
+        var game = new Game(data, character: character, random: new Random(0));
+        game.Hero.X = game.Progress + 150;
+        game.Hero.Y = game.Ground(game.Hero.X, game.Hero.Z);
+        for (var i = game.Potions; i < potions; i++)
+            game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, game.Hero.X, game.Hero.Z);
+        game.Tick(default);
+        game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 64, game.Hero.X + 65, game.Hero.Z - 10);
+        game.Add(ActorKind.Amazon, Moves.Amazon, 0x63, 64, game.Hero.X + 120, game.Hero.Z + 12);
+        return (game, 540, tick =>
+        {
+            foreach (var enemy in game.Actors.Where(a => a.IsEnemy))
+                enemy.Cooldown = 10000;
+            return new GameInput(Magic: tick == 36);
+        });
     }
 
     private static (Game, int, Func<int, GameInput>) LandingDust(ArcadeData data)
