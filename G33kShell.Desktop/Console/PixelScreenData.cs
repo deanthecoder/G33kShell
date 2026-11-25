@@ -31,7 +31,7 @@ public class PixelScreenData
     private (byte ColorIndex, byte Opacity)[] m_dust;
     private byte[] m_fog;
     private (byte ColorIndex, byte Weight)[] m_refraction;
-    private (Rgb Background, byte Opacity, int Group)[] m_translucent;
+    private (PixelColor Background, byte Opacity, int Group)[] m_translucent;
     private byte m_spriteOpacity = 255;
     private int m_spriteGroup;
     private int[] m_bgraFrame;
@@ -188,7 +188,7 @@ public class PixelScreenData
             for (var i = 0; i < Pixels.Length; i++)
             {
                 var color = GetColorAtOffset(i);
-                destination[i] = color.B | (color.G << 8) | (color.R << 16) | unchecked((int)0xff000000);
+                destination[i] = color.Bgra;
             }
         }
         if (applyOutputCurve && OutputColorCurve != null)
@@ -231,9 +231,9 @@ public class PixelScreenData
         m_hasBgraFrame = true;
     }
 
-    private Rgb GetColorAtOffset(int offset)
+    private PixelColor GetColorAtOffset(int offset)
     {
-        var color = Palette[Pixels[offset]];
+        PixelColor color = Palette[Pixels[offset]];
         if (m_translucent != null && m_translucent[offset].Opacity != 0)
         {
             var sprite = m_translucent[offset];
@@ -254,7 +254,7 @@ public class PixelScreenData
         if (shadow != 0 || terrainShade != 0)
         {
             var brightness = (255 - shadow) * (255 - terrainShade) / 255;
-            color = new Rgb(
+            color = new PixelColor(
                 (byte)(color.R * brightness / 255),
                 (byte)(color.G * brightness / 255),
                 (byte)(color.B * brightness / 255));
@@ -269,7 +269,7 @@ public class PixelScreenData
         if (m_smoke != null && m_smoke[offset] != 0)
         {
             var soot = m_smokeSoot[offset];
-            var charcoal = new Rgb((byte)(SmokeColor.R / 4), (byte)(SmokeColor.G / 4), (byte)(SmokeColor.B / 4));
+            var charcoal = new PixelColor((byte)(SmokeColor.R / 4), (byte)(SmokeColor.G / 4), (byte)(SmokeColor.B / 4));
             color = BlendColor(color, BlendColor(SmokeColor, charcoal, soot), m_smoke[offset] * SmokeOpacity / 255);
         }
 
@@ -279,7 +279,7 @@ public class PixelScreenData
         return color;
     }
 
-    private static Rgb LiftColor(Rgb color, Rgb light, byte strength) =>
+    private static PixelColor LiftColor(PixelColor color, PixelColor light, byte strength) =>
         new(LiftChannel(color.R, light.R, strength),
             LiftChannel(color.G, light.G, strength),
             LiftChannel(color.B, light.B, strength));
@@ -287,7 +287,7 @@ public class PixelScreenData
     private static byte LiftChannel(byte channel, byte light, byte strength) =>
         (byte)(channel + (255 - channel) * light * strength / (255 * 255));
 
-    private static Rgb BlendColor(Rgb color, Rgb overlay, int opacity) =>
+    private static PixelColor BlendColor(PixelColor color, PixelColor overlay, int opacity) =>
         new(BlendChannel(color.R, overlay.R, opacity),
             BlendChannel(color.G, overlay.G, opacity),
             BlendChannel(color.B, overlay.B, opacity));
@@ -332,7 +332,7 @@ public class PixelScreenData
     {
         if (m_spriteOpacity < 255)
         {
-            m_translucent ??= new (Rgb Background, byte Opacity, int Group)[Pixels.Length];
+            m_translucent ??= new (PixelColor Background, byte Opacity, int Group)[Pixels.Length];
             // All parts of the sprite share the scene underneath their first draw at this pixel.
             if (m_translucent[offset].Group != m_spriteGroup)
                 m_translucent[offset] = (GetColorAtOffset(offset), m_spriteOpacity, m_spriteGroup);
@@ -366,7 +366,7 @@ public class PixelScreenData
         if (m_hasBgraFrame)
         {
             var color = GetColorAtOffset(offset);
-            m_bgraFrame[offset] = color.B | (color.G << 8) | (color.R << 16) | unchecked((int)0xff000000);
+            m_bgraFrame[offset] = color.Bgra;
         }
     }
 
