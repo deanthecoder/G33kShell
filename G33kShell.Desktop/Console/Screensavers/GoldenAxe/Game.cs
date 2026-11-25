@@ -597,9 +597,16 @@ internal sealed class Game
 
     private void SpawnMount(ActorKind kind, SpawnDefinition spawn)
     {
-        var riderKind = AreaIndex switch { 0 => ActorKind.Heninger, 1 or 4 => ActorKind.Amazon, _ => ActorKind.Longmoan };
-        var moves = AreaIndex switch { 0 => Moves.Heninger, 1 or 4 => Moves.Amazon, 3 => Moves.FastLongmoan, _ => Moves.Longmoan };
-        var palette = AreaIndex switch { 0 => 0x1a, 1 => 0x64, 3 => 0x7b, 4 => 0x65, _ => 0x79 };
+        var (riderKind, moves, palette) = (AreaIndex, spawn.Routine) switch
+        {
+            (0, 0x2c264) => (ActorKind.Amazon, Moves.Amazon, 0x63),
+            (0, 0x2b10c) => (ActorKind.Heninger, Moves.Heninger, 0x1b),
+            (0, _) => (ActorKind.Heninger, Moves.Heninger, 0x1a),
+            (1, _) => (ActorKind.Amazon, Moves.Amazon, 0x64),
+            (3, _) => (ActorKind.Longmoan, Moves.FastLongmoan, 0x7b),
+            (4, _) => (ActorKind.Amazon, Moves.Amazon, 0x65),
+            _ => (ActorKind.Longmoan, Moves.Longmoan, 0x79)
+        };
         var rider = Add(riderKind, moves, palette, 16, spawn.X, spawn.Z);
         var beast = Add(kind, kind == ActorKind.Chicken ? Moves.Chicken : Moves.BlueDragon,
             kind switch { ActorKind.Chicken => 0x23, ActorKind.BlueDragon => 0x43, _ => 0x44 }, 99, spawn.X, spawn.Z);

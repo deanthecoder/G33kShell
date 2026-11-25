@@ -1921,6 +1921,21 @@ public class GoldenAxeGameplayTests
         Assert.That(beast.State, Is.EqualTo(FighterState.Fleeing));
     }
 
+    [TestCase(4624, (int)ActorKind.Amazon, 0x63)]
+    [TestCase(5200, (int)ActorKind.Heninger, 0x1b)]
+    public void StageOneChickensHaveTheirArcadeRiders(int trigger, int riderKind, int palette)
+    {
+        var data = m_areas[0];
+        var game = new Game(data);
+        game.Spawn(data.Spawns.Single(spawn => spawn.Trigger == trigger));
+
+        var chicken = game.Actors.Single(actor => actor.Kind == ActorKind.Chicken);
+        Assert.That(chicken.Rider, Is.Not.Null);
+        Assert.That(chicken.Rider.Kind, Is.EqualTo((ActorKind)riderKind));
+        Assert.That(chicken.Rider.Palette, Is.EqualTo(palette));
+        Assert.That(chicken.Moves, Is.SameAs(trigger == 4624 ? Moves.AmazonChicken : Moves.EnemyChicken));
+    }
+
     [Test]
     public void RiddenBeastsRunAndBargeWithoutLosingTheirRider(
         [Range(0, 2)] int character, [Range(0, 2)] int mount)
