@@ -1371,6 +1371,34 @@ public class GoldenAxeGameplayTests
     }
 
     [Test]
+    public void OnFootRunningJumpUsesArcadeAirSpeed([Range(0, 2)] int character)
+    {
+        var game = new Game(m_areas[0], character, new Random(0));
+        var hero = game.Hero;
+        var run = new GameInput(X: 1, Run: true);
+        for (var tick = 0; tick < 12; tick++)
+            game.Tick(run);
+        Assert.That(hero.Vx, Is.EqualTo(4));
+
+        game.Tick(run with { Jump = true });
+        for (var tick = 0; tick < 16 && hero.State == FighterState.Crouching; tick++)
+            game.Tick(run);
+        Assert.That(hero.State, Is.EqualTo(FighterState.Jumping));
+        var takeoffX = hero.X;
+        var takeoffY = hero.Y;
+        var highestY = takeoffY;
+        for (var tick = 0; tick < 80 && hero.State == FighterState.Jumping; tick++)
+        {
+            game.Tick(run);
+            highestY = Math.Min(highestY, hero.Y);
+        }
+
+        Assert.That(hero.State, Is.EqualTo(FighterState.Idle));
+        Assert.That(hero.X - takeoffX, Is.InRange(62, 65));
+        Assert.That(takeoffY - highestY, Is.InRange(124, 128));
+    }
+
+    [Test]
     public void JumpingDoesNotPullTheVerticalCameraUpAndDown()
     {
         var game = new Game(m_areas[3]);

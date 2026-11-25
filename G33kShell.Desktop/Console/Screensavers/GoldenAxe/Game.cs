@@ -1206,7 +1206,9 @@ internal sealed class Game
                 }
                 return;
             case FighterState.Jumping:
-                var dx = Math.Abs(actor.Vx) > 2 ? actor.Vx : input.X;
+                // A running start raises the hero's jump arc, while air steering
+                // stays at one pixel per tick, as in the arcade.
+                var dx = actor != Hero && Math.Abs(actor.Vx) > 2 ? actor.Vx : input.X;
                 if (actor.IsMount && Math.Abs(actor.Vx) <= 2)
                     dx = input.X == 0 ? actor.Vx : input.X * 1.5;
                 Move(actor, dx, input.Z * 0.5);
