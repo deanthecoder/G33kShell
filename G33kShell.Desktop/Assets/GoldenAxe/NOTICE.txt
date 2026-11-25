@@ -5,6 +5,11 @@ Reference revision: f669472505444939e11c66bb0d33a7469e282787
 Target: Golden Axe (1989), arcade System 16B, MAME goldnaxe set 6 (US).
 Original game, artwork and data: Sega. They are not covered by the source-code header.
 
+intro.png is the original FBI opening card captured from the US set-6
+arcade cold boot in MAME. title.png is the original arcade title still.
+map1.gmap through map4.gmap are the local indexed arcade map recordings.
+These images and recordings are separate from the source-code license.
+
 The local files were copied from the reference's public/assets directory:
   sprites.json, sprites-0.png, tiles.png, magic.json
   areas/0.json -> level1.json

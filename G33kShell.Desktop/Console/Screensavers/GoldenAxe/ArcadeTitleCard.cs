@@ -10,13 +10,30 @@ using SkiaSharp;
 
 namespace G33kShell.Desktop.Console.Screensavers.GoldenAxe;
 
-/// <summary>Loads an optional local title image into the screensaver's indexed surface.</summary>
+/// <summary>Loads and draws an opening image on the indexed surface.</summary>
 internal sealed record ArcadeTitleCard(byte[] Pixels, Rgb[] Palette)
 {
     internal const int DurationTicks = 150;
 
-    internal static ArcadeTitleCard LoadLocal(int paletteSize) =>
-        TryLoad(Path.Combine(ArcadeData.LocalAssetDirectory, "title.png"), paletteSize);
+    internal static ArcadeTitleCard Load(string fileName, int paletteSize) =>
+        TryLoad(Path.Combine(ArcadeData.LocalAssetDirectory, fileName), paletteSize)
+        ?? TryLoad(Path.Combine(ArcadeData.AssetDirectory, fileName), paletteSize);
+
+    internal void Draw(PixelScreenData screen, Rgb[] palette, double brightness)
+    {
+        screen.Clear();
+        screen.SetPalette(palette);
+        if (brightness < 1)
+        {
+            for (var i = 0; i < screen.Palette.Length; i++)
+            {
+                var color = screen.Palette[i];
+                screen.Palette[i] = new Rgb((byte)(color.R * brightness),
+                    (byte)(color.G * brightness), (byte)(color.B * brightness));
+            }
+        }
+        Pixels.CopyTo(screen.Pixels, 0);
+    }
 
     internal static ArcadeTitleCard TryLoad(string path, int paletteSize)
     {

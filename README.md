@@ -188,10 +188,13 @@ Use `--scene eagle-clouds` for a ten-second stationary-camera preview.
 It renders the shadows, campfire, dragon fire and magic scenes headlessly to silent MP4s, with optional looping GIF previews.
 Use `--scene campfire` to regenerate a single clip.
 Use `--ffmpeg /path/to/ffmpeg` to select a specific encoder executable.
-An optional `GoldenAxe/title.png` in the application's user settings directory displays
-for 2½ seconds before play starts automatically.
-Optional `GoldenAxe/map1.gmap` through `map4.gmap` recordings play after the corresponding
-camp. The encoder uses one optimized 256-color palette per recording, stores deltas only across
+The bundled arcade opening card fades in, holds for two seconds, then fades through black
+into the title. The title displays for 2½ seconds before play starts automatically.
+The four bundled map recordings play after their corresponding camps. To override any of these
+assets, place `intro.png`, `title.png`, or `map1.gmap` through `map4.gmap` in the
+`GoldenAxe` folder in the application's user settings directory. Use an opaque 320×224 PNG
+with at most 256 colors for either card.
+The map encoder uses one optimized 256-color palette per recording, stores deltas only across
 the changed scanlines, and retains the source timing.
 To convert local MP4 recordings, install Python's `av`, `brotli`, and `numpy` packages and run
 `python tools/encode-golden-axe-maps.py --output <settings-directory>/GoldenAxe <map-files>`.

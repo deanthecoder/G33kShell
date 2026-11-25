@@ -312,7 +312,23 @@ public class GoldenAxeTests
     }
 
     [Test]
-    public void OptionalTitlePreservesSourceColors()
+    public void BundledOpeningAndMapAssetsCanBeLoaded()
+    {
+        foreach (var name in new[] { "intro.png", "title.png" })
+            Assert.That(ArcadeTitleCard.TryLoad(Path.Combine(ArcadeData.AssetDirectory, name), 256),
+                Is.Not.Null, name);
+
+        for (var mapNumber = 1; mapNumber <= 4; mapNumber++)
+        {
+            var name = $"map{mapNumber}.gmap";
+            using var map = ArcadeMapRecording.TryLoad(Path.Combine(ArcadeData.AssetDirectory, name));
+            Assert.That(map, Is.Not.Null, name);
+            Assert.That(map.AdvanceTo(0), Is.True, name);
+        }
+    }
+
+    [Test]
+    public void OptionalOpeningCardPreservesSourceColorsThroughFades()
     {
         var path = Path.GetTempFileName();
         try
@@ -329,6 +345,14 @@ public class GoldenAxeTests
             Assert.That(title, Is.Not.Null);
             Assert.That(title.Palette[title.Pixels[0]], Is.EqualTo(new Rgb(left.Red, left.Green, left.Blue)));
             Assert.That(title.Palette[title.Pixels[^1]], Is.EqualTo(new Rgb(right.Red, right.Green, right.Blue)));
+
+            var screen = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, title.Palette);
+            title.Draw(screen, title.Palette, 0.5);
+            Assert.That(screen.Palette[screen.Pixels[0]], Is.EqualTo(new Rgb(13, 31, 46)));
+            title.Draw(screen, title.Palette, 0);
+            Assert.That(screen.Palette[screen.Pixels[^1]], Is.EqualTo(Rgb.Black));
+            title.Draw(screen, title.Palette, 1);
+            Assert.That(screen.Palette[screen.Pixels[^1]], Is.EqualTo(new Rgb(right.Red, right.Green, right.Blue)));
             Assert.That(ArcadeTitleCard.TryLoad(path + ".missing", 256), Is.Null);
         }
         finally

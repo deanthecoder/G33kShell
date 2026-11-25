@@ -47,8 +47,12 @@ internal sealed class ArcadeMapRecording : IDisposable
         Array.Fill(m_frame, m_palette[0]);
     }
 
-    public static ArcadeMapRecording LoadLocal(int area) =>
-        TryLoad(Path.Combine(ArcadeData.LocalAssetDirectory, $"map{area + 1}.gmap"));
+    public static ArcadeMapRecording Load(int area)
+    {
+        var fileName = $"map{area + 1}.gmap";
+        return TryLoad(Path.Combine(ArcadeData.LocalAssetDirectory, fileName))
+            ?? TryLoad(Path.Combine(ArcadeData.AssetDirectory, fileName));
+    }
 
     internal static ArcadeMapRecording TryLoad(string path)
     {
