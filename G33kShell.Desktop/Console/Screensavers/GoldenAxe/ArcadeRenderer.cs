@@ -34,6 +34,7 @@ internal sealed class ArcadeRenderer
     private readonly byte m_emberCore;
     private readonly byte[] m_campfireWood;
     private readonly byte[] m_redTint, m_whiteTint;
+    private readonly Dictionary<int[][][], MagicFrame[]> m_magicFrames = new();
     private TerrainShading m_terrainShading;
     internal const int MagicMeterTop = 12;
     private const byte MinimumMagicOpacity = 64;
@@ -43,6 +44,12 @@ internal sealed class ArcadeRenderer
     internal Action<string> ProfileStage { get; set; }
 
     private enum EllipseEffect { Fire, Smoke, Magic, Dust }
+    private readonly record struct MagicVisual(int[] Effect, byte Opacity, byte GapOpacity)
+    {
+        public byte SpriteOpacity => (byte)(Opacity * GapOpacity / 255);
+    }
+
+    private sealed record MagicFrame(MagicVisual[] Active, MagicVisual[] Dim, MagicVisual[] Cages);
 
     public ArcadeRenderer(ArcadeData data)
     {
@@ -462,25 +469,43 @@ internal sealed class ArcadeRenderer
     private void DrawMagic(PixelScreenData screen, Game game, bool effects, Rgb tint, byte effectOpacity)
     {
         var dwarf = game.Character.MagicKey == "gilius";
-        var sprites = game.ActiveMagicEffects[game.MagicTick].Where(e => !dwarf || !LightningCage.IsSprite(e)).ToArray();
-        var dim = DimMagicSprites(game.ActiveMagicEffects, game.MagicTick).Where(e => !dwarf || !LightningCage.IsSprite(e)).ToArray();
+        var frame = GetMagicFrame(game.ActiveMagicEffects, game.MagicTick);
         if (effects)
-            DrawMagicLighting(screen, game, sprites, dim, tint, effectOpacity);
+            DrawMagicLighting(screen, game, frame, dwarf, tint, effectOpacity);
 
-        foreach (var effect in dim)
-        {
-            screen.BeginTranslucentSprite((byte)(MagicGapOpacity(game.ActiveMagicEffects, game.MagicTick, effect) *
-                MagicEffectOpacity(game.ActiveMagicEffects, game.MagicTick, effect) / 255));
-            DrawMagicSprite(screen, game, effect);
-            screen.EndTranslucentSprite();
-        }
-        foreach (var effect in sprites)
-        {
-            screen.BeginTranslucentSprite(MagicEffectOpacity(game.ActiveMagicEffects, game.MagicTick, effect));
-            DrawMagicSprite(screen, game, effect);
-            screen.EndTranslucentSprite();
-        }
+        DrawSprites(frame.Dim);
+        DrawSprites(frame.Active);
         DrawLightningCages(screen, game, effects);
+
+        void DrawSprites(MagicVisual[] sprites)
+        {
+            foreach (var sprite in sprites)
+            {
+                if (dwarf && LightningCage.IsSprite(sprite.Effect))
+                    continue;
+                screen.BeginTranslucentSprite(sprite.SpriteOpacity);
+                DrawMagicSprite(screen, game, sprite.Effect);
+                screen.EndTranslucentSprite();
+            }
+        }
+    }
+
+    private MagicFrame GetMagicFrame(int[][][] recording, int tick)
+    {
+        if (!m_magicFrames.TryGetValue(recording, out var frames))
+            m_magicFrames.Add(recording, frames = new MagicFrame[recording.Length]);
+        if (frames[tick] is { } cached)
+            return cached;
+
+        // The spell timelines are immutable. Lighting, sprites and every cage
+        // target can reuse the same envelopes for a given recording tick.
+        var active = recording[tick].Select(effect =>
+            new MagicVisual(effect, MagicEffectOpacity(recording, tick, effect), 255)).ToArray();
+        var dim = DimMagicSprites(recording, tick).Select(effect =>
+            new MagicVisual(effect, MagicEffectOpacity(recording, tick, effect),
+                MagicGapOpacity(recording, tick, effect))).ToArray();
+        var cages = active.Concat(dim).Where(sprite => LightningCage.IsSprite(sprite.Effect)).ToArray();
+        return frames[tick] = new MagicFrame(active, dim, cages);
     }
 
     private void DrawLightningTint(PixelScreenData screen, Game game, int frame, int palette, double x, double y, bool flip)
@@ -515,27 +540,26 @@ internal sealed class ArcadeRenderer
         var tick = LightningCage.SampleTick(game);
         if (tick < 0)
             return;
-        var source = game.MagicEffects[0];
-        var sprites = source[tick].Where(LightningCage.IsSprite).Select(e => (Effect: e, Opacity: (byte)255))
-            .Concat(DimMagicSprites(source, tick).Where(LightningCage.IsSprite)
-                .Select(e => (Effect: e, Opacity: MagicGapOpacity(source, tick, e)))).ToArray();
+        var sprites = GetMagicFrame(game.MagicEffects[0], tick).Cages;
         foreach (var target in LightningCage.Targets(game).OrderBy(a => a.Z))
-        foreach (var (effect, opacity) in sprites)
         {
-            var renderOpacity = (byte)(opacity * MagicEffectOpacity(source, tick, effect) / 255);
-            var point = LightningAnchor(game, target);
-            // The captured cage was six pixels left and one depth unit forward of the caster.
-            // Remove that caster-specific offset before attaching it to the displayed victim pose.
-            point = (point.X + effect[3] + 6, point.Y + effect[5] + (effect[4] - 1) * 0.75);
-            if (effects)
+            var anchor = LightningAnchor(game, target);
+            foreach (var sprite in sprites)
             {
-                var frame = m_data.Frames[effect[0]];
-                DrawSoftEllipse(screen, point.X, point.Y + frame.Oy + frame.Height / 2.0,
-                    frame.Width * 0.65 + 12, frame.Height * 0.55 + 8, renderOpacity * 0.22, EllipseEffect.Magic);
+                var effect = sprite.Effect;
+                var renderOpacity = sprite.SpriteOpacity;
+                // Remove the caster-relative offset recorded in the reference cage.
+                var point = (X: anchor.X + effect[3] + 6, Y: anchor.Y + effect[5] + (effect[4] - 1) * 0.75);
+                if (effects)
+                {
+                    var frame = m_data.Frames[effect[0]];
+                    DrawSoftEllipse(screen, point.X, point.Y + frame.Oy + frame.Height / 2.0,
+                        frame.Width * 0.65 + 12, frame.Height * 0.55 + 8, renderOpacity * 0.22, EllipseEffect.Magic);
+                }
+                screen.BeginTranslucentSprite(renderOpacity);
+                Sprite(screen, effect[0], effect[1], point.X, point.Y, effect[2] == 1);
+                screen.EndTranslucentSprite();
             }
-            screen.BeginTranslucentSprite(renderOpacity);
-            Sprite(screen, effect[0], effect[1], point.X, point.Y, effect[2] == 1);
-            screen.EndTranslucentSprite();
         }
     }
 
@@ -612,8 +636,16 @@ internal sealed class ArcadeRenderer
         }
     }
 
-    private static bool ContainsMagicAnchor(int[][] sprites, int[] match) =>
-        sprites.Any(sprite => sprite.AsSpan(1).SequenceEqual(match.AsSpan(1)));
+    private static bool ContainsMagicAnchor(int[][] sprites, int[] match)
+    {
+        var anchor = match.AsSpan(1);
+        foreach (var sprite in sprites)
+        {
+            if (sprite.AsSpan(1).SequenceEqual(anchor))
+                return true;
+        }
+        return false;
+    }
 
     internal static byte MagicGapOpacity(int[][][] recording, int tick, int[] effect)
     {
@@ -633,7 +665,7 @@ internal sealed class ArcadeRenderer
         return 255;
     }
 
-    private void DrawMagicLighting(PixelScreenData screen, Game game, int[][] sprites, int[][] dim, Rgb tint, byte effectOpacity)
+    private void DrawMagicLighting(PixelScreenData screen, Game game, MagicFrame frame, bool dwarf, Rgb tint, byte effectOpacity)
     {
         var spellColor = game.Character.MagicKey switch
         {
@@ -642,14 +674,17 @@ internal sealed class ArcadeRenderer
             _ => new Rgb(255, 182, 113)
         };
         screen.MagicLightColor = ScaleLight(tint ?? spellColor, effectOpacity);
-        foreach (var effect in sprites)
-            DrawMagicGlow(screen, game, effect, 1);
-        foreach (var effect in dim)
-            DrawMagicGlow(screen, game, effect, MagicGapOpacity(game.ActiveMagicEffects, game.MagicTick, effect) / 255.0);
+        foreach (var sprite in frame.Active)
+            if (!dwarf || !LightningCage.IsSprite(sprite.Effect))
+                DrawMagicGlow(screen, game, sprite);
+        foreach (var sprite in frame.Dim)
+            if (!dwarf || !LightningCage.IsSprite(sprite.Effect))
+                DrawMagicGlow(screen, game, sprite);
     }
 
-    private void DrawMagicGlow(PixelScreenData screen, Game game, int[] effect, double opacity)
+    private void DrawMagicGlow(PixelScreenData screen, Game game, MagicVisual sprite)
     {
+        var effect = sprite.Effect;
         // Potion icons, the dragon's silver head and solid meteor pieces do not emit flame light.
         if (effect[1] is 0x4a or 0x51 or 0x47 || effect[0] == 518)
             return;
@@ -659,7 +694,7 @@ internal sealed class ArcadeRenderer
         var direction = effect[2] == 1 ? -1 : 1;
         var centerX = point.X + (frame.Ox + frame.Width / 2.0) * direction;
         var centerY = point.Y + frame.Oy + frame.Height / 2.0;
-        opacity *= MagicEffectOpacity(game.ActiveMagicEffects, game.MagicTick, effect) / 204.0;
+        var opacity = sprite.GapOpacity / 255.0 * (sprite.Opacity / 204.0);
         var strength = Math.Clamp(36 + frame.Width * 0.85, 46, 91) * opacity;
         DrawSoftEllipse(screen, centerX, centerY,
             24 + frame.Width * 0.64, 16 + frame.Height * 0.66, strength, EllipseEffect.Magic);
@@ -833,27 +868,39 @@ internal sealed class ArcadeRenderer
         var right = Math.Min(screen.Width - 1, (int)Math.Ceiling(centerX + radiusX));
         var top = Math.Max(0, (int)Math.Floor(centerY - radiusY));
         var bottom = Math.Min(screen.Height - 1, (int)Math.Ceiling(centerY + radiusY));
+        if (right < left || bottom < top || strength < 1)
+            return;
+
+        Span<double> horizontalCoverage = stackalloc double[right - left + 1];
+        for (var x = left; x <= right; x++)
+        {
+            var dx = (x + 0.5 - centerX) / radiusX;
+            horizontalCoverage[x - left] = 1 - dx * dx;
+        }
+        var magicLight = effect == EllipseEffect.Magic ? screen.GetMagicLightBuffer() : default;
         for (var y = top; y <= bottom; y++)
         {
             var dy = (y + 0.5 - centerY) / radiusY;
-            for (var x = left; x <= right; x++)
+            var verticalFalloff = dy * dy;
+            var rowStart = y * screen.Width + left;
+            for (var x = 0; x < horizontalCoverage.Length; x++)
             {
-                var dx = (x + 0.5 - centerX) / radiusX;
-                var coverage = 1 - dx * dx - dy * dy;
+                var coverage = horizontalCoverage[x] - verticalFalloff;
                 if (coverage <= 0)
                     continue;
 
                 var opacity = (byte)(strength * coverage * coverage);
                 if (opacity == 0)
                     continue;
-                var offset = y * screen.Width + x;
+                var offset = rowStart + x;
                 switch (effect)
                 {
                     case EllipseEffect.Smoke:
                         screen.SmokePixel(offset, opacity, soot);
                         break;
                     case EllipseEffect.Magic:
-                        screen.MagicLightPixel(offset, opacity);
+                        if (opacity > magicLight[offset])
+                            magicLight[offset] = opacity;
                         break;
                     case EllipseEffect.Dust:
                         screen.DustPixel(offset, tint, opacity);
@@ -1361,34 +1408,44 @@ internal sealed class ArcadeRenderer
     private void Layer(PixelScreenData screen, TileLayer layer, int u, int v, byte[] palette, bool high, bool opaque,
         bool wrap = false, bool skipSky = false, byte[] previousPalette = null, byte opacity = 255)
     {
+        var layerWidth = layer.Width * 8;
+        var layerHeight = layer.Height * 8;
+        var xOrigin = u - layer.X;
+        var left = wrap ? 0 : Math.Max(0, -xOrigin);
+        var right = wrap ? ArcadeData.Width : Math.Min(ArcadeData.Width, layerWidth - xOrigin);
+        var firstX = wrap ? (xOrigin % layerWidth + layerWidth) % layerWidth : xOrigin + left;
         for (var sy = 0; sy < ArcadeData.Height; sy++)
         {
             var y = sy + v - layer.Y;
             if (wrap)
-                y = (y % (layer.Height * 8) + layer.Height * 8) % (layer.Height * 8);
-            if (y < 0 || y >= layer.Height * 8)
+                y = (y % layerHeight + layerHeight) % layerHeight;
+            if (y < 0 || y >= layerHeight)
                 continue;
-            for (var sx = 0; sx < ArcadeData.Width; sx++)
+            var tileRow = y / 8 * layer.Width;
+            var destinationRow = sy * ArcadeData.Width;
+            for (int sx = left, x = firstX, count; sx < right; sx += count, x = x + count == layerWidth ? 0 : x + count)
             {
-                var x = sx + u - layer.X;
-                if (wrap)
-                    x = (x % (layer.Width * 8) + layer.Width * 8) % (layer.Width * 8);
-                if (x < 0 || x >= layer.Width * 8)
-                    continue;
-                var cell = layer.Cells[y / 8 * layer.Width + x / 8];
+                var withinTile = x % 8;
+                count = Math.Min(8 - withinTile, right - sx);
+                var cell = layer.Cells[tileRow + x / 8];
                 if (cell == uint.MaxValue || !opaque && ((cell >> 23 & 1) != 0) != high)
                     continue;
-                if (skipSky && (cell >> 16 & 127) is 114 or 115)
+                var group = (int)(cell >> 16 & 127);
+                if (skipSky && group is 114 or 115)
                     continue;
                 var tile = (int)(cell & 65535);
-                var pen = m_data.TilePens[(tile / 128 * 8 + y % 8) * m_data.TileStride + tile % 128 * 8 + x % 8];
-                if (pen != 0 || opaque)
+                var firstPen = (tile / 128 * 8 + y % 8) * m_data.TileStride + tile % 128 * 8 + withinTile;
+                var paletteOffset = group * 8;
+                for (var i = 0; i < count; i++)
                 {
-                    var offset = sy * ArcadeData.Width + sx;
-                    var color = palette[(cell >> 16 & 127) * 8 + pen];
+                    var pen = m_data.TilePens[firstPen + i];
+                    if (pen == 0 && !opaque)
+                        continue;
+                    var offset = destinationRow + sx + i;
+                    var color = palette[paletteOffset + pen];
                     if (previousPalette != null)
                     {
-                        var previous = previousPalette[(cell >> 16 & 127) * 8 + pen];
+                        var previous = previousPalette[paletteOffset + pen];
                         screen.SetPixelAtOffset(offset, previous);
                         if (previous != color && opacity > 0)
                         {

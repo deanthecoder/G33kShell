@@ -423,6 +423,9 @@ public class GoldenAxeTests
         {
             var shellScreen = new ScreenData(80, 25);
             canvas.StartScreensaver(shellScreen);
+            // Step past the bundled intro and title before sampling gameplay.
+            typeof(GoldenAxeCanvas).GetField("m_accumulator",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.SetValue(canvas, 6.0);
             canvas.UpdateFrame(shellScreen);
 
             using var screenLock = manager.PixelScreen.Lock(out var frame);

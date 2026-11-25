@@ -23,7 +23,7 @@ namespace G33kShell.Desktop.Tests;
 /// </summary>
 public sealed class GoldenAxeProfileTests
 {
-    [Test, Explicit("Set G33K_GOLDEN_AXE_PROFILE_DIR and run this test in Release.")]
+    [Test, Explicit("Set G33K_GOLDEN_AXE_PROFILE_DIR and select this test explicitly.")]
     public void ProfileFinalBattle()
     {
         var output = Environment.GetEnvironmentVariable("G33K_GOLDEN_AXE_PROFILE_DIR");
@@ -151,7 +151,12 @@ public sealed class GoldenAxeProfileTests
         {
             Runtime = Environment.Version.ToString(), CpuCount = Environment.ProcessorCount,
             Resolution = "320x224", MeasuredPasses = 2, WarmupPasses = 1,
-            Notes = "Headless Release timings. Real final-area spawns; earlier waves skipped, hero protected and enemy HP raised to keep the boss alive. Stage callbacks add small measurement overhead. No desktop scaling/presentation or asset loading.",
+#if DEBUG
+            Build = "Debug",
+#else
+            Build = "Release",
+#endif
+            Notes = "Headless timings. Real final-area spawns; earlier waves skipped, hero protected and enemy HP raised to keep the boss alive. Stage callbacks add small measurement overhead. No desktop scaling/presentation or asset loading.",
             Populations = populations.Select(p => new { Hero = p.Key, p.Value.Actors, p.Value.Smoke, p.Value.Heat }),
             Allocation = allocation.Select(p => new { p.Key.Hero, p.Key.Effects, p.Key.Phase, MeanBytes = p.Value.Average() }),
             StageAllocation = stageAllocation.Select(p => new { p.Key.Hero, p.Key.Effects, p.Key.Phase, p.Key.Stage, MeanBytes = p.Value.Average() }),

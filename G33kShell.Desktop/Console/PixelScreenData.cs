@@ -165,11 +165,7 @@ public class PixelScreenData
         m_dust[offset] = (opacity >= remaining ? colorIndex : previous.ColorIndex, (byte)(remaining + opacity));
     }
 
-    internal void MagicLightPixel(int offset, byte strength)
-    {
-        m_magicLight ??= new byte[Pixels.Length];
-        m_magicLight[offset] = Math.Max(m_magicLight[offset], strength);
-    }
+    internal Span<byte> GetMagicLightBuffer() => m_magicLight ??= new byte[Pixels.Length];
 
     internal void SetFogPixel(int offset, byte opacity)
     {
@@ -210,13 +206,19 @@ public class PixelScreenData
         m_sceneSnapshot ??= new int[Pixels.Length];
         CopyToBgra(m_sceneSnapshot, applyOutputCurve: false);
         m_bgraFrame ??= new int[Pixels.Length];
+        var shiftX = Math.Clamp(dx, -Width, Width);
+        var left = Math.Max(0, shiftX);
+        var right = Math.Max(0, -shiftX);
+        var count = Width - left - right;
         for (var y = 0; y < Height; y++)
-        for (var x = 0; x < Width; x++)
         {
             // Extend the edge pixels rather than exposing black strips during a small shake.
-            var sourceX = Math.Clamp(x - dx, 0, Width - 1);
             var sourceY = Math.Clamp(y - dy, 0, Height - 1);
-            m_bgraFrame[y * Width + x] = m_sceneSnapshot[sourceY * Width + sourceX];
+            var source = m_sceneSnapshot.AsSpan(sourceY * Width, Width);
+            var destination = m_bgraFrame.AsSpan(y * Width, Width);
+            destination[..left].Fill(source[0]);
+            source.Slice(right, count).CopyTo(destination.Slice(left, count));
+            destination[(left + count)..].Fill(source[^1]);
         }
         m_hasBgraFrame = true;
     }
