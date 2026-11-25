@@ -1111,6 +1111,24 @@ public class GoldenAxeGameplayTests
         Assert.That(game.GameOver, Is.False);
     }
 
+    [Test]
+    public void OnFootShoulderBargeCoversTheArcadeDistance([Range(0, 2)] int character)
+    {
+        var game = new Game(m_areas[0], character, new Random(0));
+        var run = new GameInput(X: 1, Run: true);
+        for (var tick = 0; tick < 12; tick++)
+            game.Tick(run);
+        game.Tick(run with { Attack = true });
+        Assert.That(game.Hero.State, Is.EqualTo(FighterState.Dashing));
+
+        var startX = game.Hero.X;
+        for (var tick = 0; tick < 40 && game.Hero.State == FighterState.Dashing; tick++)
+            game.Tick(default);
+
+        Assert.That(game.Hero.State, Is.EqualTo(FighterState.Idle));
+        Assert.That(game.Hero.X - startX, Is.EqualTo(92));
+    }
+
     [TestCase(1, 4778, 4840)]
     [TestCase(-1, 4862, 4799)]
     public void ShoulderBargeCrossesTheStageFiveBridge(int direction, int start, int farBank)

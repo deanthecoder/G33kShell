@@ -101,7 +101,7 @@ internal sealed class CodedController
             return TerrainNavigator.Towards(game, hero, tx, tz);
         var targetInShot = target != null && game.ProjectView(target.X, target.Z, target.Y).X is >= 24 and <= 296;
         // A charge travels beyond its target: leave room to finish inside the shot.
-        var chargeEnd = game.ProjectView(hero.X + Math.Sign(dx) * 72, hero.Z, hero.Y).X;
+        var chargeEnd = game.ProjectView(hero.X + Math.Sign(dx) * (Game.HeroBargeDistance + 4), hero.Z, hero.Y).X;
         if (item == null && targetInShot && hero == game.Hero && Math.Abs(hero.Vx) >= 3 && Math.Abs(dx) < 62 && Math.Abs(dz) < 5 &&
             chargeEnd is >= 0 and <= 320)
             return new GameInput(Math.Sign(dx), Attack: true, Run: true);

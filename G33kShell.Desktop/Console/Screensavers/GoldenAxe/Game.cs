@@ -38,6 +38,9 @@ internal sealed class Game
     internal const int LightningTrailTicks = 180;
     private const double JumpVelocity = -5.75;
     private const double RunningJumpVelocity = -7.875;
+    private const int BargeSpeed = 4;
+    private const int HeroBargeTravelTicks = 23;
+    internal const int HeroBargeDistance = HeroBargeTravelTicks * BargeSpeed;
     private const int KnockdownTicks = 36;
     private const int EnemyKnockdownVariation = 2;
     private const int ArcadeLightHitTicks = 81;
@@ -1136,7 +1139,8 @@ internal sealed class Game
                 }
                 return;
             case FighterState.Dashing:
-                Move(actor, actor.StateTicks < 18 ? actor.Facing * 4 : 0, 0);
+                var advancing = actor.StateTicks <= (actor == Hero ? HeroBargeTravelTicks : 17);
+                Move(actor, advancing ? actor.Facing * BargeSpeed : 0, 0);
                 if (actor.IsMount)
                 {
                     // Reuse the paired beast/rider take-off pose as a grounded charge brace.
@@ -1160,7 +1164,7 @@ internal sealed class Game
                 {
                     if (FellIntoPit(actor))
                         return;
-                    if (actor.StateTicks >= 18)
+                    if (!advancing)
                     {
                         actor.Vx = 0;
                         actor.SetState(FighterState.Falling, actor.Moves.Jump);
@@ -1170,7 +1174,7 @@ internal sealed class Game
                 }
                 else
                     actor.Y = Math.Min(actor.Y, dashFloor);
-                if (actor.StateTicks < 18)
+                if (advancing)
                     ResolveAttack(actor);
                 if (actor.StateTicks >= 34)
                 {
