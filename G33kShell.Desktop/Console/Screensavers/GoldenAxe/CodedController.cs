@@ -21,6 +21,13 @@ namespace G33kShell.Desktop.Console.Screensavers.GoldenAxe;
 /// </remarks>
 internal sealed class CodedController
 {
+    private Fighter m_escapingHero;
+    private double m_escapeZ;
+    private Game m_magicGame;
+    private int? m_magicWaitTick;
+    private Fighter m_lightningJumpHero;
+    private Fighter m_edgeWaitingHero;
+
     public GameInput Read(Game game)
     {
         var hero = game.Hero.Mount ?? game.Hero;
@@ -28,9 +35,11 @@ internal sealed class CodedController
         var needsMagic = game.Potions < game.Character.PotionCapacity;
         if (!game.IsCamp && game.Boss && !game.Actors.Any(a => a.IsEnemy && a.Health > 0))
             return default;
-        if (hero.IsFree && game.Actors.Any(a => a.Kind == ActorKind.Lightning && !a.IsGone &&
-            (hero.X - a.X) * a.Facing is > 0 and < 80 && Math.Abs(a.Z - hero.Z) < 14))
-            return new GameInput(Jump: true);
+        if (m_lightningJumpHero == hero && hero.State is FighterState.Crouching or FighterState.Jumping)
+            return default;
+        m_lightningJumpHero = null;
+        if (hero.IsFree && AvoidLightning(game, hero) is { } lightningDodge)
+            return lightningDodge;
         if (hero.IsFree && AvoidCharge(game, hero) is { } sidestep)
             return sidestep;
         bool CloseThreat(Fighter a) => (a.IsEnemy || a.Rider?.IsEnemy == true) && a.Vulnerable && a.State != FighterState.Hurt &&
@@ -39,7 +48,7 @@ internal sealed class CodedController
         var target = game.Actors.Where(a => (a.IsEnemy || a.Rider?.IsEnemy == true || a.Kind == ActorKind.Thief && a.Items > 0) && a.Vulnerable)
             .Where(a => !game.IsCamp || game.Project(a.X, a.Z, a.Y).X is >= 24 and <= 296)
             .Where(a => !game.IsCamp || a.Kind != ActorKind.Thief || (a.FoodThief ? needsFood : needsMagic))
-            .OrderBy(a => game.IsCamp && needsFood && a.FoodThief ? 0 : 1)
+            .OrderBy(a => needsFood && a.FoodThief ? 0 : 1)
             .ThenBy(a => hasCloseThreat && !CloseThreat(a) ? 1 : 0)
             .ThenBy(a => Math.Abs(a.X - hero.X) + Math.Abs(a.Z - hero.Z) * 3).FirstOrDefault();
         if (hero.State == FighterState.Jumping)
@@ -48,26 +57,40 @@ internal sealed class CodedController
                 return default;
             return new GameInput(hero.Facing, Attack: target != null && Math.Abs(target.X - hero.X) < 55);
         }
-        if (!game.IsCamp && hero == game.Hero && game.Potions >= 2)
-        {
-            var enemies = game.Actors.Count(a => a.IsEnemy && a.Health > 0);
-            // Tyris needs more potions to unlock stronger magic, so save it for larger groups or bosses.
-            var cast = game.Character.MagicKey == "tyris"
-                ? game.Boss || game.Potions >= 3 && enemies >= 3
-                : enemies >= 2;
-            if (cast)
-                return new GameInput(Magic: true);
-        }
+        if (hero == game.Hero && ShouldCastMagic(game))
+            return new GameInput(Magic: true);
         if (hero.IsFree && AvoidCrowd(game, hero) is { } escape)
             return escape;
         var item = game.Actors.Where(a => !a.IsGone && (a.Kind == ActorKind.Potion && needsMagic || a.Kind == ActorKind.Food && needsFood))
-            .Where(a => game.IsCamp
-                ? game.Project(a.X, a.Z, a.Y).X is >= 12 and <= 305
+            .Where(a => game.IsCamp || a.Kind == ActorKind.Food
+                ? game.ProjectView(a.X, a.Z, a.Y).X is >= 12 and <= 305
                 : a.X >= game.Progress && Math.Abs(a.X - hero.X) < 100)
             .OrderBy(a => a.Kind == ActorKind.Food && needsFood ? 0 : 1)
             .ThenBy(a => Math.Abs(a.X - hero.X) + Math.Abs(a.Z - hero.Z) * 3).FirstOrDefault();
-        if (game.IsCamp && needsFood && target?.FoodThief == true && item?.Kind == ActorKind.Potion)
+        if (needsFood && target?.FoodThief == true && item?.Kind == ActorKind.Potion)
             item = null;
+        var heroScreenX = game.ProjectView(hero.X, hero.Z, hero.Y).X;
+        var targetScreenX = target == null ? 160 : game.ProjectView(target.X, target.Z, target.Y).X;
+        if (!game.IsCamp && game.Hero.Health > 12 && hero.IsFree && item == null && target != null && target.IsFree &&
+            (target.IsEnemy || target.Rider?.IsEnemy == true) && Math.Abs(target.Y - hero.Y) <= 24 &&
+            !game.Actors.Any(a => game.HasImminentStrike(a) && Math.Abs(a.X - hero.X) < 65 &&
+                Math.Abs(a.Z - hero.Z) < 12 && Math.Abs(a.Y - hero.Y) < 12) &&
+            (targetScreenX < 16 && heroScreenX < 32 || targetScreenX > 304 && heroScreenX > 288 ||
+             m_edgeWaitingHero == hero && targetScreenX is < 16 or > 304) &&
+            !game.Actors.Any(a => a.IsEnemy && a.Health > 0 &&
+                game.ProjectView(a.X, a.Z, a.Y).X is >= 48 and <= 272))
+        {
+            m_edgeWaitingHero = hero;
+            var inward = heroScreenX < 48 ? 1 : heroScreenX > 272 ? -1 : 0;
+            // Make room even when an arriving enemy is already within striking distance.
+            // Hold the inner position until it follows us fully into the shot.
+            if (inward == 0)
+                return default;
+            if (Enumerable.Range(1, 16).All(step =>
+                    Math.Abs(game.Ground(hero.X + inward * step, hero.Z) - hero.Y) <= 8))
+                return new GameInput(X: inward);
+        }
+        m_edgeWaitingHero = null;
         if (target == null && item == null && (game.IsCamp || !game.CanAdvance))
             return default;
         var tx = item?.X ?? target?.X ?? hero.X + 80;
@@ -76,7 +99,11 @@ internal sealed class CodedController
         var dz = tz - hero.Z;
         if (target != null && item == null && Math.Abs(target.Y - hero.Y) > 24)
             return TerrainNavigator.Towards(game, hero, tx, tz);
-        if (item == null && target != null && hero == game.Hero && Math.Abs(hero.Vx) >= 3 && Math.Abs(dx) < 62 && Math.Abs(dz) < 5)
+        var targetInShot = target != null && game.ProjectView(target.X, target.Z, target.Y).X is >= 24 and <= 296;
+        // A charge travels beyond its target: leave room to finish inside the shot.
+        var chargeEnd = game.ProjectView(hero.X + Math.Sign(dx) * 72, hero.Z, hero.Y).X;
+        if (item == null && targetInShot && hero == game.Hero && Math.Abs(hero.Vx) >= 3 && Math.Abs(dx) < 62 && Math.Abs(dz) < 5 &&
+            chargeEnd is >= 0 and <= 320)
             return new GameInput(Math.Sign(dx), Attack: true, Run: true);
         if (item == null && target != null && Math.Abs(dx) < (hero.IsMount ? 28 : 12) && Math.Abs(dz) < 7)
         {
@@ -92,7 +119,7 @@ internal sealed class CodedController
             return new GameInput(Math.Sign(dx), 0);
         if (item == null && target != null && Math.Abs(dx) < (hero.Kind == ActorKind.RedDragon ? 160 : hero.Kind == ActorKind.BlueDragon ? 80 : 43) && Math.Abs(dz) < 5)
         {
-            if (hero == game.Hero && dx * hero.Facing < -12)
+            if (hero == game.Hero && dx * hero.Facing < -12 && targetInShot)
                 return new GameInput(Attack: true, Jump: true);
             return new GameInput(Math.Sign(dx), 0, Attack: true);
         }
@@ -118,6 +145,73 @@ internal sealed class CodedController
         return new GameInput(x, z, Run: run);
     }
 
+    private GameInput? AvoidLightning(Game game, Fighter hero)
+    {
+        var jumpDistance = hero.IsMount ? 48 : 80;
+        var bolt = game.Actors.FirstOrDefault(a => a.Kind == ActorKind.Lightning && !a.IsGone &&
+            (hero.X - a.X) * a.Facing > -24 && (hero.X - a.X) * a.Facing < jumpDistance && Math.Abs(a.Z - hero.Z) < 24);
+        var charge = game.Actors.FirstOrDefault(a => a.Kind == ActorKind.LightningCharge && !a.IsGone && a.Owner.Health > 0);
+        var chargeTicks = charge == null ? int.MaxValue :
+            charge.Animation.Current.Duration - charge.Animation.StepTicks +
+            charge.Animation.Steps.Skip(charge.Animation.Index + 1).Sum(step => step.Duration);
+        // On foot, jumping takes twelve crouch ticks; mounts take off immediately.
+        // At close range the travelling bolt is already too late a warning for an unmounted hero.
+        if (bolt != null || chargeTicks <= (hero.IsMount ? 6 : 20) && Math.Abs(charge.X - hero.X) < 100)
+        {
+            m_lightningJumpHero = hero;
+            return new GameInput(Jump: true);
+        }
+        var caster = charge?.Owner ?? game.Actors.FirstOrDefault(a => a.Kind == ActorKind.DeathAdder && a.Health > 0 &&
+            (a.State == FighterState.GettingUp || a.State == FighterState.Attacking && a.Animation.Address == Moves.DeathAdderCast));
+        if (caster == null)
+            return null;
+        // Stop committing to attacks during the tell. Make room for the bolt and the jump startup.
+        var direction = hero.X < caster.X ? -1 : 1;
+        var nextX = hero.X + direction * 12;
+        if (Math.Abs(hero.X - caster.X) < 112 && nextX >= game.Progress + 12 && nextX <= game.Progress + 305 &&
+            Math.Abs(game.Ground(nextX, hero.Z) - hero.Y) <= 8)
+            return new GameInput(X: direction);
+        return default(GameInput);
+    }
+
+    private bool ShouldCastMagic(Game game)
+    {
+        if (m_magicGame != game || game.IsCamp || game.MagicTick >= 0 || game.Potions == 0)
+        {
+            m_magicGame = game;
+            m_magicWaitTick = null;
+        }
+        if (game.IsCamp || game.MagicTick >= 0 || game.Potions == 0 || !game.Hero.IsFree)
+            return false;
+
+        var enemies = game.Actors.Where(a => a.IsEnemy && a.Health > 0).ToArray();
+        var targets = enemies.Where(a => game.CanHitWithMagic(a) &&
+            game.ProjectView(a.X, a.Z, a.Y).X is >= 16 and <= 304).ToArray();
+        if (targets.Length == 0)
+        {
+            m_magicWaitTick = null;
+            return false;
+        }
+        // Survival beats efficiency: do not wait for reinforcements with a nearby attacker and low health.
+        if (game.Hero.Health <= 12 && targets.Any(a => game.HasImminentStrike(a) && Math.Abs(a.X - game.Hero.X) < 65 &&
+                Math.Abs(a.Z - game.Hero.Z) < 12 && Math.Abs(a.Y - game.Hero.Y) < 12))
+            return true;
+        // Tyris needs five potions for level two; three still buys only her weakest spell.
+        var worthwhile = game.Potions >= 2 && (game.Character.MagicKey == "tyris"
+            ? game.Boss || game.Character.GetMagicLevel(game.Potions) >= 2 && targets.Length >= 3
+            : targets.Length >= 2);
+        if (!worthwhile)
+        {
+            m_magicWaitTick = null;
+            return false;
+        }
+        m_magicWaitTick ??= game.TickCount;
+        // Include approaching actors, skeleton eruptions, delayed door entrances and nearby scripted waves.
+        // Keep fighting while waiting, and cap the delay so an unreachable straggler cannot hoard magic forever.
+        var assembling = targets.Length < enemies.Length || game.HasUpcomingEnemies;
+        return !assembling || game.TickCount - m_magicWaitTick.Value >= 120;
+    }
+
     private static GameInput? AvoidCharge(Game game, Fighter hero)
     {
         var attacker = game.Actors.FirstOrDefault(a => a.IsEnemy &&
@@ -139,18 +233,40 @@ internal sealed class CodedController
         return null;
     }
 
-    private static GameInput? AvoidCrowd(Game game, Fighter hero)
+    private GameInput? AvoidCrowd(Game game, Fighter hero)
     {
+        bool ClearLane(double targetZ)
+        {
+            var distance = targetZ - hero.Z;
+            for (var step = 1; step <= Math.Ceiling(Math.Abs(distance)); step++)
+            {
+                var z = hero.Z + Math.Sign(distance) * step;
+                var ground = game.Ground(hero.X, z);
+                if (Math.Abs(ground - hero.Y) > 8 ||
+                    game.ProjectView(hero.X, z, ground).Y is < 16 or > 208)
+                    return false;
+            }
+            return true;
+        }
+
+        // Finish leaving the attack lane instead of changing targets halfway out.
+        if (m_escapingHero == hero && Math.Abs(m_escapeZ - hero.Z) > 1 && ClearLane(m_escapeZ))
+            return new GameInput(Z: Math.Sign(m_escapeZ - hero.Z));
+        m_escapingHero = null;
         var threats = game.Actors.Where(a => (a.IsEnemy && a.Mount == null || a.Rider?.IsEnemy == true) && a.Health > 0 &&
             Math.Abs(a.X - hero.X) < 65 && Math.Abs(a.Z - hero.Z) < 8 && Math.Abs(a.Y - hero.Y) < 12 &&
             a.State is FighterState.Idle or FighterState.Walking or FighterState.Attacking).ToArray();
-        if (!threats.Any(a => (threats.Length >= 3 || a.Kind == ActorKind.DeathAdder) && game.HasImminentStrike(a)))
+        var sandwiched = threats.Any(a => a.X < hero.X) && threats.Any(a => a.X > hero.X);
+        if (!sandwiched && !threats.Any(a => (threats.Length >= 3 || a.Kind == ActorKind.DeathAdder) && game.HasImminentStrike(a)))
             return null;
         foreach (var direction in new[] { -1, 1 }.OrderBy(d => threats.Count(a => (a.Z - hero.Z) * d > 0)))
         {
-            var ground = game.Ground(hero.X, hero.Z + direction * 12);
-            if (Math.Abs(ground - hero.Y) <= 8 && (direction < 0 || game.Project(hero.X, hero.Z + 12, ground).Y <= 196))
-                return new GameInput(Z: direction);
+            var targetZ = hero.Z + direction * 20;
+            if (!ClearLane(targetZ))
+                continue;
+            m_escapingHero = hero;
+            m_escapeZ = targetZ;
+            return new GameInput(Z: direction);
         }
         return null;
     }
