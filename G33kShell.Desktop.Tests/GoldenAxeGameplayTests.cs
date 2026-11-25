@@ -422,13 +422,17 @@ public class GoldenAxeGameplayTests
         }
     }
 
-    [Test]
-    public void DwarfLightningKeepsVisibleVictimsUntilSpellEnds()
+    [TestCase(1, true)]
+    [TestCase(2, false)]
+    [TestCase(3, false)]
+    [TestCase(4, true)]
+    public void DwarfLightningKeepsVisibleVictimsUntilSpellEnds(int potions, bool cageCaster)
     {
         var game = new Game(m_areas[0], character: 2);
         game.Actors.RemoveAll(a => a != game.Hero);
         var victim = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 1, game.Hero.X + 90, game.Hero.Z);
         var offscreen = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, game.Progress + 500, game.Hero.Z);
+        typeof(Game).GetProperty(nameof(Game.Potions))!.SetValue(game, potions);
         game.Tick(new GameInput(Magic: true));
         Assert.That(game.MagicTargets, Does.Contain(victim));
         Assert.That(game.MagicTargets, Does.Not.Contain(offscreen));
@@ -438,6 +442,8 @@ public class GoldenAxeGameplayTests
         Assert.That(game.MagicTargets, Does.Contain(victim), "Lethal spell damage must not remove the visual target early.");
         Assert.That(victim.Health, Is.Zero);
         Assert.That(LightningCage.SampleTick(game), Is.EqualTo(game.MagicEffects[0].Length - 1));
+        Assert.That(LightningCage.Targets(game).Contains(game.Hero), Is.EqualTo(cageCaster));
+        Assert.That(LightningCage.Targets(game), Does.Contain(victim));
         game.Tick(default);
         Assert.That(game.MagicTargets, Is.Empty);
         Assert.That(LightningCage.SampleTick(game), Is.EqualTo(-1));

@@ -4,6 +4,8 @@
 // THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND.
 
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace G33kShell.Desktop.Console.Screensavers.GoldenAxe;
 
@@ -13,6 +15,10 @@ namespace G33kShell.Desktop.Console.Screensavers.GoldenAxe;
 internal static class LightningCage
 {
     public static bool IsSprite(int[] effect) => effect[0] is >= 569 and <= 574;
+
+    // The two- and three-potion spell has no cage around the caster in the arcade.
+    public static IEnumerable<Fighter> Targets(Game game) =>
+        game.MagicLevel == 2 ? game.MagicTargets : game.MagicTargets.Prepend(game.Hero);
 
     public static int SampleTick(Game game)
     {

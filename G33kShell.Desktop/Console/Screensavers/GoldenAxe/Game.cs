@@ -1406,7 +1406,7 @@ internal sealed class Game
         if (cageTick >= 0 && MagicEffects[0][cageTick].Any(s => s[0] is >= 569 and <= 572))
         {
             // The renderer attaches a separate cage to every victim, not just the recorded caster.
-            foreach (var target in MagicTargets.Prepend(Hero))
+            foreach (var target in LightningCage.Targets(this))
                 RefreshGroundHeat(target.X, target.Z, Math.Clamp((cageTick - 65) / 12.0, 0, 1), Character.MagicKey);
         }
 

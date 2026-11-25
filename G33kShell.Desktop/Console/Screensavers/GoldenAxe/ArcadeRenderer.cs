@@ -519,7 +519,7 @@ internal sealed class ArcadeRenderer
         var sprites = source[tick].Where(LightningCage.IsSprite).Select(e => (Effect: e, Opacity: (byte)255))
             .Concat(DimMagicSprites(source, tick).Where(LightningCage.IsSprite)
                 .Select(e => (Effect: e, Opacity: MagicGapOpacity(source, tick, e)))).ToArray();
-        foreach (var target in game.MagicTargets.Prepend(game.Hero).OrderBy(a => a.Z))
+        foreach (var target in LightningCage.Targets(game).OrderBy(a => a.Z))
         foreach (var (effect, opacity) in sprites)
         {
             var renderOpacity = (byte)(opacity * MagicEffectOpacity(source, tick, effect) / 255);
