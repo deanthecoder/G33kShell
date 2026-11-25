@@ -8,4 +8,5 @@ namespace G33kShell.Desktop.Console.Screensavers.GoldenAxe;
 /// <summary>
 /// A dragon smoke emission anchored in the world after the flame moves away.
 /// </summary>
-internal readonly record struct SmokePuff(double X, double Z, double Y, int Tick);
+internal readonly record struct SmokePuff(double X, double Z, double Y, int Tick, double Scale = 1,
+    double Soot = 1, double Opacity = 1, int Duration = 120);

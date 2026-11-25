@@ -25,6 +25,10 @@ internal sealed class Fighter
     public Moves Moves { get; set; }
     public Animation Animation { get; }
     public double X, Z, Y, Vx, Vy;
+    public double VillagerSpeed = 1.8;
+    public double? VillagerTargetZ;
+    public double ThiefTargetX, ThiefTargetZ;
+    public int ThiefRunTicks, ThiefPauseTicks;
     public int Facing = 1, Palette, Health, Age, StateTicks, Invulnerable, Cooldown, Hits, Combo, Items, Flash, Knees, HitTimer, ComboTimer, MountCooldown, MountWaitTicks;
     public bool Connected, Entered, FoodThief;
     public int UnmountedTicks, EscapeDirection, EscapeBlockedTicks;
@@ -33,6 +37,7 @@ internal sealed class Fighter
     public int NextChuckleAge = -1;
     public int PetrifiedTick;
     public int PickupTick = -1;
+    public int RespawnTick = -1;
     public Fighter Mount, Rider, Victim, HeldBy, Owner, PendingMount;
     public bool IsMount => Kind is ActorKind.Chicken or ActorKind.BlueDragon or ActorKind.RedDragon;
     public Moves FreeMoves => Kind is ActorKind.BlueDragon or ActorKind.RedDragon ? Moves.BlueDragon : Moves.Chicken;

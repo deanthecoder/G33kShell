@@ -15,8 +15,9 @@ The local files were copied from the reference's public/assets directory:
 
 The first four area files also supply the camp spawn lists and night palettes.
 
-The eagle area's drifting feathers use original atlas frames 1024-1041.
-Their drift timing, placement and palette selection are native approximations.
+The eagle area's drifting feathers use Dean-identified original atlas frame 1042.
+The half-size rendering and muted palette 0x87 approximate the MAME reference;
+exact hardware scaling, palette selection and drift timing remain unverified.
 
 On 24 November 2026, Dean's MAME US set-6 lower-edge capture repaired 191
 previously uncaptured map cells: 4 in level2.json, 49 in level3.json, and 138 in
@@ -35,9 +36,38 @@ The loader fills remaining uncaptured background cells using the nearest capture
 This hides gaps at camera edges; it is a visual approximation, not recovered ROM
 data. This runtime fallback does not overwrite the recovered source JSON cells.
 
+On 25 November 2026, Dean's MAME US set-6 sky handoff supplied a complete repeating
+64x32 hardware tile map for Stage 7. All 6,477 sampled cells across pages 8-11 agree
+at the same local coordinates; their union covers all 2,048 cells. The 120 ROM
+tile codes 15488-15607 were matched bijectively to the existing atlas through
+shared multi-row tile arrangements. level4.json's separate sky layer reuses those
+unchanged original patterns, palette groups and priority bits; no art was generated.
+Its scrollX samples come from the push trace at ticks 4627-4817 and the long trace
+at offsets 191-193. Continuing the final 6px/tick rate and -1.5px/tick vertical
+offset matches all 642 long-trace samples modulo the repeated hardware pages.
+References: Brain 85b1ee0e0a59e8f5, stage7-sky-hardware-tiles.csv and
+stage7-sky-registers.csv. Initial activation and behavior beyond the capture are
+approximations. Non-sky scenery and camp backgrounds retain their original layers.
+The uncaptured lower-right eagle foreground at world X>=1424, Y=272..320, and X>=1280, Y=328 uses
+a narrow runtime continuation of existing underside tiles to avoid a rectangular
+sky leak. This is an approximation pending the original MAME foreground tile words;
+it does not modify the source map or fill intentional transparent foreground pens.
+
 These extracted JSON/PNG assets are bundled with the repository and copied into
 build and publish output. No upstream TypeScript source is included in the
 application. Native code uses the documented extracted format.
 
 The original Sega assets remain separate from this repository's source-code license.
 There is no runtime download or browser dependency.
+
+Tyris's 7-9 potion spells are reconstructed at runtime in TyrisMagic.cs using the
+original bundled artwork. Sprite families, palettes and visibility windows follow
+Dean's MAME US set 6 timing handoff (Brain 24e624f855650691); settled dragon piece
+positions were matched against tyris-max-magic.png. Movement, high-count potion
+fan spacing and meteor trajectories are approximations, not captured frame replays.
+Flame lighting and smoke are modern presentation effects.
+
+Stage 7 static scenery alignment: level4.json uses 1:1 vertical background scrolling
+to align the captured pavement with the foreground house base. The extracted fitted
+factor (0.993, offset 1) exposed a one-pixel backing-color seam as the camera moved.
+The separately animated eagle sky retains its independent scrolling.

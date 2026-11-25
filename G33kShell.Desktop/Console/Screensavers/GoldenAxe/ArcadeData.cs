@@ -55,6 +55,8 @@ internal sealed class ArcadeData
     public int TileStride { get; }
     public TileLayer Foreground { get; }
     public TileLayer Background { get; }
+    public TileLayer Sky { get; }
+    public int[] SkyScrollX { get; }
     public byte[] HeightMap { get; }
     public SpawnDefinition[] Spawns { get; }
     public SpawnDefinition[] CampSpawns { get; }
@@ -207,6 +209,11 @@ internal sealed class ArcadeData
         Foreground = ReadLayer(level["fg"]);
         Background = ReadLayer(level["bg"]);
         m_capturedBackground = Background.Cells.Select(cell => cell != uint.MaxValue).ToArray();
+        if (level["sky"] is { } sky)
+        {
+            Sky = ReadLayer(sky);
+            SkyScrollX = sky["scrollX"].ToObject<int[]>();
+        }
         HeightMap = Convert.FromBase64String((string)level["height"]);
         Spawns = level["spawns"].Select(s => new SpawnDefinition((int)s[0], (int)s[1], (int)s[2], (int)s[3], (int)s[4])).OrderBy(s => s.Trigger).ToArray();
         CampSpawns = level["camp"].Select(s => new SpawnDefinition((int)s[0], (int)s[1], (int)s[2], (int)s[3], (int)s[4])).ToArray();
@@ -217,6 +224,7 @@ internal sealed class ArcadeData
         CameraPath = ((JObject)level["camPath"]).Properties().ToDictionary(p => int.Parse(p.Name, CultureInfo.InvariantCulture), p => p.Value.ToObject<int[]>());
         TileColors = ((JObject)level["palettes"]).Properties().Where(p => p.Name == DayPalette || p.Name == BossPalette || p.Name == "0").ToDictionary(p => p.Name, p => DecodeWords((string)p.Value));
         Magic = JObject.Parse(File.ReadAllText(Path.Combine(directory, "magic.json"))).Properties().ToDictionary(p => p.Name, p => p.Value.ToObject<int[][][][]>());
+        Magic["tyris"] = TyrisMagic.Expand(Magic["tyris"], Frames);
 
         // Weight visible tiles and actor colors, rather than unused ROM palette entries.
         var histogram = new Dictionary<int, int>();
@@ -313,6 +321,8 @@ internal sealed class ArcadeData
         Black = Map(0);
         White = Map(0xffffff);
         FillBackgroundGaps();
+        if (AreaIndex == 3)
+            ExtendEagleLowerEdge();
         // The castle's layers share the same tile coordinates and scroll offsets.
         if (AreaIndex == 4)
             m_castleCoverage = BuildCastleCoverage();
@@ -403,6 +413,40 @@ internal sealed class ArcadeData
                     return;
                 cells[neighbour] = cells[index];
                 pending.Enqueue(neighbour);
+            }
+        }
+    }
+
+    private void ExtendEagleLowerEdge()
+    {
+        // The captured underside stops at X=1424 below Y=272, then X=1280 at Y=328. Continue its
+        // existing feather pattern so uncaptured foreground does not expose the sky.
+        // This narrow fallback is not a claim about the original missing tile words.
+        var cells = Foreground.Cells;
+        for (var y = 272; y <= 328; y += 8)
+        {
+            var row = (y - Foreground.Y) / 8;
+            var start = ((y == 328 ? 1280 : 1424) - Foreground.X) / 8;
+            for (var x = start; x < Foreground.Width; x++)
+            {
+                var index = row * Foreground.Width + x;
+                if (cells[index] != uint.MaxValue)
+                    continue;
+                var replacement = cells[index - 5];
+                if (y == 272)
+                {
+                    // Match the upper border tile to a captured continuation where possible.
+                    var above = cells[index - Foreground.Width];
+                    for (var sourceX = start - 1; sourceX >= start - 16; sourceX--)
+                    {
+                        var source = row * Foreground.Width + sourceX;
+                        if (cells[source - Foreground.Width] != above)
+                            continue;
+                        replacement = cells[source];
+                        break;
+                    }
+                }
+                cells[index] = replacement;
             }
         }
     }

@@ -23,10 +23,10 @@ internal static class MagicScreenShake
             return default;
 
         var envelope = Math.Min(1, Math.Min((tick + 1) / 8.0, (duration - tick) / 12.0));
-        var strength = Math.Max(1, Math.Min(4, 1 + level * 0.5) * envelope);
+        var strength = Math.Max(1, Math.Min(2, 0.75 + level * 0.25) * envelope);
         ReadOnlySpan<int> horizontal = [1, -1, 1, 0, -1, 1, -1, 0];
         ReadOnlySpan<int> vertical = [-1, 1, 0, -1, 1, 0, -1, 1];
-        var phase = tick / 2 % horizontal.Length;
+        var phase = tick / 4 % horizontal.Length;
         return ((int)Math.Round(horizontal[phase] * strength), (int)Math.Round(vertical[phase] * strength * 0.6));
     }
 }

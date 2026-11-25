@@ -23,6 +23,8 @@ namespace G33kShell.Desktop.Console.Screensavers.GoldenAxe;
 internal sealed class Game
 {
     internal const int FireballImpactTicks = 14;
+    internal const int FlameFadeTicks = 12;
+    internal const int HeroFadeTicks = 18;
     internal const int LandingDustTicks = 150;
     internal const int PickupFadeTicks = 15;
     internal const int BrotherDoorPalette = 0x68;
@@ -47,6 +49,7 @@ internal sealed class Game
     private readonly List<DustPuff> m_landingDust = [];
     private readonly List<LightningMark> m_lightningTrail = [];
     private readonly List<SmokePuff> m_dragonSmoke = [];
+    private readonly List<MagicGroundGlow> m_magicGroundGlow = [];
     private readonly List<PotionPickup> m_potionPickups = [];
     private readonly List<Fighter> m_fadingPickups = [];
     private readonly List<Fighter> m_magicTargets = [];
@@ -66,6 +69,7 @@ internal sealed class Game
     public IReadOnlyList<DustPuff> LandingDust => m_landingDust;
     public IReadOnlyList<LightningMark> LightningTrail => m_lightningTrail;
     public IReadOnlyList<SmokePuff> DragonSmoke => m_dragonSmoke;
+    public IReadOnlyList<MagicGroundGlow> MagicGroundGlows => m_magicGroundGlow;
     public IReadOnlyList<PotionPickup> PotionPickups => m_potionPickups;
     public IReadOnlyList<Fighter> FadingPickups => m_fadingPickups;
     public IReadOnlyList<Fighter> MagicTargets => m_magicTargets;
@@ -77,7 +81,9 @@ internal sealed class Game
         AreaIndex == 3 && spawn.Routine == 0x23bda || AreaIndex == 4 && spawn.Routine == 0x2538a;
     public Fighter Hero { get; }
     public int TickCount { get; private set; }
+    public int EndStateTicks { get; private set; }
     public int? SurfAge => !IsCamp && m_surfStartTick is { } start ? TickCount - start : null;
+    public int EagleSkyTick { get; private set; } = -1;
     public double CameraX { get; private set; }
     public double CameraY { get; private set; }
     public FollowCamera ViewCamera { get; } = new();
@@ -100,7 +106,12 @@ internal sealed class Game
     private bool FinalWaveSpawned => m_stopIndex == m_data.Stops.Length - 1 && m_spawnIndex == m_data.Spawns.Length;
     public bool CanAdvance => !IsCamp && !Complete && !GameOver && Hero.Health > 0 && !FinalWaveSpawned && Progress < m_data.Stops[m_stopIndex] &&
         m_brotherEntrances.Count == 0 && !Actors.Any(a => a.IsEnemy && !a.IsGone);
+    public int BossPaletteTick { get; private set; } = -1;
     public bool Boss => Progress >= m_data.Stops[^1];
+    // A familiar player can anticipate the next nearby wave, but not beyond a scroll lock.
+    internal bool HasUpcomingEnemies => !IsCamp && (m_brotherEntrances.Count != 0 ||
+        m_data.Spawns.Skip(m_spawnIndex).TakeWhile(s => s.Trigger <= Math.Min(Progress + 64, m_data.Stops[m_stopIndex]))
+            .Any(s => s.IsEnemy));
 
     public Game(ArcadeData data, int character = 0, Random random = null, bool startInCamp = false)
     {
@@ -138,9 +149,13 @@ internal sealed class Game
         Camp = new CampRound(this, m_data);
         Complete = false;
         TickCount = 0;
+        EndStateTicks = 0;
+        // The camp has its own clock; a previous respawn must not hide the sleeping hero.
+        Hero.RespawnTick = -1;
         m_landingDust.Clear();
         m_lightningTrail.Clear();
         m_dragonSmoke.Clear();
+        m_magicGroundGlow.Clear();
         m_potionPickups.Clear();
         m_fadingPickups.Clear();
         m_magicTargets.Clear();
@@ -225,12 +240,21 @@ internal sealed class Game
     {
         ApplyCharacterSelection();
         if (Complete || GameOver)
+        {
+            // End messages keep animating while the gameplay clock is stopped.
+            EndStateTicks++;
             return;
+        }
         TickCount++;
+        if (AreaIndex == 0 && !IsCamp && Boss && BossPaletteTick < 0)
+            BossPaletteTick = TickCount;
         if (m_lightningTrail.Count != 0)
             m_lightningTrail.RemoveAll(mark => TickCount - mark.Tick >= LightningTrailTicks);
+        if (AreaIndex == 3 && !IsCamp && Progress >= EagleSky.FirstCapturedProgress)
+            EagleSkyTick++;
         m_stoneBodies.RemoveAll(body => body.X < Progress - 100);
-        m_dragonSmoke.RemoveAll(puff => TickCount - puff.Tick >= 120);
+        m_dragonSmoke.RemoveAll(puff => TickCount - puff.Tick >= puff.Duration);
+        m_magicGroundGlow.RemoveAll(glow => TickCount - glow.Tick >= MagicGroundGlow.FadeTicks);
         m_potionPickups.RemoveAll(pickup => TickCount - pickup.Tick >= PotionPickup.Lifetime);
         m_fadingPickups.RemoveAll(pickup => TickCount - pickup.PickupTick >= PickupFadeTicks);
         if (m_landingDust.Count > 0)
@@ -239,6 +263,8 @@ internal sealed class Game
         if (MagicTick >= 0)
         {
             MagicTick++;
+            AddMagicSmoke();
+            AddMagicGroundGlow();
             Hero.Animation.Tick();
             if (MagicTick == m_magicPeak)
             {
@@ -310,6 +336,7 @@ internal sealed class Game
             {
                 AddDragonSmoke(actor);
                 UpdateFireball(actor);
+                AddDragonGroundHeat(actor);
                 continue;
             }
             if (actor.Kind == ActorKind.Lightning)
@@ -324,14 +351,30 @@ internal sealed class Game
             }
             if (actor.Kind == ActorKind.Flame)
             {
+                if (actor.State == FighterState.Dying)
+                {
+                    if (actor.StateTicks >= FlameFadeTicks)
+                        actor.SetState(FighterState.Gone);
+                    continue;
+                }
                 var owner = actor.Owner;
+                if (owner.Rider == null || owner.State != FighterState.Attacking)
+                {
+                    actor.SetState(FighterState.Dying);
+                    continue;
+                }
                 actor.X = owner.X;
                 actor.Z = owner.Z + 1;
                 actor.Y = owner.Y;
                 actor.Facing = owner.Facing;
                 AddDragonSmoke(actor);
-                if (actor.Animation.Tick() || owner.Rider == null || owner.State != FighterState.Attacking)
-                    actor.SetState(FighterState.Gone);
+                AddDragonGroundHeat(actor);
+                // Retain the last visible pose instead of wrapping to the start as it fades.
+                if (actor.Animation.Index == actor.Animation.Steps.Length - 1 &&
+                    actor.Animation.StepTicks >= actor.Animation.Current.Duration - 1)
+                    actor.SetState(FighterState.Dying);
+                else
+                    actor.Animation.Tick();
                 continue;
             }
             if (actor.Kind is ActorKind.Villager or ActorKind.Thief or ActorKind.Potion or ActorKind.Food or ActorKind.CampPotion or ActorKind.Campfire)
@@ -448,6 +491,15 @@ internal sealed class Game
                 thief.FoodThief = food;
                 thief.Facing = direction;
                 thief.Items = Math.Max(1, spawn.Parameter >> 12);
+                if (IsCamp)
+                {
+                    // Enter from the edge on the same floor as the walk-in lane, not the
+                    // off-map height at the original spawn coordinate.
+                    var entryX = Progress + (direction > 0 ? 24 : 296);
+                    thief.Z = FindFloor(entryX, spawn.Z + Camp.DepthOffset);
+                    thief.X = Progress + (direction > 0 ? -24 : 344);
+                    thief.Y = Ground(entryX, thief.Z);
+                }
                 thief.SetState(FighterState.Walking, thief.Moves.Walk);
                 break;
             case 0x99c0: case 0x99c8: case 0x99da: case 0x99ec: case 0x99fe: case 0x9a9a:
@@ -457,19 +509,50 @@ internal sealed class Game
                     0x99da => 0x4e,
                     0x99ec => 0x4b,
                     0x99fe => 0x4c,
-                    0x9a9a => 0x42,
+                    0x9a9a => 0x4c,
+                    0x9a5a or 0x9c08 => 0x42,
+                    0x9eb6 => 0x18,
                     _ => 0x4d
                 };
                 var villager = Add(ActorKind.Villager, Moves.Thief, villagerPalette, 1, spawn.X, spawn.Z);
+                // MAME traces match the civilian parameter's low byte in sixteenths of a pixel per tick.
+                if (spawn.Routine is 0x99c0 or 0x99c8 or 0x99da or 0x99ec or 0x99fe)
+                {
+                    villager.VillagerSpeed = (spawn.Parameter & 255) / 16.0;
+                    // MAME's opening and late village crowds settle around these measured lanes.
+                    // The high byte offsets each actor's lane; retain collision-aware detours.
+                    if (AreaIndex == 1 && spawn.Trigger is 4120 or 4768)
+                        villager.VillagerTargetZ = (spawn.Trigger == 4120 ? 4192 : 4320) + unchecked((sbyte)(spawn.Parameter >> 8));
+                }
                 // Distinct extracted civilian run sequences; routine-to-variant mapping still needs MAME verification.
                 villager.Animation.Play(spawn.Routine switch
                 {
                     0x99da => 0xa04a,
                     0x99ec => 0xa0ac,
                     0x99fe => 0xa10e,
-                    0x9a9a => 0xa170,
+                    0x9a5a => 0xa170,
+                    0x9a9a => 0xa35c,
+                    0x9c08 => 0xa1ae,
+                    0x9eb6 => 0xa228,
                     _ => 0x9fe8
                 });
+                if (spawn.Routine == 0x9c08)
+                {
+                    // First observed forest pose is 611 for eight ticks, then the fallen 612 holds.
+                    villager.X -= 147;
+                    villager.Animation.Seek(villager.Animation.Steps.Length - 1);
+                }
+                else if (spawn.Routine == 0x9eb6)
+                {
+                    villager.X -= 87;
+                    villager.Facing = 1;
+                    villager.VillagerSpeed = 4;
+                }
+                else if (spawn.Routine == 0x9a9a)
+                {
+                    villager.VillagerSpeed = (spawn.Parameter & 255) / 16.0;
+                    villager.Animation.Seek(1);
+                }
                 break;
         }
     }
@@ -999,6 +1082,7 @@ internal sealed class Game
                     actor.Z = FindFloor(actor.X, 4240, keepVisible: true);
                     actor.Y = Ground(actor.X, actor.Z);
                     actor.Invulnerable = 120;
+                    actor.RespawnTick = TickCount;
                     actor.SetState(FighterState.Idle, actor.Moves.Idle);
                 }
                 return;
@@ -1055,7 +1139,12 @@ internal sealed class Game
                 Move(actor, actor.StateTicks < 18 ? actor.Facing * 4 : 0, 0);
                 if (actor.IsMount)
                 {
-                    actor.Animation.Tick();
+                    // Reuse the paired beast/rider take-off pose as a grounded charge brace.
+                    // This is a native presentation choice pending mounted-charge MAME verification.
+                    if (actor.Moves.Jump == 0)
+                        actor.Animation.Tick();
+                    else if (actor.StateTicks == 18)
+                        actor.Animation.Play(actor.Moves.Idle);
                     var chargeFloor = Ground(actor.X, actor.Z);
                     if (chargeFloor - actor.Y > 12)
                     {
@@ -1166,7 +1255,7 @@ internal sealed class Game
                 actor.Vy = 0;
                 actor.Connected = false;
                 actor.Struck.Clear();
-                actor.SetState(FighterState.Dashing, actor.Moves.Run);
+                actor.SetState(FighterState.Dashing, actor.Moves.Jump != 0 ? actor.Moves.Jump : actor.Moves.Run);
                 return;
             }
             if (actor.IsEnemy && input.Run)
@@ -1238,6 +1327,10 @@ internal sealed class Game
         TryMount(actor);
     }
 
+    internal bool CanHitWithMagic(Fighter actor) => actor.IsEnemy &&
+        actor.State is not (FighterState.Emerging or FighterState.Entering) && actor.Health > 0 &&
+        actor.HeldBy == null && ProjectView(actor.X, actor.Z, actor.Y) is { X: >= -20 and <= 340, Y: >= 0 and <= 224 };
+
     private bool TryCastMagic(GameInput input)
     {
         if (IsCamp || !input.Magic || Potions == 0 || Hero.Health <= 0)
@@ -1245,20 +1338,152 @@ internal sealed class Game
 
         m_potionPickups.Clear();
         m_magicTargets.Clear();
-        m_magicTargets.AddRange(Actors.Where(a => a.IsEnemy && a.State is not (FighterState.Emerging or FighterState.Entering) && a.Health > 0 &&
-            a.HeldBy == null && ProjectView(a.X, a.Z, a.Y) is { X: >= -20 and <= 340, Y: >= 0 and <= 224 }));
+        m_magicTargets.AddRange(Actors.Where(CanHitWithMagic));
         MagicLevel = Character.GetMagicLevel(Potions);
         // The export indexes recordings by the potion count fed to the arcade.
         var recordings = MagicEffects;
         ActiveMagicEffects = recordings[Math.Min(Potions, recordings.Length) - 1];
         // Wait until the last casting potion has disappeared, including any recorded flicker gaps.
         MagicShakeStart = Array.FindLastIndex(ActiveMagicEffects, frame => frame.Any(sprite => sprite[0] == 517)) + 1;
+        var potionCount = Potions;
         Potions = 0;
         MagicTick = 0;
         m_magicPeak = Math.Max(30, Enumerable.Range(0, ActiveMagicEffects.Length)
             .OrderByDescending(i => ActiveMagicEffects[i].Length).FirstOrDefault());
+        // The larger potion fan must not apply damage before the reconstructed spell appears.
+        if (Character.MagicKey == "tyris" && potionCount >= 7)
+            m_magicPeak = potionCount == 9 ? 106 : potionCount == 8 ? 54 : 48;
         Hero.SetState(FighterState.Magic, Character.Magic);
         return true;
+    }
+
+    private void AddMagicGroundGlow()
+    {
+        if (MagicTick >= ActiveMagicEffects.Length)
+            return;
+        var hero = ProjectView(Hero.X, Hero.Z, Ground(Hero.X, Hero.Z));
+        foreach (var effect in ActiveMagicEffects[MagicTick])
+        {
+            // Physical props and the airborne sections of the dwarf's cages do not light the floor.
+            if (effect[1] is 0x4a or 0x51 or 0x47 || effect[0] == 518 ||
+                Character.MagicKey == "gilius" && LightningCage.IsSprite(effect))
+                continue;
+            var frame = m_data.Frames[effect[0]];
+            var screenSpace = effect.Length > 6 && effect[6] == 1;
+            var point = screenSpace
+                ? (X: (double)effect[3], Y: (double)effect[5])
+                : ProjectView(Hero.X + effect[3], Hero.Z + effect[4], Hero.Y + effect[5]);
+            var x = Hero.X + point.X + (frame.Ox + frame.Width * 0.5) * (effect[2] == 1 ? -1 : 1) - hero.X;
+            double z;
+            if (screenSpace)
+            {
+                // Dragon fire sweeps over this fixed floor lane even as its head rises away.
+                var floorY = effect[1] == 0x52 ? 176 : point.Y + frame.Oy + frame.Height;
+                if (floorY is < 160 or > 210)
+                    continue;
+                z = Hero.Z + (floorY - hero.Y) / 0.75;
+            }
+            else
+            {
+                z = Hero.Z + effect[4];
+                var bottom = Hero.Y + effect[5] + frame.Oy + frame.Height;
+                if (Math.Abs(bottom - Ground(x, z)) > 20)
+                    continue;
+            }
+            var first = 0;
+            while (first < MagicTick && !ActiveMagicEffects[first].Any(s => s[1] == effect[1]))
+                first++;
+            RefreshGroundHeat(x, z, Math.Clamp((MagicTick - first + 1) / 12.0, 0, 1), Character.MagicKey);
+        }
+
+        var cageTick = LightningCage.SampleTick(this);
+        if (cageTick >= 0 && MagicEffects[0][cageTick].Any(s => s[0] is >= 569 and <= 572))
+        {
+            // The renderer attaches a separate cage to every victim, not just the recorded caster.
+            foreach (var target in MagicTargets.Prepend(Hero))
+                RefreshGroundHeat(target.X, target.Z, Math.Clamp((cageTick - 65) / 12.0, 0, 1), Character.MagicKey);
+        }
+
+    }
+
+    private void AddDragonGroundHeat(Fighter flame)
+    {
+        if (flame.IsGone)
+            return;
+        var step = flame.Animation.Current;
+        var frame = m_data.Frames[step.Frame];
+        var direction = ((step.Flags & 1) != 0) ^ flame.Facing < 0 ? -1 : 1;
+        double offset = step.Dx * flame.Facing;
+        if (flame.Kind == ActorKind.Flame)
+            offset += (frame.Ox + frame.Width * 0.5) * direction;
+        var x = flame.X + offset;
+        var ground = Ground(x, flame.Z);
+        var height = Math.Max(0, ground - flame.Y);
+        var strength = flame.Kind == ActorKind.Flame ? Math.Min(1, frame.Width / 42.0) : 1 / (1 + height / 65);
+        RefreshGroundHeat(x, flame.Z, strength, "tyris");
+    }
+
+    private void RefreshGroundHeat(double x, double z, double strength, string magicKey)
+    {
+        var ground = Ground(x, z);
+        if (ground is <= 3840 or >= 5248)
+            return;
+        var index = m_magicGroundGlow.FindIndex(glow => glow.MagicKey == magicKey &&
+            Math.Abs(glow.X - x) < 28 && Math.Abs(glow.Z - z) < 12);
+        if (index >= 0)
+            m_magicGroundGlow[index] = m_magicGroundGlow[index] with { Tick = TickCount, Strength = strength };
+        else
+            m_magicGroundGlow.Add(new MagicGroundGlow(x, z, ground, TickCount, strength, magicKey, TickCount));
+    }
+
+    private void AddMagicSmoke()
+    {
+        if (Character.MagicKey != "tyris" || MagicTick >= ActiveMagicEffects.Length || MagicTick % 3 != 0)
+            return;
+        var flames = ActiveMagicEffects[MagicTick].Where(s => s[1] is 0x26 or 0x52 or 0x35 or 0x24).ToArray();
+        if (flames.Length == 0)
+            return;
+        var hero = ProjectView(Hero.X, Hero.Z, Hero.Y);
+        // Keep cosmetic randomness independent of combat and sample the actual flame silhouette.
+        var random = new Random(unchecked(TickCount * 397 ^ MagicTick));
+        var dragonFlames = flames.Where(s => s[1] == 0x52).ToArray();
+        var lowerFlameY = double.NegativeInfinity;
+        if (dragonFlames.Length > 0)
+        {
+            var top = dragonFlames.Min(s => s[5] + m_data.Frames[s[0]].Oy);
+            var bottom = dragonFlames.Max(s => s[5] + m_data.Frames[s[0]].Oy + m_data.Frames[s[0]].Height);
+            lowerFlameY = top + (bottom - top) * 0.6;
+        }
+        foreach (var effect in flames)
+        {
+            // Favor the lower part of the assembled breath, not the bottom of each mouth piece.
+            var lowerOnly = effect[1] == 0x52 && random.NextDouble() < 0.85;
+            var frame = m_data.Frames[effect[0]];
+            var point = effect.Length > 6 && effect[6] == 1
+                ? (X: (double)effect[3], Y: (double)effect[5])
+                : ProjectView(Hero.X + effect[3], Hero.Z + effect[4], Hero.Y + effect[5]);
+            for (var attempt = 0; attempt < 16; attempt++)
+            {
+                var pixelX = random.Next(frame.Width);
+                var pixelY = random.Next(frame.Height);
+                var pen = m_data.SpritePens[(frame.Y + pixelY) * m_data.SpriteStride + frame.X + pixelX];
+                if (pen is 0 or 15)
+                    continue;
+                var x = point.X + (effect[2] == 1 ? -frame.Ox - 1 - pixelX : frame.Ox + pixelX);
+                var y = point.Y + frame.Oy + pixelY;
+                if (lowerOnly && y < lowerFlameY)
+                    continue;
+                if (x is > -16 and < 336 && y is > -24 and < 224)
+                {
+                    // Snapshot the emission position: existing puffs never follow the moving spell.
+                    var scale = 1.3 + random.NextDouble() * 0.7;
+                    var soot = random.NextDouble() < 0.5 ? 0.45 : 0.95;
+                    m_dragonSmoke.Add(new SmokePuff(Hero.X + x - hero.X, Hero.Z,
+                        Hero.Y + y - hero.Y, TickCount, scale, soot, 0.8, 240));
+                }
+                break;
+            }
+        }
     }
 
     private static void AdvanceMountedJumpPose(Fighter mount, double ground)
@@ -1636,17 +1861,19 @@ internal sealed class Game
         actor.X += poseX;
         var screenX = Project(actor.X, actor.Z, actor.Y).X;
         if (actor.Facing < 0 && screenX < 8 || actor.Facing > 0 && screenX > 312)
-            actor.X += actor.Facing * 1.8;
+            actor.X += actor.Facing * actor.VillagerSpeed;
         else
         {
             var ground = Ground(actor.X, actor.Z);
             var ahead = Ground(actor.X + actor.Facing * 12, actor.Z);
             bool Walkable(double floor) => floor is > 3840 and < 5248 && Math.Abs(floor - ground) <= 12;
-            var route = Walkable(ahead)
-                ? new GameInput(X: actor.Facing)
-                : TerrainNavigator.Towards(this, actor, Progress + (actor.Facing < 0 ? -64 : 384), actor.Z, allowExit: true);
-            var dx = route.X * 1.8;
-            var dz = route.Z * 1.2;
+            var desiredDepth = actor.VillagerTargetZ ?? actor.Z;
+            var clearAhead = Walkable(ahead);
+            var route = clearAhead
+                ? new GameInput(X: actor.Facing, Z: Math.Sign(desiredDepth - actor.Z))
+                : TerrainNavigator.Towards(this, actor, Progress + (actor.Facing < 0 ? -64 : 384), desiredDepth, allowExit: true);
+            var dx = route.X * actor.VillagerSpeed;
+            var dz = route.Z * (clearAhead ? Math.Min(1, Math.Abs(desiredDepth - actor.Z)) : 1.2);
             if (Walkable(Ground(actor.X + dx + Math.Sign(dx) * 8, actor.Z)))
                 actor.X += dx;
             if (Walkable(Ground(actor.X, actor.Z + dz)))
@@ -1693,6 +1920,56 @@ internal sealed class Game
         {
             actor.Y = ground;
             actor.Vy = 0;
+        }
+    }
+
+    private void MoveCampThief(Fighter actor)
+    {
+        // Provisional stop/start chase rhythm; exact arcade timings await MAME comparison.
+        if (actor.ThiefPauseTicks > 0)
+        {
+            actor.ThiefPauseTicks--;
+            return;
+        }
+        if (actor.ThiefRunTicks == 0)
+        {
+            for (var attempt = 0; attempt < 12; attempt++)
+            {
+                var x = Progress + m_random.Next(40, 281);
+                var z = FindFloor(x, Hero.Z + m_random.Next(-28, 29));
+                if (Math.Abs(x - actor.X) + Math.Abs(z - actor.Z) < 32 ||
+                    Enumerable.Range(1, 24).Any(step =>
+                        Math.Abs(Ground(actor.X + (x - actor.X) * step / 24,
+                            actor.Z + (z - actor.Z) * step / 24) - actor.Y) > 8))
+                    continue;
+                actor.ThiefTargetX = x;
+                actor.ThiefTargetZ = z;
+                actor.ThiefRunTicks = m_random.Next(30, 61);
+                actor.SetState(FighterState.Walking, actor.Moves.Run);
+                break;
+            }
+            if (actor.ThiefRunTicks == 0)
+            {
+                actor.ThiefPauseTicks = 20;
+                actor.SetState(FighterState.Idle, actor.Moves.Idle);
+                return;
+            }
+        }
+        var dx = actor.ThiefTargetX - actor.X;
+        var dz = actor.ThiefTargetZ - actor.Z;
+        var distance = Math.Sqrt(dx * dx + dz * dz);
+        var speed = Math.Min(1.8, distance);
+        if (dx != 0)
+            actor.Facing = Math.Sign(dx);
+        if (distance > 0)
+            Move(actor, dx / distance * speed, dz / distance * speed);
+        actor.Y = Ground(actor.X, actor.Z);
+        actor.Vy = 0;
+        if (--actor.ThiefRunTicks == 0 || distance <= speed)
+        {
+            actor.ThiefRunTicks = 0;
+            actor.ThiefPauseTicks = m_random.Next(45, 81);
+            actor.SetState(FighterState.Idle, actor.Moves.Idle);
         }
     }
 
@@ -1777,6 +2054,23 @@ internal sealed class Game
             }
             return;
         }
+        if (actor.Kind == ActorKind.Villager && actor.Animation.Address == 0xa1ae)
+        {
+            // This injured villager remains in the scenery; the falling pose must not loop into a run.
+            if (actor.Animation.Index != 0)
+                actor.Animation.Tick();
+            return;
+        }
+        if (actor.Kind == ActorKind.Villager && actor.Animation.Address == 0xa35c)
+        {
+            actor.Animation.Tick();
+            // The trace shows a stationary child before fleeing. Exact arcade release conditions
+            // are not captured, so use player proximity rather than inventing a fixed timer.
+            if (Math.Abs(Hero.X - actor.X) >= 128)
+                return;
+            actor.Animation.Play(0xa10e);
+            actor.Facing = -1;
+        }
         var previousPoseX = actor.Animation.Current.Dx;
         actor.Animation.Tick();
         // The injured villager's script contains cumulative travel (0..36), not ordinary pose bobbing.
@@ -1803,6 +2097,16 @@ internal sealed class Game
             }
             var jar = IsCamp && !actor.FoodThief && actor.Items > 0
                 ? Actors.FirstOrDefault(a => a.Kind == ActorKind.CampPotion && !a.IsGone) : null;
+            if (IsCamp && !actor.Entered && actor.Items > 0)
+            {
+                actor.X += actor.Facing;
+                var entryX = Math.Clamp(actor.X, Progress + 24, Progress + 296);
+                actor.Y = Ground(entryX, actor.Z);
+                actor.Vy = 0;
+                if (Project(actor.X, actor.Z, actor.Y).X is >= 24 and <= 296)
+                    actor.Entered = true;
+                return;
+            }
             if (jar != null)
             {
                 var dx = jar.X - actor.X;
@@ -1816,17 +2120,28 @@ internal sealed class Game
                     actor.Items++;
                 }
             }
+            else if (IsCamp && actor.Items > 0)
+                MoveCampThief(actor);
             else
                 MoveThief(actor);
         }
         else
+        {
+            var previousX = actor.X;
             MoveVillager(actor);
+            // Stagger lighter footfalls so a fleeing crowd does not emit one synchronized cloud.
+            if ((TickCount + actor.Id * 5) % 18 == 0 && Math.Abs(actor.X - previousX) >= 1 &&
+                actor.Animation.Address is 0x9fe8 or 0xa04a or 0xa0ac or 0xa10e or 0xa228 &&
+                Math.Abs(actor.Y - Ground(actor.X, actor.Z)) < 1 &&
+                ProjectView(actor.X, actor.Z, actor.Y) is { X: > 16 and < 304, Y: > 0 and < 224 })
+                m_landingDust.Add(new DustPuff(actor.X - actor.Facing * 5, actor.Z, actor.Y, 2, TickCount, false, true));
+        }
         var sx = Project(actor.X, actor.Z, actor.Y).X;
         if (sx is > 0 and < 320)
             actor.Entered = true;
         if (actor.Kind == ActorKind.Thief && actor.Items > 0 && actor.Age < 700 && (sx < 20 || sx > 300) && actor.Entered)
             actor.Facing = sx < 20 ? 1 : -1;
-        if (actor.Entered && (sx < -60 || sx > 380))
+        if ((actor.Entered || actor.Kind == ActorKind.Villager && actor.Animation.Address == 0xa228) && (sx < -60 || sx > 380))
             actor.SetState(FighterState.Gone);
     }
 }

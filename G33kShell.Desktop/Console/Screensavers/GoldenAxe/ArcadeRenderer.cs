@@ -40,6 +40,8 @@ internal sealed class ArcadeRenderer
     private const double ShadowSkew = 0.55;
     private const double ShadowSquash = 0.28;
 
+    internal Action<string> ProfileStage { get; set; }
+
     private enum EllipseEffect { Fire, Smoke, Magic, Dust }
 
     public ArcadeRenderer(ArcadeData data)
@@ -65,6 +67,7 @@ internal sealed class ArcadeRenderer
     public void Draw(PixelScreenData screen, Game game, bool effects = true, Rgb tint = null, byte effectOpacity = 255,
         bool showTerrainShade = false)
     {
+        ProfileStage?.Invoke("begin");
         screen.Clear(m_data.Black);
         if (game.AreaIndex == 3 && !game.IsCamp)
         {
@@ -88,15 +91,27 @@ internal sealed class ArcadeRenderer
         var u = -7 - game.ViewCamera.X;
         var v = (int)Math.Round(-512 - game.ViewCamera.Y);
         var palette = m_data.TilePalettes[game.IsCamp ? "0" : game.Boss ? m_data.BossPalette : m_data.DayPalette];
+        var sunset = game.AreaIndex == 0 && !game.IsCamp && game.Boss
+            ? Math.Clamp((game.BossPaletteTick < 0 ? 0 : game.TickCount - game.BossPaletteTick) / 150.0, 0, 1) : 1;
+        var previousPalette = sunset < 1 ? m_data.TilePalettes[m_data.DayPalette] : null;
+        var sunsetOpacity = (byte)Math.Round(sunset * 255);
         var backgroundX = (int)Math.Floor(u * m_data.Parallax[0][0] + m_data.Parallax[0][1]);
         var backgroundY = (int)(v * m_data.Parallax[1][0] + m_data.Parallax[1][1]);
-        Layer(screen, m_data.Background, backgroundX, backgroundY, palette, false, true);
-        Layer(screen, m_data.Foreground, (int)u, v, palette, false, false);
+        if (m_data.Sky != null && !game.IsCamp)
+        {
+            var scroll = EagleSky.Scroll(game.EagleSkyTick, m_data.SkyScrollX);
+            Layer(screen, m_data.Sky, scroll.X, scroll.Y, palette, false, true, wrap: true);
+            Layer(screen, m_data.Background, backgroundX, backgroundY, palette, false, true, skipSky: true);
+        }
+        else
+            Layer(screen, m_data.Background, backgroundX, backgroundY, palette, false, true, previousPalette: previousPalette, opacity: sunsetOpacity);
+        Layer(screen, m_data.Foreground, (int)u, v, palette, false, false, previousPalette: previousPalette, opacity: sunsetOpacity);
         if (SceneryEyes.Sample(game.AreaIndex, game.IsCamp, game.TickCount) is { } eye)
         {
             var frame = m_data.Frames[eye.Frame];
             Sprite(screen, eye.Frame, eye.Palette, eye.X - (int)u - frame.Ox, eye.Y - v - frame.Oy, false);
         }
+        ProfileStage?.Invoke("scenery");
         if (showTerrainShade || effects && !game.IsCamp && effectOpacity != 0)
         {
             m_terrainShading ??= new TerrainShading(m_data);
@@ -105,6 +120,7 @@ internal sealed class ArcadeRenderer
             if (showTerrainShade)
                 return;
         }
+        ProfileStage?.Invoke("terrain shade");
         byte[] dustTints = [];
         if (effects)
         {
@@ -115,12 +131,11 @@ internal sealed class ArcadeRenderer
             DrawFireballHeatHaze(screen, game);
             GroundFog.Draw(screen, game, m_data.CameraY, tint, effectOpacity);
             DrawContactShadows(screen, game);
+            DrawMagicGroundGlow(screen, game, tint, effectOpacity);
             if (game.IsCamp)
                 DrawCampfireShadows(screen, game);
         }
-        DrawFeathers(screen, game, foreground: false);
-        if (effects)
-            DrawDragonSmoke(screen, game);
+        ProfileStage?.Invoke("atmosphere and shadows");
         foreach (var mound in game.SkeletonMounds)
         {
             var point = game.ProjectView(mound.X, mound.Z, game.Ground(mound.X, mound.Z));
@@ -134,10 +149,14 @@ internal sealed class ArcadeRenderer
         DrawFloorLightningTrail(screen, game);
         if (effects)
             DrawFloorLightningSmoke(screen, game);
+        // Flames cover fresh smoke; the lingering plume is revealed as they move away.
+        if (effects)
+            DrawDragonSmoke(screen, game);
+        ProfileStage?.Invoke("ground effects and smoke");
         foreach (var actor in game.Actors.Concat(game.StoneBodies).Concat(game.FadingPickups).OrderBy(a => a.Z).ThenByDescending(a => a.Y))
         {
-            if (actor.Mount != null || actor.State == FighterState.Gone && actor.PickupTick < 0 || actor.State == FighterState.Respawning ||
-                actor.State == FighterState.Dying && game.TickCount % 4 < 2)
+            if (actor.Mount != null || actor.State == FighterState.Gone && actor.PickupTick < 0 || ActorFade(game, actor) == 0 ||
+                actor.State == FighterState.Dying && actor.Kind is not (ActorKind.Fireball or ActorKind.Flame) && game.TickCount % 4 < 2)
                 continue;
             if (actor.State == FighterState.Entering && actor.StateTicks < Game.BrotherDoorClosingTick)
             {
@@ -166,6 +185,7 @@ internal sealed class ArcadeRenderer
             var opacity = actor.PickupTick >= 0
                 ? (byte)(255 * Math.Clamp(1 - (game.TickCount - actor.PickupTick) / (double)Game.PickupFadeTicks, 0, 1))
                 : (byte)(255 - 18 * Math.Min(pulse, 12 - pulse));
+            opacity = (byte)(opacity * ActorFade(game, actor));
             var translucent = opacity < 255;
             if (translucent)
                 screen.BeginTranslucentSprite(opacity);
@@ -215,8 +235,10 @@ internal sealed class ArcadeRenderer
                 DrawCampfireEmbers(screen, point.X, point.Y, game.TickCount);
             }
         }
+        ProfileStage?.Invoke("actors");
         if (game.MagicTick >= 0 && game.MagicTick < game.ActiveMagicEffects.Length)
             DrawMagic(screen, game, effects, tint, effectOpacity);
+        ProfileStage?.Invoke("magic");
         if (effects)
         {
             DrawFireLighting(screen, game);
@@ -226,25 +248,34 @@ internal sealed class ArcadeRenderer
             if (game.MagicTick < 0)
                 PotionSparkles.DrawBursts(screen, game, m_lightBlue, m_data.White, effectOpacity);
         }
-        Layer(screen, m_data.Foreground, (int)u, v, palette, true, false);
+        ProfileStage?.Invoke("lighting and dust");
+        Layer(screen, m_data.Foreground, (int)u, v, palette, true, false, previousPalette: previousPalette, opacity: sunsetOpacity);
+        ProfileStage?.Invoke("priority scenery");
         DrawSurf(screen, game);
-        DrawFeathers(screen, game, foreground: true);
+        ProfileStage?.Invoke("surf");
         var shake = MagicScreenShake.Sample(game.MagicTick - game.MagicShakeStart,
             game.MagicDuration - game.MagicShakeStart, game.MagicLevel);
         if (shake != default)
             screen.OffsetScene(shake.X, shake.Y);
+        ProfileStage?.Invoke("screen shake");
         DrawHud(screen, game);
+        ProfileStage?.Invoke("HUD");
         if (effects && game.MagicTick < 0)
             PotionSparkles.DrawTrails(screen, game, m_lightBlue, m_data.White, effectOpacity);
         if (game.CanAdvance && game.MagicTick < 0 && game.TickCount % 60 < 30)
             DrawGoPrompt(screen);
-        if (game.Complete || game.GameOver)
+        if (game.GameOver || game.Complete && !game.IsCamp)
         {
-            var message = game.GameOver ? "GAME OVER" : game.IsCamp ? "DAYBREAK" : game.AreaIndex == ArcadeData.AreaCount - 1 ? "YOU WIN" : "STAGE CLEAR";
+            var message = game.GameOver ? "GAME OVER" : game.AreaIndex == ArcadeData.AreaCount - 1 ? "YOU WIN" : "STAGE CLEAR";
+            var fade = Math.Clamp(game.EndStateTicks / 30.0, 0, 1);
+            screen.BeginTranslucentSprite((byte)Math.Round(255 * fade));
             Text(screen, message, (ArcadeData.Width - message.Length * 8) / 2, 96);
+            screen.EndTranslucentSprite();
         }
+        DrawFeathers(screen, game);
         // Apply the approved contrast after lighting, translucency, screen shake and HUD composition.
         screen.OutputColorCurve = s_outputColorCurve;
+        ProfileStage?.Invoke("final overlays");
     }
 
     private void DrawFloorLightningTrail(PixelScreenData screen, Game game)
@@ -380,7 +411,7 @@ internal sealed class ArcadeRenderer
         var offsetX = step.Dx * flame.Facing + (frame.Ox + frame.Width / 2.0) * direction;
         var centerX = point.X + offsetX;
         var centerY = point.Y + step.Dy + frame.Oy + frame.Height / 2.0;
-        var intensity = Math.Min(1, frame.Width / 42.0);
+        var intensity = Math.Min(1, frame.Width / 42.0) * ActorFade(game, flame);
         DrawSoftEllipse(screen, centerX, centerY, frame.Width * 0.7, frame.Height * 0.75, 75 * intensity);
 
         var ground = game.Ground(flame.X + offsetX, flame.Z);
@@ -388,6 +419,21 @@ internal sealed class ArcadeRenderer
             return;
         var foot = game.ProjectView(flame.X, flame.Z, ground);
         DrawSoftEllipse(screen, centerX, foot.Y + 1, frame.Width * 0.95, 21, 86 * intensity);
+    }
+
+    internal static double ActorFade(Game game, Fighter actor)
+    {
+        if (actor.Kind == ActorKind.Hero)
+        {
+            if (actor.State == FighterState.Respawning)
+                return Math.Clamp(1 - actor.StateTicks / (double)Game.HeroFadeTicks, 0, 1);
+            if (actor.RespawnTick >= 0)
+                return Math.Clamp((game.TickCount - actor.RespawnTick) / (double)Game.HeroFadeTicks, 0, 1);
+        }
+        if (actor.State == FighterState.Dying && actor.Kind is ActorKind.Fireball or ActorKind.Flame)
+            return Math.Clamp(1 - actor.StateTicks / (double)(actor.Kind == ActorKind.Fireball
+                ? Game.FireballImpactTicks : Game.FlameFadeTicks), 0, 1);
+        return 1;
     }
 
     private static void DrawFireballLighting(PixelScreenData screen, Game game, Fighter fireball)
@@ -410,7 +456,8 @@ internal sealed class ArcadeRenderer
     }
 
     private static (double X, double Y) ProjectMagic(Game game, int[] effect) =>
-        game.ProjectView(game.Hero.X + effect[3], game.Hero.Z + effect[4], game.Hero.Y + effect[5]);
+        effect.Length > 6 && effect[6] == 1 ? (effect[3], effect[5]) :
+            game.ProjectView(game.Hero.X + effect[3], game.Hero.Z + effect[4], game.Hero.Y + effect[5]);
 
     private void DrawMagic(PixelScreenData screen, Game game, bool effects, Rgb tint, byte effectOpacity)
     {
@@ -422,12 +469,17 @@ internal sealed class ArcadeRenderer
 
         foreach (var effect in dim)
         {
-            screen.BeginTranslucentSprite(MagicGapOpacity(game.ActiveMagicEffects, game.MagicTick, effect));
+            screen.BeginTranslucentSprite((byte)(MagicGapOpacity(game.ActiveMagicEffects, game.MagicTick, effect) *
+                MagicEffectOpacity(game.ActiveMagicEffects, game.MagicTick, effect) / 255));
             DrawMagicSprite(screen, game, effect);
             screen.EndTranslucentSprite();
         }
         foreach (var effect in sprites)
+        {
+            screen.BeginTranslucentSprite(MagicEffectOpacity(game.ActiveMagicEffects, game.MagicTick, effect));
             DrawMagicSprite(screen, game, effect);
+            screen.EndTranslucentSprite();
+        }
         DrawLightningCages(screen, game, effects);
     }
 
@@ -470,6 +522,7 @@ internal sealed class ArcadeRenderer
         foreach (var target in game.MagicTargets.Prepend(game.Hero).OrderBy(a => a.Z))
         foreach (var (effect, opacity) in sprites)
         {
+            var renderOpacity = (byte)(opacity * MagicEffectOpacity(source, tick, effect) / 255);
             var point = LightningAnchor(game, target);
             // The captured cage was six pixels left and one depth unit forward of the caster.
             // Remove that caster-specific offset before attaching it to the displayed victim pose.
@@ -478,9 +531,9 @@ internal sealed class ArcadeRenderer
             {
                 var frame = m_data.Frames[effect[0]];
                 DrawSoftEllipse(screen, point.X, point.Y + frame.Oy + frame.Height / 2.0,
-                    frame.Width * 0.65 + 12, frame.Height * 0.55 + 8, opacity * 0.22, EllipseEffect.Magic);
+                    frame.Width * 0.65 + 12, frame.Height * 0.55 + 8, renderOpacity * 0.22, EllipseEffect.Magic);
             }
-            screen.BeginTranslucentSprite(opacity);
+            screen.BeginTranslucentSprite(renderOpacity);
             Sprite(screen, effect[0], effect[1], point.X, point.Y, effect[2] == 1);
             screen.EndTranslucentSprite();
         }
@@ -490,6 +543,57 @@ internal sealed class ArcadeRenderer
     {
         var point = ProjectMagic(game, effect);
         Sprite(screen, effect[0], effect[1], point.X, point.Y, effect[2] == 1);
+    }
+
+    internal static byte MagicEffectOpacity(int[][][] recording, int tick, int[] effect)
+    {
+        // Potion choreography and physical props stay solid; spell energy peaks at 80%.
+        if (effect[1] is 0x4a or 0x51 or 0x47 || effect[0] == 518)
+            return 255;
+        const int fadeTicks = 12;
+        var envelope = Math.Min(Extent(-1), Extent(1));
+        return (byte)Math.Round(204 * envelope);
+
+        double Extent(int direction)
+        {
+            var anchor = effect;
+            var last = 0;
+            var gap = 0;
+            for (var distance = 1; distance < fadeTicks + 6; distance++)
+            {
+                var sample = tick + distance * direction;
+                if (sample < 0 || sample >= recording.Length)
+                    break;
+                // Screen-space spells are assembled from moving pieces. Keep their shared
+                // palette envelope intact while tracking recorded world-space instances separately.
+                var screenSpace = effect.Length > 6 && effect[6] == 1;
+                int[] candidate = null;
+                var nearest = int.MaxValue;
+                foreach (var sprite in recording[sample])
+                {
+                    if (sprite[1] != anchor[1])
+                        continue;
+                    var separation = Math.Abs(sprite[3] - anchor[3]) + Math.Abs(sprite[4] - anchor[4]) +
+                        Math.Abs(sprite[5] - anchor[5]);
+                    if ((!screenSpace && (sprite[2] != anchor[2] || separation > 24)) || separation >= nearest)
+                        continue;
+                    candidate = sprite;
+                    nearest = separation;
+                }
+                if (candidate == null)
+                {
+                    if (++gap > 6)
+                        break;
+                    continue;
+                }
+                anchor = candidate;
+                last = distance;
+                gap = 0;
+                if (last >= fadeTicks - 1)
+                    break;
+            }
+            return Math.Min(1, (last + 1) / (double)fadeTicks);
+        }
     }
 
     internal static IEnumerable<int[]> DimMagicSprites(int[][][] recording, int tick)
@@ -546,8 +650,8 @@ internal sealed class ArcadeRenderer
 
     private void DrawMagicGlow(PixelScreenData screen, Game game, int[] effect, double opacity)
     {
-        // The potion icons animate during a cast but are not light sources.
-        if (effect[1] == 0x4a)
+        // Potion icons, the dragon's silver head and solid meteor pieces do not emit flame light.
+        if (effect[1] is 0x4a or 0x51 or 0x47 || effect[0] == 518)
             return;
 
         var frame = m_data.Frames[effect[0]];
@@ -555,9 +659,30 @@ internal sealed class ArcadeRenderer
         var direction = effect[2] == 1 ? -1 : 1;
         var centerX = point.X + (frame.Ox + frame.Width / 2.0) * direction;
         var centerY = point.Y + frame.Oy + frame.Height / 2.0;
+        opacity *= MagicEffectOpacity(game.ActiveMagicEffects, game.MagicTick, effect) / 204.0;
         var strength = Math.Clamp(36 + frame.Width * 0.85, 46, 91) * opacity;
         DrawSoftEllipse(screen, centerX, centerY,
             24 + frame.Width * 0.64, 16 + frame.Height * 0.66, strength, EllipseEffect.Magic);
+    }
+
+    private static void DrawMagicGroundGlow(PixelScreenData screen, Game game, Rgb tint, byte effectOpacity)
+    {
+        foreach (var glow in game.MagicGroundGlows)
+        {
+            var color = glow.MagicKey switch
+            {
+                "gilius" => new Rgb(80, 178, 255),
+                "tyris" => FireLightColor,
+                _ => new Rgb(255, 182, 113)
+            };
+            screen.MagicLightColor = ScaleLight(tint ?? color, effectOpacity);
+            var point = game.ProjectView(glow.X, glow.Z, glow.Y);
+            var fade = 1 - (game.TickCount - glow.Tick) / (double)MagicGroundGlow.FadeTicks;
+            // Heating stops when the flame leaves; cooling starts from the accumulated brightness.
+            var heat = Math.Clamp((glow.Tick - glow.StartTick + 1) / (double)MagicGroundGlow.HeatTicks, 0, 1);
+            DrawSoftEllipse(screen, point.X, point.Y - 2, 48, 16,
+                125 * glow.Strength * heat * fade, EllipseEffect.Magic);
+        }
     }
 
     private static Rgb ScaleLight(Rgb color, byte opacity) =>
@@ -660,14 +785,14 @@ internal sealed class ArcadeRenderer
         foreach (var puff in game.DragonSmoke)
         {
             var age = game.TickCount - puff.Tick;
-            var progress = age / 120.0;
+            var progress = age / (double)puff.Duration;
             var point = game.ProjectView(puff.X, puff.Z, puff.Y);
             var phase = DustRandom(puff.Tick + (int)puff.X) * Math.PI * 2;
             var x = point.X + Math.Sin(phase + progress * 4) * progress * 7;
-            var y = point.Y - progress * 44;
-            var opacity = 180 * Math.Min(1, age / 5.0) * Math.Pow(1 - progress, 0.8);
-            DrawSoftEllipse(screen, x, y, 5 + progress * 12, 6 + progress * 15, opacity, EllipseEffect.Smoke,
-                soot: (byte)(255 * Math.Pow(1 - progress, 1.5)));
+            var y = point.Y - age / 120.0 * 44 * Math.Sqrt(puff.Scale);
+            var opacity = 180 * puff.Opacity * Math.Min(1, age / 5.0) * Math.Pow(1 - progress, 0.8);
+            DrawSoftEllipse(screen, x, y, (5 + progress * 12) * puff.Scale, (6 + progress * 15) * puff.Scale, opacity, EllipseEffect.Smoke,
+                soot: (byte)(255 * puff.Soot * Math.Pow(1 - progress, 1.5)));
         }
     }
 
@@ -746,7 +871,7 @@ internal sealed class ArcadeRenderer
         foreach (var actor in game.Actors.Concat(game.StoneBodies))
         {
             var potion = actor.Kind is ActorKind.Potion or ActorKind.CampPotion or ActorKind.Food;
-            if (actor.Mount != null || actor.State == FighterState.Gone && actor.PickupTick < 0 || actor.State == FighterState.Respawning ||
+            if (actor.Mount != null || actor.State == FighterState.Gone && actor.PickupTick < 0 || ActorFade(game, actor) == 0 ||
                 actor.State == FighterState.Entering && actor.StateTicks < Game.BrotherDoorOpeningTicks ||
                 (!potion && !IsCharacter(actor)))
                 continue;
@@ -766,9 +891,9 @@ internal sealed class ArcadeRenderer
             var centerX = point.X;
             var centerY = point.Y + (potion ? 1.5 : 0.5);
             var height = Math.Max(0, ground - actor.Y);
-            var strength = 100 / (1 + height / 36);
+            var strength = 100 / (1 + height / 36) * ActorFade(game, actor);
             var validPose = (uint)step.Frame < (uint)m_data.Frames.Length;
-            if (!potion && actor.State is FighterState.Down or FighterState.Dying or FighterState.Petrified && validPose)
+            if (!potion && actor.State is FighterState.Down or FighterState.Dying or FighterState.Petrified or FighterState.Respawning && validPose)
             {
                 var prone = m_data.Frames[step.Frame];
                 var pose = ProjectFootprint(actor, step);
@@ -826,6 +951,10 @@ internal sealed class ArcadeRenderer
                 var depth = y + 0.5 - point.Y;
                 var z = actor.Z + depth * 4 / 3;
                 var fade = Math.Clamp(1 + depth / 27, 0.12, 1);
+                // Deepen the contact end without changing the distant silhouette or its soft edge.
+                // Airborne actors lose this extra grounding as they rise away from the floor.
+                var nearFeet = Math.Clamp(1 - Math.Abs(depth) / 18, 0, 1);
+                fade *= 1 + 0.55 * nearFeet * nearFeet / (1 + height / 24);
                 for (var sx = Math.Max(0, -left); sx < shadow.Width && left + sx < screen.Width; sx++)
                 {
                     var coverage = shadow.Mask[sy * shadow.Width + sx];
@@ -1004,7 +1133,7 @@ internal sealed class ArcadeRenderer
 
         foreach (var actor in game.Actors)
         {
-            if (actor.Mount != null || actor.State == FighterState.Gone && actor.PickupTick < 0 || actor.State == FighterState.Respawning || !IsCharacter(actor))
+            if (actor.Mount != null || actor.State == FighterState.Gone && actor.PickupTick < 0 || ActorFade(game, actor) == 0 || !IsCharacter(actor))
                 continue;
 
             var dx = actor.X - fire.X;
@@ -1024,7 +1153,7 @@ internal sealed class ArcadeRenderer
             var length = Math.Clamp(12 + distance * 1.15, 18, 58) * posture;
             var width = sprite.Width * 0.23;
             var strength = 245 * Math.Min(1, (distance - 5) / 10) * Math.Min(1, fireCoverage * 3) /
-                (1 + Math.Max(0, ground - actor.Y) / 22);
+                (1 + Math.Max(0, ground - actor.Y) / 22) * ActorFade(game, actor);
             DrawCastShadow(screen, game, actor, ground, foot, (dx, dy), distance, length, width, strength);
         }
     }
@@ -1058,7 +1187,9 @@ internal sealed class ArcadeRenderer
                     continue;
 
                 var terrain = ShadowTerrainCoverage(game, actor.X + dx, z, ground);
-                var opacity = (byte)(strength * edge * edge * Math.Min(1, progress * 10) * (1 - progress * progress) * terrain);
+                var nearFeet = 1 - progress;
+                var contact = 1 + 0.55 * nearFeet * nearFeet;
+                var opacity = (byte)Math.Min(255, strength * contact * edge * edge * Math.Min(1, progress * 10) * (1 - progress * progress) * terrain);
                 if (opacity == 0)
                     continue;
 
@@ -1086,16 +1217,14 @@ internal sealed class ArcadeRenderer
         actor.State != FighterState.Emerging &&
         (actor.IsEnemy || actor.IsMount || actor.Kind is ActorKind.Hero or ActorKind.Thief or ActorKind.Villager);
 
-    private void DrawFeathers(PixelScreenData screen, Game game, bool foreground)
+    private void DrawFeathers(PixelScreenData screen, Game game)
     {
         if (!EagleFeathers.IsVisible(game))
             return;
-        var first = foreground ? EagleFeathers.BackgroundCount : 0;
-        var end = foreground ? EagleFeathers.Count : EagleFeathers.BackgroundCount;
-        for (var i = first; i < end; i++)
+        for (var i = 0; i < EagleFeathers.Count; i++)
         {
             var feather = EagleFeathers.Sample(i, game.TickCount, game.ViewCamera.X);
-            Sprite(screen, feather.Frame, EagleFeathers.Palette, feather.X, feather.Y, feather.Flip);
+            Sprite(screen, feather.Frame, EagleFeathers.Palette, feather.X, feather.Y, feather.Flip, divisor: 2);
         }
     }
 
@@ -1158,8 +1287,8 @@ internal sealed class ArcadeRenderer
             for (var y = 0; y < 16; y++)
             for (var x = 0; x < 8; x++)
             {
-                // Top halves are 0..9; the lower row is ordered 1..9,0.
-                var tile = y < 8 ? 0x60 + number : number == 0 ? 0x73 : 0x69 + number;
+                // Zero and nine share their upper half; the lower halves run from zero through nine.
+                var tile = y < 8 ? 0x60 + number % 9 : 0x69 + number;
                 if (TilePen(tile, x, y % 8) != 0)
                     screen.SetPixel(left + x, 200 + y, m_livesYellow);
             }
@@ -1229,20 +1358,27 @@ internal sealed class ArcadeRenderer
         for (var x = left; x < left + width; x++)
             screen.SetPixel(x, y, color);
     }
-    private void Layer(PixelScreenData screen, TileLayer layer, int u, int v, byte[] palette, bool high, bool opaque)
+    private void Layer(PixelScreenData screen, TileLayer layer, int u, int v, byte[] palette, bool high, bool opaque,
+        bool wrap = false, bool skipSky = false, byte[] previousPalette = null, byte opacity = 255)
     {
         for (var sy = 0; sy < ArcadeData.Height; sy++)
         {
             var y = sy + v - layer.Y;
+            if (wrap)
+                y = (y % (layer.Height * 8) + layer.Height * 8) % (layer.Height * 8);
             if (y < 0 || y >= layer.Height * 8)
                 continue;
             for (var sx = 0; sx < ArcadeData.Width; sx++)
             {
                 var x = sx + u - layer.X;
+                if (wrap)
+                    x = (x % (layer.Width * 8) + layer.Width * 8) % (layer.Width * 8);
                 if (x < 0 || x >= layer.Width * 8)
                     continue;
                 var cell = layer.Cells[y / 8 * layer.Width + x / 8];
                 if (cell == uint.MaxValue || !opaque && ((cell >> 23 & 1) != 0) != high)
+                    continue;
+                if (skipSky && (cell >> 16 & 127) is 114 or 115)
                     continue;
                 var tile = (int)(cell & 65535);
                 var pen = m_data.TilePens[(tile / 128 * 8 + y % 8) * m_data.TileStride + tile % 128 * 8 + x % 8];
@@ -1250,7 +1386,18 @@ internal sealed class ArcadeRenderer
                 {
                     var offset = sy * ArcadeData.Width + sx;
                     var color = palette[(cell >> 16 & 127) * 8 + pen];
-                    if (high)
+                    if (previousPalette != null)
+                    {
+                        var previous = previousPalette[(cell >> 16 & 127) * 8 + pen];
+                        screen.SetPixelAtOffset(offset, previous);
+                        if (previous != color && opacity > 0)
+                        {
+                            screen.BeginTranslucentSprite(opacity);
+                            screen.SetPixelAtOffset(offset, color);
+                            screen.EndTranslucentSprite();
+                        }
+                    }
+                    else if (high)
                         screen.SetPixelAtOffset(offset, color);
                     else
                         screen.Pixels[offset] = color;
