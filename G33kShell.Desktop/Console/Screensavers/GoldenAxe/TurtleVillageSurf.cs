@@ -28,6 +28,33 @@ internal static class TurtleVillageSurf
         return (byte)Math.Round(255 * fade * fade * (3 - 2 * fade));
     }
 
+    internal static void DrawHighlights(PixelScreenData screen, int age, int top, int cameraX, int opacity, byte paleWater)
+    {
+        // Let the sprite supply the crest shapes. Only its brighter, water-exclusive palette slots catch light.
+        for (var y = Math.Max(0, top); y < ArcadeData.Height; y++)
+        {
+            var row = y - top;
+            var phase = age * 0.027 + row * 0.30;
+            var center = cameraX + (int)Math.Round(23 * Math.Sin(phase) + row * 3);
+            const int spacing = 113, radius = 23;
+            center = (center % spacing + spacing) % spacing - spacing;
+            for (; center - radius < ArcadeData.Width; center += spacing)
+            for (var x = Math.Max(0, center - radius); x < Math.Min(ArcadeData.Width, center + radius); x++)
+            {
+                var offset = y * ArcadeData.Width + x;
+                var crest = screen.Pixels[offset] - PaletteStart;
+                if (crest is < 0 or > 9)
+                    continue;
+                var falloff = 1 - Math.Abs(x - center) / (double)radius;
+                // Midtones carry the visible reflection; foam is already close to paleWater.
+                var reflectivity = 0.8 - crest * 0.06;
+                var weight = (byte)(opacity * reflectivity * falloff);
+                if (weight > 0)
+                    screen.DustPixel(offset, paleWater, weight);
+            }
+        }
+    }
+
     public static Rgb LiftMidtones(int rgb)
     {
         // Partially compensate for the gameplay output curve on the water alone.
@@ -35,13 +62,17 @@ internal static class TurtleVillageSurf
         return new Rgb(Lift(16), Lift(8), Lift(0));
     }
 
-    public static int Y(int age)
+    public static double Y(int age)
     {
         // The first three swells lift the surf into place. Afterwards it bobs over 16 pixels.
         var cycle = age / 128;
-        var step = age % 128 / 8;
+        var phase = age % 128;
+        var swell = (1 - Math.Cos(Math.Tau * phase / 128)) * 0.5;
         if (cycle < 3)
-            return 5072 - cycle * 16 + (step <= 8 ? step : 8 - (step - 8) * 3);
-        return 5024 + 2 * Math.Min(step, 16 - step);
+        {
+            var start = 5072 - cycle * 16;
+            return phase < 64 ? start + 8 * swell : start - 16 + 24 * swell;
+        }
+        return 5024 + 16 * swell;
     }
 }

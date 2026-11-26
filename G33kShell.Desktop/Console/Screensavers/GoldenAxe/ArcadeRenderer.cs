@@ -270,7 +270,7 @@ internal sealed class ArcadeRenderer
         ProfileStage?.Invoke("lighting and dust");
         Layer(screen, m_data.Foreground, (int)u, v, palette, true, false, previousPalette: previousPalette, opacity: sunsetOpacity);
         ProfileStage?.Invoke("priority scenery");
-        DrawSurf(screen, game);
+        DrawSurf(screen, game, effects ? effectOpacity : (byte)0);
         ProfileStage?.Invoke("surf");
         var shake = MagicScreenShake.Sample(game.MagicTick - game.MagicShakeStart,
             game.MagicDuration - game.MagicShakeStart, game.MagicLevel);
@@ -1319,7 +1319,7 @@ internal sealed class ArcadeRenderer
         }
     }
 
-    private void DrawSurf(PixelScreenData screen, Game game)
+    private void DrawSurf(PixelScreenData screen, Game game, byte effectOpacity)
     {
         if (game.SurfAge is not { } age)
             return;
@@ -1340,6 +1340,9 @@ internal sealed class ArcadeRenderer
             Sprite(screen, index, TurtleVillageSurf.Palette, left + frame.Ox + width, point.Y, true, paletteOverride: m_data.SurfPalette);
         if (opacity < 255)
             screen.EndTranslucentSprite();
+        if (effectOpacity != 0)
+            TurtleVillageSurf.DrawHighlights(screen, age, (int)Math.Round(point.Y + frame.Oy),
+                (int)Math.Round(game.ViewCamera.X), opacity * effectOpacity / 255, m_data.SurfPalette[2]);
     }
 
     private void DrawGoPrompt(PixelScreenData screen)
