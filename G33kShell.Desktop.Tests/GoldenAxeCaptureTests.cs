@@ -37,7 +37,7 @@ public sealed class GoldenAxeCaptureTests
 
         foreach (var name in sceneList.Split(','))
         {
-            var area = name switch { "skeleton-dust" or "eagle-sunset" or "eagle-clouds" => 3, "village-stamp" or "village-routing" or "village-opening" or "camp-thieves" or "turtle-surf" => 1, "turtle-eye" => 2, "bridge-barge" or "knight-door" or "brothers-door" => 2, "eagle-eye" or "castle-camera" or "castle-ending" or "victory-map" or "adder-entrance" or "adder-defeat" => 4, _ => 0 };
+            var area = name switch { "story-map2" => 1, "story-map3" => 2, "story-map4" => 3, "skeleton-dust" or "eagle-sunset" or "eagle-clouds" => 3, "village-stamp" or "village-routing" or "village-opening" or "camp-thieves" or "turtle-surf" => 1, "turtle-eye" => 2, "bridge-barge" or "knight-door" or "brothers-door" => 2, "eagle-eye" or "castle-camera" or "castle-ending" or "victory-map" or "adder-entrance" or "adder-defeat" => 4, _ => 0 };
             var data = new ArcadeData(ArcadeData.AssetDirectory, area);
             if (name == "title")
             {
@@ -49,7 +49,7 @@ public sealed class GoldenAxeCaptureTests
                 CaptureCastleEnding(data, Path.Combine(output, name + ".bgra"));
                 continue;
             }
-            if (name == "victory-map")
+            if (name == "victory-map" || name.StartsWith("story-map", StringComparison.Ordinal))
             {
                 CaptureMap(data, Path.Combine(output, name + ".bgra"), FileMode.Create);
                 continue;

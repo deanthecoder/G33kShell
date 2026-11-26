@@ -19,7 +19,7 @@ import subprocess
 import tempfile
 
 
-SCENES = ("title", "enemy-pair", "turtle-surf", "forest-stamp", "village-stamp", "adder-defeat", "adder-entrance", "knight-door", "brothers-door", "bridge-barge", "castle-ending", "victory-map", "forest-opening", "shadows", "campfire", "camp-thieves", "dragon-fire", "magic", "landing-dust", "skeleton-dust",
+SCENES = ("title", "enemy-pair", "turtle-surf", "forest-stamp", "village-stamp", "adder-defeat", "adder-entrance", "knight-door", "brothers-door", "bridge-barge", "castle-ending", "story-map1", "story-map2", "story-map3", "story-map4", "victory-map", "forest-opening", "shadows", "campfire", "camp-thieves", "dragon-fire", "magic", "landing-dust", "skeleton-dust",
           "weapon-swipes-ax", "weapon-swipes-tyris", "weapon-swipes-gilius", "weapon-swipes-enemies",
           "turtle-eye", "eagle-eye", "dragon-flame", "running-dust", "stone-bodies", "eagle-sunset", "eagle-clouds", "castle-camera", "potion-sparkles", "camera-follow", "ledge-camera", "dwarf-lightning", "villagers", "village-routing", "village-opening", "tyris-six", "tyris-seven", "tyris-eight", "tyris-dragon", "ax-one", "ax-two", "ax-three", "ax-four", "ax-five", "ax-six", "gilius-four", "gilius-one", "gilius-two", "gilius-three", "mounted-barge-chicken", "mounted-barge-blue", "mounted-barge-red", "hero-respawn", "autoplay-edge")
 REPO = Path(__file__).resolve().parent.parent

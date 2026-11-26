@@ -10,8 +10,7 @@ arcade cold boot in MAME. title.png is the original arcade title still.
 title-layers.png contains the scrolling cloud texture, gold emblem and footer
 reconstructed from the US set-6 title observations. The moving
 letters, settled wordmark and red splat use the original sprite atlas.
-map1.gmap through map4.gmap are the local indexed arcade map recordings.
-These images and recordings are separate from the source-code license.
+The parchment art, title and opening images are separate from the source-code license.
 
 The local files were copied from the reference's public/assets directory:
   sprites.json, sprites-0.png, tiles.png, magic.json
@@ -82,9 +81,16 @@ The separately animated eagle sky retains its independent scrolling.
 
 The Stage 9 rescue uses the original captive and chain sprites, with poses and
 positions from Dean's US set-6 hardware trace (Brain 9ab84e0b46608736).
+story-map1.png through story-map4.png contain the original parchments
+and ordered route ink tiles from native US set-6 MAME captures.
+Their JSON timelines preserve the visible arcade text and per-tick quill
+positions. tools/build-golden-axe-story-map.py extracts the sheets and
+timelines from the sprite-free captures and hardware quill positions.
+ArcadeParchment draws all five map scenes with the original tile font
+and feather sprite 1042 using palette 0x80.
+
 victory-map.png contains the US set-6 parchment and 21 cursive Fin
 ink tiles extracted from a native-size MAME capture with sprites hidden.
 tools/build-golden-axe-victory-map.py extracts this sheet from the capture.
-ArcadeParchment draws the map using the tile font and feather sprite
-1042 with palette 0x80. The feather follows cubic Bézier segments through the ROM tile
+The victory feather follows cubic Bézier segments through the ROM tile
 positions at 0x7788, synced to the original ink reveals.

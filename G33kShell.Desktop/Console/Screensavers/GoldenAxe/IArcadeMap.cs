@@ -16,8 +16,7 @@ internal interface IArcadeMap : IDisposable
     {
         var fileName = $"map{data.AreaIndex + 1}.gmap";
         IArcadeMap map = ArcadeMapRecording.TryLoad(Path.Combine(ArcadeData.LocalAssetDirectory, fileName));
-        if (map == null && data.AreaIndex == ArcadeData.AreaCount - 1)
-            map = VictoryMap.Load(data);
+        map ??= data.AreaIndex == ArcadeData.AreaCount - 1 ? VictoryMap.Load(data) : StoryMap.Load(data);
         return map ?? ArcadeMapRecording.TryLoad(Path.Combine(ArcadeData.AssetDirectory, fileName));
     }
 }

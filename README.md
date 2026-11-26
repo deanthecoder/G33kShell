@@ -190,9 +190,8 @@ Use `--scene campfire` to regenerate a single clip.
 Use `--ffmpeg /path/to/ffmpeg` to select a specific encoder executable.
 The bundled arcade opening card fades in, holds for two seconds, then fades through black
 into the title. The letters orbit the gold emblem and settle into GOLDEN AXE. The title holds, then closes toward the centre before play starts automatically.
-The four story-map recordings play after their corresponding camps. After Stage 9,
-the king and queen descend on chains before the screensaver draws the victory
-parchment, text, ink tiles, and quill live. Use `--scene victory-map` to preview it.
+The four story maps play after their corresponding camps. After Stage 9, the king and queen descend on chains before the victory map. All five maps draw the parchment, text, ink tiles, and quill live. Use `--scene story-map1` through
+`--scene story-map4` or `--scene victory-map` to preview them.
 To override the cards or maps, place `intro.png`, `title.png`, or `map1.gmap` through `map5.gmap` in the
 `GoldenAxe` folder in the application's user settings directory. Use an opaque 320×224 PNG
 with at most 256 colors for either card.

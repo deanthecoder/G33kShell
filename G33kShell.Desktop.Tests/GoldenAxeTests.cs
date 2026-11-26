@@ -312,19 +312,38 @@ public class GoldenAxeTests
     }
 
     [Test]
-    public void BundledOpeningAndMapAssetsCanBeLoaded()
+    public void BundledOpeningCardsCanBeLoaded()
     {
         foreach (var name in new[] { "intro.png", "title.png" })
             Assert.That(ArcadeTitleCard.TryLoad(Path.Combine(ArcadeData.AssetDirectory, name), 256),
                 Is.Not.Null, name);
 
-        for (var mapNumber = 1; mapNumber <= 4; mapNumber++)
-        {
-            var name = $"map{mapNumber}.gmap";
-            using var map = ArcadeMapRecording.TryLoad(Path.Combine(ArcadeData.AssetDirectory, name));
-            Assert.That(map, Is.Not.Null, name);
-            Assert.That(map.AdvanceTo(0), Is.True, name);
-        }
+    }
+
+    [TestCase(0, 135, 24, 0xa58452)]
+    [TestCase(1, 102, 54, 0xb59463)]
+    [TestCase(2, 135, 133, 0xc5a573)]
+    [TestCase(3, 46, 83, 0xc5a573)]
+    public void StoryMapRevealsItsOwnRouteOverTheParchment(int area, int x, int y, int parchmentColor)
+    {
+        var data = new ArcadeData(ArcadeData.AssetDirectory, area);
+        using var map = StoryMap.Load(data);
+        Assert.That(map, Is.Not.Null);
+        var screen = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
+        var pixels = new int[screen.Pixels.Length];
+        var offset = y * ArcadeData.Width + x;
+        var opaque = unchecked((int)0xff000000);
+
+        map.Draw(screen, null, 1);
+        screen.CopyToBgra(pixels);
+        Assert.That(pixels[offset], Is.EqualTo(opaque | parchmentColor));
+
+        Assert.That(map.AdvanceTo(8.5), Is.True);
+        map.Draw(screen, null, 8.5);
+        screen.CopyToBgra(pixels);
+        Assert.That(pixels[offset], Is.EqualTo(opaque | 0xad1010));
+        Assert.That(pixels.Any(pixel => pixel == (opaque | 0x94a5d6)), Is.True);
+        Assert.That(map.AdvanceTo(15), Is.False);
     }
 
     [Test]
