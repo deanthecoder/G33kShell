@@ -47,6 +47,7 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
     private Rgb[] m_introPalette;
     private int m_introTicks;
     private ArcadeTitleCard m_title;
+    private AnimatedTitle m_animatedTitle;
     private Rgb[] m_titlePalette;
     private int m_titleTicks;
     private bool m_fadeInTitle;
@@ -115,7 +116,10 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
         m_intro = ArcadeTitleCard.Load("intro.png", m_data.Palette.Length);
         m_introPalette = null;
         m_introTicks = m_intro == null ? 0 : IntroDurationTicks;
-        m_title = ArcadeTitleCard.Load("title.png", m_data.Palette.Length);
+        m_title = ArcadeTitleCard.TryLoad(System.IO.Path.Combine(ArcadeData.LocalAssetDirectory, "title.png"), m_data.Palette.Length);
+        m_animatedTitle = m_title == null ? AnimatedTitle.Load(m_data) : null;
+        if (m_title == null && m_animatedTitle == null)
+            m_title = ArcadeTitleCard.Load("title.png", m_data.Palette.Length);
         m_titlePalette = null;
         StartCycle();
         m_lastTime = Time;
@@ -207,7 +211,7 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
 
             if (m_introTicks > 0)
             {
-                m_introPalette ??= OpeningPalette(m_intro);
+                m_introPalette ??= OpeningPalette(m_intro.Palette);
                 var introFade = Math.Min(IntroDurationTicks - m_introTicks, m_introTicks);
                 m_intro.Draw(pixels, m_introPalette, Math.Min(1.0, introFade / (double)IntroFadeTicks));
                 return;
@@ -215,7 +219,15 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
 
             if (m_titleTicks > 0)
             {
-                m_titlePalette ??= OpeningPalette(m_title);
+                m_titlePalette ??= OpeningPalette(m_animatedTitle?.Palette ?? m_title.Palette);
+                if (m_animatedTitle != null)
+                {
+                    var tick = AnimatedTitle.DurationTicks - m_titleTicks;
+                    m_animatedTitle.Draw(pixels, m_titlePalette, tick);
+                    if (m_fadeInTitle && tick < IntroFadeTicks)
+                        ArcadeTitleCard.ApplyBrightness(pixels, tick / (double)IntroFadeTicks);
+                    return;
+                }
                 var brightness = m_fadeInTitle
                     ? Math.Min(1.0, (ArcadeTitleCard.DurationTicks - m_titleTicks) / (double)IntroFadeTicks)
                     : 1.0;
@@ -252,7 +264,7 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
         m_game = new Game(m_data, Settings.Instance.GoldenAxeCharacter, startInCamp: stage % 2 == 0, playOpening: stage == 1);
         m_endTicks = 0;
         m_fadeInTitle = m_introTicks > 0;
-        m_titleTicks = m_title == null ? 0 : ArcadeTitleCard.DurationTicks;
+        m_titleTicks = m_animatedTitle != null ? AnimatedTitle.DurationTicks : m_title == null ? 0 : ArcadeTitleCard.DurationTicks;
     }
 
     private void LoadArea(int area)
@@ -271,8 +283,8 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
         base.OnSkinChanged(skin);
     }
 
-    private Rgb[] OpeningPalette(ArcadeTitleCard card) => HasSwitch("color") ? card.Palette :
-        PixelScreenData.CreateGreyscalePalette(card.Palette, Background ?? Rgb.Black, Foreground ?? Rgb.White);
+    private Rgb[] OpeningPalette(Rgb[] palette) => HasSwitch("color") ? palette :
+        PixelScreenData.CreateGreyscalePalette(palette, Background ?? Rgb.Black, Foreground ?? Rgb.White);
 
     private Rgb[] GetFadePalette(int level)
     {

@@ -7,6 +7,9 @@ Original game, artwork and data: Sega. They are not covered by the source-code h
 
 intro.png is the original FBI opening card captured from the US set-6
 arcade cold boot in MAME. title.png is the original arcade title still.
+title-layers.png contains the scrolling cloud texture, gold emblem and footer
+reconstructed from the US set-6 title observations. The moving
+letters, settled wordmark and red splat use the original sprite atlas.
 map1.gmap through map4.gmap are the local indexed arcade map recordings.
 These images and recordings are separate from the source-code license.
 

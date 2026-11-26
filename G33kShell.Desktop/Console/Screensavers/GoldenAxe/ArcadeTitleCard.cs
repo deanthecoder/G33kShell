@@ -23,6 +23,12 @@ internal sealed record ArcadeTitleCard(byte[] Pixels, Rgb[] Palette)
     {
         screen.Clear();
         screen.SetPalette(palette);
+        ApplyBrightness(screen, brightness);
+        Pixels.CopyTo(screen.Pixels, 0);
+    }
+
+    internal static void ApplyBrightness(PixelScreenData screen, double brightness)
+    {
         if (brightness < 1)
         {
             for (var i = 0; i < screen.Palette.Length; i++)
@@ -32,16 +38,15 @@ internal sealed record ArcadeTitleCard(byte[] Pixels, Rgb[] Palette)
                     (byte)(color.G * brightness), (byte)(color.B * brightness));
             }
         }
-        Pixels.CopyTo(screen.Pixels, 0);
     }
 
-    internal static ArcadeTitleCard TryLoad(string path, int paletteSize)
+    internal static ArcadeTitleCard TryLoad(string path, int paletteSize, int height = ArcadeData.Height)
     {
         try
         {
             using var stream = File.OpenRead(path);
             using var codec = SKCodec.Create(stream);
-            if (codec == null || codec.Info.Width != ArcadeData.Width || codec.Info.Height != ArcadeData.Height)
+            if (codec == null || codec.Info.Width != ArcadeData.Width || codec.Info.Height != height)
                 return null;
 
             using var bitmap = SKBitmap.Decode(codec);
