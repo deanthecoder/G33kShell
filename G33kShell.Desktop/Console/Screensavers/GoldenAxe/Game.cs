@@ -72,6 +72,8 @@ internal sealed class Game
     private int m_pendingHero = -1;
     private int? m_surfStartTick;
     private bool m_deathAdderEntered;
+    private Fighter m_meleeLeft;
+    private Fighter m_meleeRight;
     private readonly Queue<(SpawnDefinition Spawn, int Tick)> m_brotherEntrances = new();
     private int? m_openingFinishedTick;
     public byte HudOpacity
@@ -379,6 +381,8 @@ internal sealed class Game
             foreach (var enemy in Actors.Where(a => a.IsEnemy && a.State == FighterState.Sleeping))
                 enemy.SetState(FighterState.Idle, enemy.Moves.Idle);
         }
+        if (!IsCamp)
+            UpdateMeleeAssignments(Hero.Mount ?? Hero);
         foreach (var actor in Actors.ToArray())
         {
             if (actor.IsGone || actor.Mount != null)
@@ -909,40 +913,114 @@ internal sealed class Game
         var dz = target.Z - actor.Z;
         if (TryStartBrotherChuckle(actor, target, dx, dz))
             return default;
-        if (actor.Kind is ActorKind.BadBrother or ActorKind.DeathAdder && actor.IsFree && TryStartHeavyRun(actor, target, dx, dz))
-            return default;
-        if (actor.IsEnemy && actor.IsFree && Hero.Health > 0 && EnemyFlank(actor, target) is { } flank)
-            return flank;
-        if (actor.IsFree)
-            actor.Facing = dx < 0 ? -1 : 1;
-        var reach = actor.Kind switch { ActorKind.RedDragon => 140, ActorKind.BlueDragon => 70, ActorKind.DeathAdder => 42, ActorKind.BadBrother or ActorKind.Knight => 38, _ => 30 };
-        var ahead = Ground(actor.X + Math.Sign(dx) * 16, actor.Z + Math.Sign(dz) * 4);
-        if (actor.IsFree && (Math.Abs(dx) > reach && (ahead < actor.Y - 12 || ahead >= 5248) || Math.Abs(target.Y - actor.Y) > 24))
-            return TerrainNavigator.Towards(this, actor, target.X, target.Z);
-        if (EnemyCharge(actor, target, dx, dz) is { } charge)
-            return charge;
-        var attack = actor.IsFree && actor.Cooldown == 0 && Hero.Health > 0 &&
-            (actor.Kind != ActorKind.Knight || (TickCount & 3) == (actor.Id & 3)) &&
-            Math.Abs(dx) < reach + 6 && Math.Abs(dz) < 6 && HasAttackWindow(actor, target);
-        return new GameInput(Math.Abs(dx) > reach ? Math.Sign(dx) : 0, Math.Abs(dz) > 2 ? Math.Sign(dz) : 0,
-            attack);
+        return AssignedMeleeInput(actor, target, dx, dz);
     }
 
-    private bool TryStartHeavyRun(Fighter actor, Fighter target, double dx, double dz)
+    // Set-6 approach positions are separate from the reach of the selected attack.
+    private static int MeleeSlotDistance(ActorKind kind) => kind switch
+    {
+        ActorKind.Knight => 52,
+        ActorKind.Amazon or ActorKind.BadBrother or ActorKind.DeathAdder or ActorKind.Chicken => 48,
+        ActorKind.BlueDragon or ActorKind.RedDragon => 64,
+        _ => 40
+    };
+
+    private bool CanAssignMeleeAgainst(Fighter target) => Hero.Health > 0 &&
+        target.State is not (FighterState.Flying or FighterState.Down or FighterState.GettingUp or
+            FighterState.Falling or FighterState.Dying or FighterState.Respawning);
+
+    private void UpdateMeleeAssignments(Fighter target)
+    {
+        Fighter first = null, second = null;
+        var firstDistance = double.PositiveInfinity;
+        var secondDistance = double.PositiveInfinity;
+        if (CanAssignMeleeAgainst(target))
+        {
+            foreach (var actor in Actors)
+            {
+                if ((!actor.IsEnemy && actor.Rider is not { IsEnemy: true, Health: > 0 }) ||
+                    actor.Health <= 0 || actor.SpawnParameter != 0 || actor.Mount != null ||
+                    actor.State is not (FighterState.Idle or FighterState.Walking or FighterState.Attacking or
+                        FighterState.Dashing or FighterState.Crouching or FighterState.Jumping or
+                        FighterState.RunningToPosition or FighterState.Chuckling))
+                    continue;
+                var dx = actor.X - target.X;
+                var dz = actor.Z - target.Z;
+                var distance = dx * dx + dz * dz;
+                if (distance < firstDistance)
+                {
+                    (second, secondDistance) = (first, firstDistance);
+                    (first, firstDistance) = (actor, distance);
+                }
+                else if (distance < secondDistance)
+                    (second, secondDistance) = (actor, distance);
+            }
+        }
+
+        // The set-6 allocator selects the nearest two, then uses the one closer in depth
+        // to choose a side. It retains the previous sides if the same pair reverses order.
+        if (second != null && Math.Abs(second.Z - target.Z) < Math.Abs(first.Z - target.Z))
+            (first, second) = (second, first);
+        var (left, right) = first != null && first.X >= target.X ? (second, first) : (first, second);
+        if (left != null && right != null && left == m_meleeRight && right == m_meleeLeft)
+            return;
+        (m_meleeLeft, m_meleeRight) = (left, right);
+    }
+
+    private GameInput AssignedMeleeInput(Fighter actor, Fighter target, double dx, double dz)
+    {
+        if (!actor.IsFree || !CanAssignMeleeAgainst(target))
+            return default;
+
+        var side = actor == m_meleeLeft ? -1 : actor == m_meleeRight ? 1 : 0;
+        var slotDistance = MeleeSlotDistance(actor.Kind);
+        var sameSide = dx * side < 0;
+        if (side != 0 && actor.Kind is ActorKind.BadBrother or ActorKind.DeathAdder &&
+            TryStartHeavyRun(actor, target, side, slotDistance, dx, dz))
+            return default;
+        if (sameSide && EnemyCharge(actor, target, dx, dz) is { } charge)
+            return charge;
+
+        if (side == 0 || dx * side <= -28)
+            actor.FlankSide = 0;
+        else if (!sameSide)
+            actor.FlankSide = side;
+        if (side != 0 && actor.FlankSide == side &&
+            FlankInput(actor, target, side, target.X + side * slotDistance) is { } flank)
+            return flank;
+
+        actor.Facing = dx < 0 ? -1 : 1;
+        var attackRange = actor.Kind switch
+        {
+            ActorKind.RedDragon => 146,
+            ActorKind.BlueDragon => 76,
+            ActorKind.Chicken or ActorKind.DeathAdder => 48,
+            ActorKind.Amazon or ActorKind.Skeleton => 36,
+            _ => 44
+        };
+        var phaseMask = actor.Kind is ActorKind.Amazon or ActorKind.Skeleton or ActorKind.Knight or ActorKind.DeathAdder ? 3 : 7;
+        var aligned = Math.Abs(dz) < 6 && Math.Abs(target.Y - actor.Y) <= 8;
+        if (sameSide && Math.Abs(dx) <= attackRange && aligned &&
+            actor.Cooldown == 0 && (TickCount & phaseMask) == (actor.Id & phaseMask))
+            return new GameInput(Attack: true);
+
+        // Unassigned enemies approach with room for the pair in front.
+        var reach = side == 0 ? slotDistance + 8 : Math.Min(slotDistance - 8, attackRange - 4);
+        var x = Math.Abs(dx) > reach || side != 0 && !sameSide ? Math.Sign(dx + side * reach) : 0;
+        var ahead = Ground(actor.X + x * 16, actor.Z + Math.Sign(dz) * 4);
+        if (ahead < actor.Y - 12 || ahead >= 5248 || Math.Abs(target.Y - actor.Y) > 24)
+            return TerrainNavigator.Towards(this, actor, target.X + side * reach, target.Z);
+        return new GameInput(x, Math.Abs(dz) > 2 ? Math.Sign(dz) : 0);
+    }
+
+    private bool TryStartHeavyRun(Fighter actor, Fighter target, int side, int distance, double dx, double dz)
     {
         if (Hero.Health <= 0 || Math.Abs(target.Y - actor.Y) > 8 || dx == 0)
             return false;
 
-        // Each heavy pursues a slot 48 pixels to one side of its target (set-6 routines 0x285c2 and 0x35074).
         var direction = Math.Sign(dx);
-        if (actor.HeavyAttackSide == 0)
-        {
-            actor.HeavyAttackSide = -direction;
-            if (Actors.Any(other => other != actor && other.Health > 0 && other.HeavyAttackSide == -direction))
-                actor.HeavyAttackSide = direction;
-        }
-        var slotDistance = (dx + actor.HeavyAttackSide * 48) * direction;
-        var across = actor.HeavyAttackSide == direction;
+        var slotDistance = (dx + side * distance) * direction;
+        var across = side == direction;
         var attackRun = !across && slotDistance >= 80 && Math.Abs(dz) < 3;
         if (attackRun)
         {
@@ -991,68 +1069,25 @@ internal sealed class Game
         return true;
     }
 
-    private GameInput? EnemyFlank(Fighter actor, Fighter target)
+    private GameInput? FlankInput(Fighter actor, Fighter target, int side, double destinationX)
     {
-        var distance = actor.X - target.X;
-        if (Math.Abs(distance) >= 160 || Math.Abs(actor.Y - target.Y) > 12)
-        {
-            actor.FlankSide = 0;
-            return null;
-        }
-
-        var side = distance < 0 ? -1 : 1;
-        var hasPartner = false;
-        var oppositeSideTaken = false;
-        var closerPartner = false;
-        foreach (var partner in Actors)
-        {
-            var partnerDistance = partner.X - target.X;
-            if (partner == actor || (actor.IsHeavyEnemy ? !partner.IsHeavyEnemy : partner.Kind != actor.Kind) ||
-                partner.Health <= 0 || partner.State == FighterState.Entering ||
-                Math.Abs(partnerDistance) >= 160 || Math.Abs(partner.Z - target.Z) >= 52 || Math.Abs(partner.Y - target.Y) > 12)
-                continue;
-            hasPartner = true;
-            oppositeSideTaken |= partnerDistance * side < 0 || partner.FlankSide != 0;
-            // The set-6 routines use paired left/right attack slots (e.g. Heninger at 0x18e8c).
-            // Give a stacked walker the spare side; let already separated foot soldiers keep their approach.
-            if (!actor.IsHeavyEnemy && (partner.Mount != null || !partner.IsFree ||
-                Math.Abs(partner.X - actor.X) > 16 || Math.Abs(partner.Z - actor.Z) > 8))
-                continue;
-            closerPartner |= Math.Abs(partnerDistance) < Math.Abs(distance) ||
-                Math.Abs(partnerDistance) == Math.Abs(distance) && partner.Id < actor.Id;
-        }
-        if (!hasPartner || distance * actor.FlankSide >= 28)
-        {
-            actor.FlankSide = 0;
-            return null;
-        }
-        if (actor.FlankSide == 0)
-        {
-            // Keep the closer enemy in attack range while its partner takes the open side.
-            if (oppositeSideTaken || !closerPartner)
-                return null;
-            actor.FlankSide = -side;
-        }
-
         const int bypass = 24;
-        var destinationX = target.X + actor.FlankSide * 32;
         var preferredLane = actor.Z < target.Z ? -1 : 1;
         foreach (var lane in new[] { preferredLane, -preferredLane })
         {
             var laneZ = target.Z + lane * bypass;
             if (destinationX < Progress + 12 || destinationX > Progress + 305 ||
                 !FlankPathIsWalkable(actor.Y, actor.X, actor.Z, actor.X, laneZ) ||
-                !FlankPathIsWalkable(actor.Y, actor.X, laneZ, destinationX + actor.FlankSide * 8, laneZ) ||
+                !FlankPathIsWalkable(actor.Y, actor.X, laneZ, destinationX + side * 8, laneZ) ||
                 !FlankPathIsWalkable(actor.Y, destinationX, laneZ, destinationX, target.Z))
                 continue;
 
             var depth = laneZ - actor.Z;
-            var moveX = Math.Abs(depth) < 4 ? actor.FlankSide : 0;
+            var moveX = Math.Abs(depth) < 4 ? side : 0;
             if (moveX == 0)
-                actor.Facing = -side;
+                actor.Facing = actor.X < target.X ? 1 : -1;
             return new GameInput(moveX, Math.Abs(depth) > 1 ? Math.Sign(depth) : 0);
         }
-        actor.FlankSide = 0;
         return null;
     }
 
@@ -1076,34 +1111,6 @@ internal sealed class Game
         m_data.Attacks.TryGetValue(attacker.Animation.Address, out var attack) &&
         attacker.Animation.TicksUntilStep(attack[2]) is >= 0 and <= 4 &&
         AttackOverlapsBody(attacker, attacker.Animation.Steps[attack[2]], attack, target, target.Animation.Current);
-
-    private bool HasAttackWindow(Fighter actor, Fighter target)
-    {
-        const int separation = 9;
-        if (actor.Moves.Attacks.Length == 0)
-            return false;
-        var address = actor.Moves.Attacks[actor.Combo % actor.Moves.Attacks.Length];
-        if (!m_data.Attacks.TryGetValue(address, out var attack))
-            return true;
-
-        var steps = m_data.Animations[address];
-        var hitTicks = 1;
-        for (var i = actor.Kind == ActorKind.Knight ? 1 : Animation.FirstAttackStep(steps); i < attack[2]; i++)
-            hitTicks += steps[i].Duration;
-
-        foreach (var other in Actors)
-        {
-            if (other == actor || other.State != FighterState.Attacking || !(other.IsEnemy || other.Rider?.IsEnemy == true) ||
-                Math.Abs(other.X - target.X) > 80 || Math.Abs(other.Z - target.Z) > 14 ||
-                !m_data.Attacks.TryGetValue(other.Animation.Address, out var otherAttack))
-                continue;
-
-            var otherHit = other.Animation.TicksUntilStep(otherAttack[2]);
-            if (otherHit >= 0 && Math.Abs(hitTicks - otherHit) < separation)
-                return false;
-        }
-        return true;
-    }
 
     private GameInput? EnemyCharge(Fighter actor, Fighter target, double dx, double dz)
     {

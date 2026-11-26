@@ -838,7 +838,8 @@ public class GoldenAxeGameplayTests
         var moves = strong ? Moves.StrongHeninger : Moves.Heninger;
         var enemy = game.Add(ActorKind.Heninger, moves, 0x18, 16, hero.X + 24, hero.Z);
         enemy.Cooldown = 0;
-        game.Tick(default);
+        for (var tick = 0; tick < 8 && enemy.State != FighterState.Attacking; tick++)
+            game.Tick(default);
         Assert.That(enemy.State, Is.EqualTo(FighterState.Attacking));
 
         var frames = new List<int>();
@@ -861,7 +862,8 @@ public class GoldenAxeGameplayTests
         var hero = game.Hero;
         var enemy = game.Add(ActorKind.Longmoan, Moves.Longmoan, 0x77, 16, hero.X + 23, hero.Z);
         enemy.Cooldown = 0;
-        game.Tick(default);
+        for (var tick = 0; tick < 8 && enemy.State != FighterState.Attacking; tick++)
+            game.Tick(default);
         Assert.That(enemy.State, Is.EqualTo(FighterState.Attacking));
 
         var frames = new List<int>();
@@ -941,9 +943,10 @@ public class GoldenAxeGameplayTests
     {
         var game = new Game(m_areas[0]);
         var hero = game.Hero;
+        var partner = game.Add(ActorKind.Knight, Moves.Knight, 0x86, 32, hero.X + 36, hero.Z);
+        partner.Cooldown = 1000;
         var enemy = game.Add(adder ? ActorKind.DeathAdder : ActorKind.BadBrother, adder ? Moves.DeathAdder : Moves.Brother,
             0x38, 32, hero.X + 100, hero.Z + 18);
-        enemy.HeavyAttackSide = -1;
         var destination = hero.X - 32;
         game.Tick(default);
         Assert.That(enemy.State, Is.EqualTo(FighterState.RunningToPosition));
@@ -1120,28 +1123,111 @@ public class GoldenAxeGameplayTests
     }
 
     [Test]
-    public void NearbyEnemiesStaggerHitsWhenTheyAreReadyTogether()
+    public void ForestInfantryCanWindUpTogetherAndTheThirdTakesAVacantSide()
+    {
+        var game = new Game(m_areas[0], 2);
+        AdvanceTo(game, 4320);
+        var hero = game.Hero;
+        hero.X = 4470;
+        hero.Z = 4241;
+        hero.Y = game.Ground(hero.X, hero.Z);
+        var right = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, hero.X + 40, hero.Z);
+        var left = game.Add(ActorKind.Longmoan, Moves.FastLongmoan, 0x77, 16, hero.X - 40, hero.Z);
+        var reserve = game.Add(ActorKind.Longmoan, Moves.Longmoan, 0x78, 16, hero.X + 66, hero.Z + 23);
+        left.Cooldown = right.Cooldown = reserve.Cooldown = 0;
+        var startX = reserve.X;
+
+        for (var tick = 0; tick < 8; tick++)
+        {
+            game.Tick(default);
+            Assert.That(reserve.State, Is.Not.EqualTo(FighterState.Attacking));
+        }
+
+        Assert.That(left.State, Is.EqualTo(FighterState.Attacking));
+        Assert.That(right.State, Is.EqualTo(FighterState.Attacking));
+        Assert.That(left.StateTicks, Is.Not.EqualTo(right.StateTicks));
+        Assert.That(reserve.X, Is.LessThan(startX));
+
+        right.SetState(FighterState.Gone);
+        left.SetState(FighterState.Idle, left.Moves.Idle);
+        left.Cooldown = 1000;
+        for (var tick = 0; tick < 85 && reserve.State != FighterState.Attacking; tick++)
+            game.Tick(default);
+
+        Assert.That(reserve.State, Is.EqualTo(FighterState.Attacking));
+        Assert.That(reserve.X, Is.GreaterThan(hero.X));
+        Assert.That(reserve.Facing, Is.EqualTo(-1));
+    }
+
+    [Test]
+    public void StackedForestInfantryApproachFromOppositeSides()
+    {
+        var game = new Game(m_areas[0], 2);
+        AdvanceTo(game, 4320);
+        var hero = game.Hero;
+        hero.X = 4470;
+        hero.Z = 4241;
+        hero.Y = game.Ground(hero.X, hero.Z);
+        var soldier = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, hero.X + 40, hero.Z);
+        var swordsman = game.Add(ActorKind.Longmoan, Moves.FastLongmoan, 0x77, 16, hero.X + 48, hero.Z);
+        soldier.Cooldown = swordsman.Cooldown = 1000;
+
+        for (var tick = 0; tick < 240; tick++)
+            game.Tick(default);
+
+        Assert.That(soldier.X, Is.GreaterThan(hero.X));
+        Assert.That(swordsman.X, Is.LessThanOrEqualTo(hero.X - 28));
+        Assert.That(Math.Abs(swordsman.Z - hero.Z), Is.LessThan(6));
+    }
+
+    [TestCase((int)ActorKind.Amazon)]
+    [TestCase((int)ActorKind.Skeleton)]
+    [TestCase((int)ActorKind.BadBrother)]
+    [TestCase((int)ActorKind.Knight)]
+    [TestCase((int)ActorKind.DeathAdder)]
+    [TestCase((int)ActorKind.Chicken)]
+    [TestCase((int)ActorKind.BlueDragon)]
+    [TestCase((int)ActorKind.RedDragon)]
+    public void CombatEnemyFamiliesWaitForAndTakeTheSameMeleeAssignment(int enemyKind)
     {
         var game = new Game(m_areas[0], 2);
         var hero = game.Hero;
-        var first = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, hero.X + 24, hero.Z);
-        var second = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, hero.X + 25, hero.Z + 1);
-        first.Cooldown = second.Cooldown = 0;
-
-        var hitTicks = new List<int>();
-        for (var tick = 0; tick < 90 && hitTicks.Count < 2; tick++)
+        var left = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, hero.X - 24, hero.Z);
+        var right = game.Add(ActorKind.Longmoan, Moves.Longmoan, 0x78, 16, hero.X + 24, hero.Z);
+        left.Cooldown = right.Cooldown = 1000;
+        var kind = (ActorKind)enemyKind;
+        var moves = kind switch
         {
-            var health = hero.Health;
-            game.Tick(default);
-            if (hero.Health < health)
-            {
-                Assert.That(health - hero.Health, Is.EqualTo(2));
-                hitTicks.Add(game.TickCount);
-            }
+            ActorKind.Amazon => Moves.Amazon,
+            ActorKind.Skeleton => Moves.Skeleton,
+            ActorKind.BadBrother => Moves.Brother,
+            ActorKind.Knight => Moves.Knight,
+            ActorKind.DeathAdder => Moves.DeathAdder,
+            ActorKind.Chicken => Moves.AmazonChicken,
+            ActorKind.BlueDragon => Moves.AmazonDragon,
+            _ => Moves.AmazonRedDragon
+        };
+        var reserve = game.Add(kind, moves, 0x63, 32, hero.X + 35, hero.Z);
+        reserve.Cooldown = 0;
+        if (reserve.IsMount)
+        {
+            var rider = game.Add(ActorKind.Amazon, Moves.Amazon, 0x63, 16, reserve.X, reserve.Z);
+            reserve.Rider = rider;
+            rider.Mount = reserve;
         }
 
-        Assert.That(hitTicks, Has.Count.EqualTo(2));
-        Assert.That(hitTicks[1] - hitTicks[0], Is.GreaterThanOrEqualTo(8));
+        for (var tick = 0; tick < 8; tick++)
+        {
+            game.Tick(default);
+            Assert.That(reserve.State, Is.Not.EqualTo(FighterState.Attacking));
+        }
+
+        right.SetState(FighterState.Gone);
+        for (var tick = 0; tick < 8 && reserve.State != FighterState.Attacking; tick++)
+            game.Tick(default);
+
+        Assert.That(reserve.State, Is.EqualTo(FighterState.Attacking));
+        Assert.That(reserve.Facing, Is.EqualTo(-1));
     }
 
     [Test]

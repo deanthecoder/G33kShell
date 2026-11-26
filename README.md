@@ -345,6 +345,24 @@ Two mounds wait 128 and 256 updates before opening. Clay Longmoan starts his
 opens at two or fewer. Both thresholds include the waiting actors and any survivors
 from earlier waves. The MAME trace records the remaining spawn word and encounter
 count in the `actor_word_74` and `encounter_count` columns.
+
+Set 6 also assigns two melee positions per player, one on each side. The actor IDs
+live in RAM at `0xffed5c` through `0xffed5f` and refer to the slot's ID byte at
+`+0x08`. The allocator at `0xcb1c` ranks eligible actors by squared X/Z distance.
+Heninger's routine aims 40 pixels to the assigned side and checks its assignment
+on its own phase of an eight-tick cycle. In a controlled Stage 1 MAME run,
+Heninger's and Longmoan's wind-ups started seven ticks apart while they held
+opposite sides. Both assignments cleared when Ax fell and returned when he
+recovered. With three soldiers, the unassigned Longmoan kept moving toward Ax.
+When Heninger was removed from the encounter, Longmoan took his side on the
+next update. Combat enemies in every area share these assignments. The set-6
+approach offsets are 40 pixels for Heninger, Longmoan, and skeletons, 48 for
+Amazons, Bad Brothers, Death Adder, and Chicken Legs riders, 52 for knights,
+and 64 for dragon riders. The assignments govern positioning and attack
+selection, while bosses' scripted cast and recovery sequences still run.
+Add `GA_TRACE_STATE=1` when running `tools/trace-golden-axe.lua` to log the four
+assignments and the raw 128-byte actor records.
+
 Landing and emergence dust particles rise, disperse and fade over 2–2.5 seconds,
 with gentle leftward drift where the eagle's wind blows.
 Magic shakes the scene after the casting potions disappear until the spell ends,
