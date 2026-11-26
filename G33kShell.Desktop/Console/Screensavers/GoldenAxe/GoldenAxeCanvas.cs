@@ -51,7 +51,7 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
     private Rgb[] m_titlePalette;
     private int m_titleTicks;
     private bool m_fadeInTitle;
-    private ArcadeMapRecording m_map;
+    private IArcadeMap m_map;
     private int[] m_mapTint;
     private double m_mapSeconds;
 
@@ -185,7 +185,7 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
                 }
                 else
                 {
-                    m_map = ArcadeMapRecording.Load(m_game.AreaIndex);
+                    m_map = IArcadeMap.Load(m_data);
                     if (m_map == null)
                         FinishMap();
                     else

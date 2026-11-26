@@ -328,6 +328,34 @@ public class GoldenAxeTests
     }
 
     [Test]
+    public void VictoryMapDrawsTheArcadeParchmentTextAndInk()
+    {
+        var data = new ArcadeData(ArcadeData.AssetDirectory, ArcadeData.AreaCount - 1);
+        using var map = VictoryMap.Load(data);
+        Assert.That(map, Is.Not.Null);
+        var screen = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
+        var pixels = new int[screen.Pixels.Length];
+        const int black = unchecked((int)0xff000000);
+
+        int DrawPixel(double seconds, int x, int y)
+        {
+            map.Draw(screen, null, seconds);
+            screen.CopyToBgra(pixels);
+            return pixels[y * ArcadeData.Width + x];
+        }
+
+        Assert.That(map.AdvanceTo(0), Is.True);
+        Assert.That(DrawPixel(0, 110, 110), Is.EqualTo(black));
+        Assert.That(DrawPixel(0.05, 110, 110), Is.EqualTo(unchecked((int)0xffc5a573)));
+        Assert.That(DrawPixel(1, 162, 50), Is.EqualTo(black));
+        Assert.That(DrawPixel(1.1, 162, 50), Is.EqualTo(unchecked((int)0xff94a5d6)));
+        Assert.That(DrawPixel(1.5, 53, 48), Is.EqualTo(unchecked((int)0xffe6c594)));
+        Assert.That(DrawPixel(5, 53, 48), Is.EqualTo(unchecked((int)0xffad1010)));
+        Assert.That(map.AdvanceTo(VictoryMap.Duration), Is.False);
+        Assert.That(DrawPixel(double.PositiveInfinity, 110, 110), Is.EqualTo(black));
+    }
+
+    [Test]
     public void OptionalOpeningCardPreservesSourceColorsThroughFades()
     {
         var path = Path.GetTempFileName();

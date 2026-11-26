@@ -12,12 +12,12 @@ using DTC.Core.Extensions;
 namespace G33kShell.Desktop.Console.Screensavers.GoldenAxe;
 
 /// <summary>Plays a local map recording using its original frame timestamps.</summary>
-internal sealed class ArcadeMapRecording : IDisposable
+internal sealed class ArcadeMapRecording : IArcadeMap
 {
     private const int PixelCount = ArcadeData.Width * ArcadeData.Height;
     private const int PaletteSize = 256;
     private const int OpaqueBlack = unchecked((int)0xff000000);
-    private const double FadeSeconds = 0.5;
+    internal const double FadeSeconds = 0.5;
     private readonly BinaryReader m_reader;
     private readonly byte[] m_previous;
     private readonly byte[] m_delta;
@@ -45,13 +45,6 @@ internal sealed class ArcadeMapRecording : IDisposable
         for (var i = 0; i < PaletteSize; i++)
             m_palette[i] = PackBgra(palette[i * 3], palette[i * 3 + 1], palette[i * 3 + 2]);
         Array.Fill(m_frame, m_palette[0]);
-    }
-
-    public static ArcadeMapRecording Load(int area)
-    {
-        var fileName = $"map{area + 1}.gmap";
-        return TryLoad(Path.Combine(ArcadeData.LocalAssetDirectory, fileName))
-            ?? TryLoad(Path.Combine(ArcadeData.AssetDirectory, fileName));
     }
 
     internal static ArcadeMapRecording TryLoad(string path)
@@ -216,11 +209,7 @@ internal sealed class ArcadeMapRecording : IDisposable
         {
             m_tintedFrame ??= new int[PixelCount];
             for (var i = 0; i < m_frame.Length; i++)
-            {
-                var pixel = m_frame[i];
-                var luminance = ((pixel >> 16 & 255) * 2126 + (pixel >> 8 & 255) * 7152 + (pixel & 255) * 722) / 10000;
-                m_tintedFrame[i] = shades[luminance];
-            }
+                m_tintedFrame[i] = TintPixel(m_frame[i], shades);
             m_mapTint = shades;
         }
         var source = shades == null ? m_frame : m_tintedFrame;
@@ -234,13 +223,19 @@ internal sealed class ArcadeMapRecording : IDisposable
 
         m_fadedFrame ??= new int[PixelCount];
         for (var i = 0; i < source.Length; i++)
-        {
-            var pixel = source[i];
-            m_fadedFrame[i] = OpaqueBlack | ((pixel >> 16 & 255) * level >> 8) << 16 |
-                ((pixel >> 8 & 255) * level >> 8) << 8 | ((pixel & 255) * level >> 8);
-        }
+            m_fadedFrame[i] = FadePixel(source[i], level);
         screen.SetBgraFrame(m_fadedFrame);
     }
+
+    internal static int TintPixel(int pixel, int[] shades)
+    {
+        var luminance = ((pixel >> 16 & 255) * 2126 + (pixel >> 8 & 255) * 7152 + (pixel & 255) * 722) / 10000;
+        return shades[luminance];
+    }
+
+    internal static int FadePixel(int pixel, int level) =>
+        OpaqueBlack | ((pixel >> 16 & 255) * level >> 8) << 16 |
+        ((pixel >> 8 & 255) * level >> 8) << 8 | ((pixel & 255) * level >> 8);
 
     public static int[] CreateTint(Rgb background, Rgb foreground)
     {

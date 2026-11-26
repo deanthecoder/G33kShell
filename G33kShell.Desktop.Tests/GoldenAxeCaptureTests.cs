@@ -37,7 +37,7 @@ public sealed class GoldenAxeCaptureTests
 
         foreach (var name in sceneList.Split(','))
         {
-            var area = name switch { "skeleton-dust" or "eagle-sunset" or "eagle-clouds" => 3, "village-stamp" or "village-routing" or "village-opening" or "camp-thieves" or "turtle-surf" => 1, "turtle-eye" => 2, "bridge-barge" or "knight-door" or "brothers-door" => 2, "eagle-eye" or "castle-camera" or "castle-ending" or "adder-entrance" or "adder-defeat" => 4, _ => 0 };
+            var area = name switch { "skeleton-dust" or "eagle-sunset" or "eagle-clouds" => 3, "village-stamp" or "village-routing" or "village-opening" or "camp-thieves" or "turtle-surf" => 1, "turtle-eye" => 2, "bridge-barge" or "knight-door" or "brothers-door" => 2, "eagle-eye" or "castle-camera" or "castle-ending" or "victory-map" or "adder-entrance" or "adder-defeat" => 4, _ => 0 };
             var data = new ArcadeData(ArcadeData.AssetDirectory, area);
             if (name == "title")
             {
@@ -47,6 +47,11 @@ public sealed class GoldenAxeCaptureTests
             if (name == "castle-ending")
             {
                 CaptureCastleEnding(data, Path.Combine(output, name + ".bgra"));
+                continue;
+            }
+            if (name == "victory-map")
+            {
+                CaptureMap(data, Path.Combine(output, name + ".bgra"), FileMode.Create);
                 continue;
             }
             var (game, ticks, input) = name switch
@@ -233,11 +238,16 @@ public sealed class GoldenAxeCaptureTests
             game.Tick(controller.Read(game));
         Assert.That(game.Complete, Is.True, "The capture starts with the actual cleared arena.");
         Capture(data, game, CastleRescue.Duration, _ => default, path);
-        using var map = ArcadeMapRecording.Load(data.AreaIndex);
+        CaptureMap(data, path, FileMode.Append);
+    }
+
+    private static void CaptureMap(ArcadeData data, string path, FileMode mode)
+    {
+        using var map = IArcadeMap.Load(data);
         Assert.That(map, Is.Not.Null);
         var screen = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
         var pixels = new int[screen.Pixels.Length];
-        using var output = new FileStream(path, FileMode.Append);
+        using var output = new FileStream(path, mode);
         for (var frame = 0; map.AdvanceTo(frame / 30.0); frame++)
         {
             map.Draw(screen, null, frame / 30.0);

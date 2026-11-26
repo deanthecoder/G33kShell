@@ -82,8 +82,9 @@ The separately animated eagle sky retains its independent scrolling.
 
 The Stage 9 rescue uses the original captive and chain sprites, with poses and
 positions from Dean's US set-6 hardware trace (Brain 9ab84e0b46608736).
-tools/build-golden-axe-victory-map.py builds map5.gmap from the parchment
-opening in atomic14's public/assets/ending.mp4. The tile font writes the set-6
-message at 0x76ac in the two colors sampled from the MAME ending still.
-Quill sprite 1042 uses palette 0x80 matched to the fourth map recording.
-The FIN handwriting and timing are reconstructed.
+victory-map.png contains the US set-6 parchment and 21 cursive Fin
+ink tiles extracted from a native-size MAME capture with sprites hidden.
+tools/build-golden-axe-victory-map.py extracts this sheet from the capture.
+ArcadeParchment draws the map using the tile font and feather sprite
+1042 with palette 0x80. The feather follows cubic Bézier segments through the ROM tile
+positions at 0x7788, synced to the original ink reveals.
