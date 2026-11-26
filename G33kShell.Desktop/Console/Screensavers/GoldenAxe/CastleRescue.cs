@@ -19,8 +19,12 @@ internal static class CastleRescue
 
     internal static void Draw(PixelScreenData screen, Game game, ArcadeData data, ArcadeRenderer renderer)
     {
-        var tick = game.EndStateTicks;
-        var pan = (int)Math.Round(game.ViewCamera.Y - data.CameraRange(game.CameraX).High);
+        var tick = game.RescuingCaptives ? game.EndStateTicks : 0;
+        var throneCameraX = 4096 - 7 - data.Stops[^1];
+        var panX = (int)Math.Round(game.ViewCamera.X - throneCameraX);
+        if (panX >= ArcadeData.Width)
+            return;
+        var panY = (int)Math.Round(game.ViewCamera.Y - data.CameraRange(throneCameraX).High);
         var chain = Math.Clamp((tick - 150) / 2, 0, 76);
         for (var link = chain - 10; link >= -10; link -= 10)
         {
@@ -53,7 +57,7 @@ internal static class CastleRescue
         void Pose(int frame, int palette, int x, int y)
         {
             var bounds = data.Frames[frame];
-            renderer.Sprite(screen, frame, palette, x - bounds.Ox, y + pan - bounds.Oy, false);
+            renderer.Sprite(screen, frame, palette, x + panX - bounds.Ox, y + panY - bounds.Oy, false);
         }
     }
 }

@@ -24,14 +24,19 @@ internal static class TyrisMagic
 
     public static int[][][][] Expand(int[][][][] recordings, SpriteFrame[] frames)
     {
-        // Keep the six-potion skulls and their trails clear of the HUD as the orbit widens.
+        // Use the recorded orbit in X and depth, anchored above screen centre in every player lane.
+        // The recording also climbs in world height; carrying that rise over would lift the skulls offscreen.
         foreach (var tick in recordings[5])
-        foreach (var sprite in tick)
+        for (var i = 0; i < tick.Length; i++)
         {
+            var sprite = tick[i];
             if (sprite[1] is not (0x24 or 0x35))
                 continue;
-            var rise = -(sprite[5] + 0.75 * sprite[4]);
-            sprite[5] += (int)Math.Round(Math.Max(0, rise - 42) * 0.28);
+            var bounds = frames[sprite[0]];
+            var x = ArcadeData.Width / 2 + (int)Math.Round((sprite[3] - 4) * 0.67);
+            var centerY = ArcadeData.Height / 2 - 18 + 20 * Math.Tanh(sprite[4] / 90.0);
+            var y = (int)Math.Round(centerY - bounds.Oy - bounds.Height * 0.5);
+            tick[i] = [sprite[0], sprite[1], sprite[2], x, 0, y, 1];
         }
         if (recordings.Length >= 9)
             return recordings;

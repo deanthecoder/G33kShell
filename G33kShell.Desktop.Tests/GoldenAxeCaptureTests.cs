@@ -37,8 +37,13 @@ public sealed class GoldenAxeCaptureTests
 
         foreach (var name in sceneList.Split(','))
         {
-            var area = name switch { "skeleton-dust" or "eagle-sunset" or "eagle-clouds" => 3, "village-routing" or "village-opening" or "camp-thieves" => 1, "turtle-eye" => 2, "bridge-barge" or "knight-door" or "brothers-door" => 2, "eagle-eye" or "castle-camera" or "castle-ending" => 4, _ => 0 };
+            var area = name switch { "skeleton-dust" or "eagle-sunset" or "eagle-clouds" => 3, "village-stamp" or "village-routing" or "village-opening" or "camp-thieves" or "turtle-surf" => 1, "turtle-eye" => 2, "bridge-barge" or "knight-door" or "brothers-door" => 2, "eagle-eye" or "castle-camera" or "castle-ending" or "adder-entrance" or "adder-defeat" => 4, _ => 0 };
             var data = new ArcadeData(ArcadeData.AssetDirectory, area);
+            if (name == "title")
+            {
+                CaptureTitle(data, Path.Combine(output, name + ".bgra"));
+                continue;
+            }
             if (name == "castle-ending")
             {
                 CaptureCastleEnding(data, Path.Combine(output, name + ".bgra"));
@@ -46,9 +51,14 @@ public sealed class GoldenAxeCaptureTests
             }
             var (game, ticks, input) = name switch
             {
+                "enemy-pair" => EnemyPair(data),
                 "bridge-barge" => BridgeBarge(data),
                 "knight-door" => KnightDoor(data),
+                "adder-entrance" => AdderEntrance(data),
+                "adder-defeat" => AdderDefeat(data),
                 "brothers-door" => BrothersDoor(data),
+                "forest-stamp" => VillagerStamp(data, 5136),
+                "village-stamp" => VillagerStamp(data, 4784),
                 "forest-opening" => (new Game(data, playOpening: true), 800, _ => new GameInput(X: 1)),
                 "shadows" => Shadows(data),
                 "campfire" => Campfire(data),
@@ -61,6 +71,7 @@ public sealed class GoldenAxeCaptureTests
                 "ledge-camera" => LedgeCamera(data),
                 "dwarf-lightning" => DwarfLightning(data),
                 "villagers" => Villagers(data),
+                "turtle-surf" => TurtleSurf(data),
                 "village-routing" => VillageRouting(data),
                 "village-opening" => VillageRouting(data, opening: true),
                 "stone-bodies" => StoneBodies(data),
@@ -100,12 +111,37 @@ public sealed class GoldenAxeCaptureTests
         }
     }
 
+    private static (Game, int, Func<int, GameInput>) EnemyPair(ArcadeData data)
+    {
+        var game = new Game(data, character: 2, random: new Random(0));
+        PrepareAt(game, (int)game.Progress, (int)game.Progress + 145, 4224);
+        var hero = game.Hero;
+        hero.Invulnerable = 1000;
+        var first = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, hero.X + 90, hero.Z);
+        var second = game.Add(ActorKind.Heninger, Moves.Heninger, 0x1b, 16, first.X, first.Z);
+        return (game, 420, _ =>
+        {
+            game.Actors.RemoveAll(a => a != hero && a != first && a != second);
+            return default;
+        });
+    }
+
     private static (Game, int, Func<int, GameInput>) BridgeBarge(ArcadeData data)
     {
         var game = new Game(data, 1, new Random(0));
         PrepareAt(game, 4625, 4750, 4184);
         var controller = new CodedController();
         return (game, 145, _ => controller.Read(game));
+    }
+
+    private static (Game, int, Func<int, GameInput>) VillagerStamp(ArcadeData data, int trigger)
+    {
+        var game = new Game(data, character: 2, random: new Random(0));
+        var pair = data.Spawns.Where(s => s.Trigger == trigger).ToArray();
+        PrepareAt(game, pair[0].X - 238, pair[0].X - 158, pair[0].Z);
+        foreach (var spawn in pair)
+            game.Spawn(spawn);
+        return (game, 600, tick => new GameInput(X: tick is >= 128 and < 235 ? 1 : 0));
     }
 
     private static (Game, int, Func<int, GameInput>) KnightDoor(ArcadeData data)
@@ -126,6 +162,67 @@ public sealed class GoldenAxeCaptureTests
         var game = new Game(data, character: 2, random: new Random(0));
         PrepareAt(game, 4908, 5100, 4196);
         return (game, 650, _ => default);
+    }
+
+    private static (Game, int, Func<int, GameInput>) AdderEntrance(ArcadeData data)
+    {
+        var game = new Game(data, character: 2, random: new Random(0));
+        PrepareAt(game, data.Stops[^1], data.Stops[^1] + 82, 4192, keepAdder: true);
+        return (game, DeathAdderEntrance.WalkTick + 144, _ => default);
+    }
+
+    private static (Game, int, Func<int, GameInput>) AdderDefeat(ArcadeData data)
+    {
+        var (game, _, _) = AdderEntrance(data);
+        var boss = game.Actors.Single(a => a.Kind == ActorKind.DeathAdder);
+        while (boss.State == FighterState.Entering)
+            game.Tick(default);
+        // Stage the final blow in the middle of the room so the whole axe arc is visible.
+        game.Hero.X = boss.X - 32;
+        game.Hero.Z = boss.Z;
+        game.Hero.Y = boss.Y;
+        game.Hero.Facing = 1;
+        boss.Health = 1;
+        boss.Cooldown = 120;
+        var duration = DeathAdderDefeat.Duration + 208;
+        return (game, duration, tick =>
+        {
+            if (tick == duration - 10)
+                Assert.That(game.RescuingCaptives, Is.True);
+            return new GameInput(Attack: boss.Health > 0);
+        });
+    }
+
+    private static void CaptureTitle(ArcadeData data, string path)
+    {
+        var title = AnimatedTitle.Load(data);
+        Assert.That(title, Is.Not.Null);
+        var screen = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, title.Palette);
+        var pixels = new int[screen.Pixels.Length];
+        var game = new Game(data, playOpening: true);
+        var renderer = new ArcadeRenderer(data);
+        using var output = File.Create(path);
+        for (var tick = 0; tick < AnimatedTitle.DurationTicks + 72; tick++)
+        {
+            if (tick >= AnimatedTitle.DurationTicks)
+                game.Tick(default);
+            if (tick % 2 != 0)
+                continue;
+            if (tick < AnimatedTitle.DurationTicks)
+            {
+                title.Draw(screen, title.Palette, tick);
+                ArcadeTitleCard.ApplyBrightness(screen, Math.Min(1, tick / 20.0));
+            }
+            else
+            {
+                screen.SetPalette(data.Palette);
+                var fade = Math.Min(1, game.TickCount / 30.0);
+                ArcadeTitleCard.ApplyBrightness(screen, fade);
+                renderer.Draw(screen, game, effects: true, effectOpacity: (byte)(255 * fade));
+            }
+            screen.CopyToBgra(pixels);
+            output.Write(MemoryMarshal.AsBytes(pixels.AsSpan()));
+        }
     }
 
     private static void CaptureCastleEnding(ArcadeData data, string path)
@@ -149,7 +246,7 @@ public sealed class GoldenAxeCaptureTests
         }
     }
 
-    private static void PrepareAt(Game game, int progress, int x, int z)
+    private static void PrepareAt(Game game, int progress, int x, int z, bool keepAdder = false)
     {
         for (var tick = 0; tick < 4000 && game.Progress < progress; tick++)
         {
@@ -161,11 +258,24 @@ public sealed class GoldenAxeCaptureTests
         }
         Assert.That(game.Progress, Is.GreaterThanOrEqualTo(progress));
         game.Tick(default);
-        game.Actors.RemoveAll(a => a != game.Hero);
+        game.Actors.RemoveAll(a => a != game.Hero && !(keepAdder && a.Kind is (ActorKind.DeathAdder or ActorKind.BodyPile)));
         game.Hero.X = x;
         game.Hero.Z = z;
         game.Hero.Y = game.Ground(x, z);
         game.ViewCamera.Reset(game.CameraX, game.CameraY);
+    }
+
+    private static (Game, int, Func<int, GameInput>) TurtleSurf(ArcadeData data)
+    {
+        var game = new Game(data, character: 2, random: new Random(0));
+        PrepareAt(game, TurtleVillageSurf.StartProgress, TurtleVillageSurf.StartProgress + 120, 4296);
+        for (var tick = 0; tick < 384; tick++)
+            game.Tick(default);
+        return (game, 384, _ =>
+        {
+            game.ViewCamera.Reset(-855, -873);
+            return default;
+        });
     }
 
     private static (Game, int, Func<int, GameInput>) VillageRouting(ArcadeData data, bool opening = false)
@@ -210,7 +320,7 @@ public sealed class GoldenAxeCaptureTests
     {
         var game = new Game(data, character: 2, random: new Random(0));
         for (var i = 1; i < game.Character.PotionCapacity; i++)
-            game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, game.Hero.X, game.Hero.Z);
+            game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, game.Hero.X, game.Hero.Z).Animation.Play(0x1870a);
         game.Tick(default);
         // Start the review clip after setup pickups have finished, rather than showing artificial setup glitter.
         for (var tick = 0; tick < PotionPickup.Lifetime; tick++)
@@ -497,7 +607,7 @@ public sealed class GoldenAxeCaptureTests
         var game = new Game(data, character: 2, random: new Random(0));
         var hero = game.Hero;
         for (var i = game.Potions; i < game.Character.PotionCapacity; i++)
-            game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, hero.X, hero.Z);
+            game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, hero.X, hero.Z).Animation.Play(0x1870a);
         game.Tick(default);
         AddTarget(game, ActorKind.Heninger, Moves.Heninger, 0x18, 100, -10);
         AddTarget(game, ActorKind.Amazon, Moves.Amazon, 0x63, 150, 8);
@@ -511,7 +621,7 @@ public sealed class GoldenAxeCaptureTests
         game.Hero.X = game.Progress + 150;
         game.Hero.Y = game.Ground(game.Hero.X, game.Hero.Z);
         for (var i = game.Potions; i < potions; i++)
-            game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, game.Hero.X, game.Hero.Z);
+            game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, game.Hero.X, game.Hero.Z).Animation.Play(0x1870a);
         game.Tick(default);
         game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 64, game.Hero.X + 65, game.Hero.Z - 10);
         game.Add(ActorKind.Amazon, Moves.Amazon, 0x63, 64, game.Hero.X + 120, game.Hero.Z + 12);

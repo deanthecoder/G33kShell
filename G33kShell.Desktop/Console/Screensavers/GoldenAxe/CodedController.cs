@@ -176,8 +176,9 @@ internal sealed class CodedController
     private GameInput? AvoidLightning(Game game, Fighter hero)
     {
         var jumpDistance = hero.IsMount ? 48 : 80;
+        // The bolt homes in on depth as it travels, even when it starts in another lane.
         var bolt = game.Actors.FirstOrDefault(a => a.Kind == ActorKind.Lightning && !a.IsGone &&
-            (hero.X - a.X) * a.Facing > -24 && (hero.X - a.X) * a.Facing < jumpDistance && Math.Abs(a.Z - hero.Z) < 24);
+            (hero.X - a.X) * a.Facing > -24 && (hero.X - a.X) * a.Facing < jumpDistance);
         var charge = game.Actors.FirstOrDefault(a => a.Kind == ActorKind.LightningCharge && !a.IsGone && a.Owner.Health > 0);
         var chargeTicks = charge == null ? int.MaxValue :
             charge.Animation.Current.Duration - charge.Animation.StepTicks +
@@ -249,6 +250,9 @@ internal sealed class CodedController
         if (game.Hero.Health <= 12 && targets.Any(a => game.HasImminentStrike(a) && Math.Abs(a.X - game.Hero.X) < 65 &&
                 Math.Abs(a.Z - game.Hero.Z) < 12 && Math.Abs(a.Y - game.Hero.Y) < 12))
             return true;
+        // The formation sequence can outlast a whole wave. Save the cast until it can hit Death Adder too.
+        if (enemies.Any(a => a.Kind == ActorKind.DeathAdder && a.State == FighterState.Entering))
+            return false;
         // Tyris needs five potions for level two; three still buys only her weakest spell.
         var worthwhile = game.Potions >= 2 && (game.Character.MagicKey == "tyris"
             ? game.Boss || game.Character.GetMagicLevel(game.Potions) >= 2 && targets.Length >= 3
@@ -268,8 +272,9 @@ internal sealed class CodedController
     private static GameInput? AvoidCharge(Game game, Fighter hero)
     {
         var attacker = game.Actors.FirstOrDefault(a => a.IsEnemy &&
-            (hero.X - a.X) * a.Facing is > -4 and < 90 && Math.Abs(hero.Z - a.Z) < 20 &&
-            (a.State == FighterState.Dashing && a.StateTicks < 18 ||
+            (hero.X - a.X) * a.Facing is > -4 and < 200 && Math.Abs(hero.Z - a.Z) < 20 &&
+            (a.State == FighterState.Walking && a.Animation.Address == a.Moves.Run && Math.Abs(a.Vx) > 0 ||
+             a.State == FighterState.Dashing && a.StateTicks < 18 ||
              a.State is FighterState.Crouching or FighterState.Jumping && a.Animation.Address == a.Moves.JumpAttack));
         if (attacker == null)
             return null;

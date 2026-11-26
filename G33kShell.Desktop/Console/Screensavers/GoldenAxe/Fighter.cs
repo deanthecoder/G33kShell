@@ -34,6 +34,10 @@ internal sealed class Fighter
     public int UnmountedTicks, EscapeDirection, EscapeBlockedTicks;
     public int KnockdownVariation;
     public int FlankSide;
+    public int SpawnParameter;
+    public bool WaitingUnderMound => State == FighterState.Emerging && SpawnParameter != 0;
+    public double ChargeAttackX;
+    public int HeavyAttackSide;
     public int NextChuckleAge = -1;
     public SpawnDefinition EntranceDoor;
     public int PetrifiedTick;

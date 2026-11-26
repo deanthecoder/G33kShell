@@ -32,5 +32,6 @@ internal enum ActorKind
     CampPotion,
     Campfire,
     Skeleton,
-    DeathAdder
+    DeathAdder,
+    BodyPile
 }

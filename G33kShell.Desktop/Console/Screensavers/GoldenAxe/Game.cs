@@ -71,7 +71,22 @@ internal sealed class Game
     private int m_magicPeak;
     private int m_pendingHero = -1;
     private int? m_surfStartTick;
+    private bool m_deathAdderEntered;
     private readonly Queue<(SpawnDefinition Spawn, int Tick)> m_brotherEntrances = new();
+    private int? m_openingFinishedTick;
+    public byte HudOpacity
+    {
+        get
+        {
+            if (RescuingCaptives)
+                return CastleRescue.HudOpacity(EndStateTicks);
+            if (m_openingFinishedTick is not { } start)
+                return byte.MaxValue;
+            var t = Math.Clamp((TickCount - start) / 45.0, 0, 1);
+            return (byte)Math.Round(255 * t * t * (3 - 2 * t));
+        }
+    }
+
     public ForestOpening Opening { get; private set; }
     public HeroDefinition Character { get; private set; }
     public int[][][][] MagicEffects => m_data.Magic[Character.MagicKey];
@@ -167,6 +182,7 @@ internal sealed class Game
         Camp = new CampRound(this, m_data);
         Complete = false;
         TickCount = 0;
+        m_openingFinishedTick = null;
         EndStateTicks = 0;
         // The camp has its own clock; a previous respawn must not hide the sleeping hero.
         Hero.RespawnTick = -1;
@@ -207,9 +223,9 @@ internal sealed class Game
             body.SetState(FighterState.Idle, body.Moves.Idle);
         }
     }
-    internal Fighter Add(ActorKind kind, Moves moves, int palette, int hp, double x, double z)
+    internal Fighter Add(ActorKind kind, Moves moves, int palette, int hp, double x, double z, int spawnParameter = 0)
     {
-        var actor = new Fighter(++m_nextId, m_data, kind, moves, palette, hp) { X = x, Z = z, Facing = -1, Cooldown = 35 + m_nextId * 13 % 45 };
+        var actor = new Fighter(++m_nextId, m_data, kind, moves, palette, hp) { X = x, Z = z, SpawnParameter = spawnParameter, Facing = -1, Cooldown = 35 + m_nextId * 13 % 45 };
         actor.Y = Ground(x, z);
         Actors.Add(actor);
         return actor;
@@ -283,7 +299,10 @@ internal sealed class Game
         if (Opening != null)
         {
             if (Opening.Tick(this, input.AdvanceDialogue))
+            {
                 Opening = null;
+                m_openingFinishedTick = TickCount;
+            }
             return;
         }
         if (AreaIndex == 0 && !IsCamp && Boss && BossPaletteTick < 0)
@@ -348,6 +367,8 @@ internal sealed class Game
         }
         while (!IsCamp && m_spawnIndex < m_data.Spawns.Length && m_data.Spawns[m_spawnIndex].Trigger <= Progress)
             Spawn(m_data.Spawns[m_spawnIndex++]);
+        if (!IsCamp && AreaIndex == 4 && !m_deathAdderEntered && Progress >= m_data.Stops[^1])
+            EnterDeathAdder();
         while (m_brotherEntrances.TryPeek(out var brother) && TickCount >= brother.Tick)
         {
             m_brotherEntrances.Dequeue();
@@ -363,7 +384,16 @@ internal sealed class Game
             if (actor.IsGone || actor.Mount != null)
                 continue;
             actor.Age++;
+            if (actor.SpawnParameter != 0 && (actor.IsFree || actor.State is FighterState.Emerging or FighterState.Entering) &&
+                !AdvanceSpawnParameter(actor))
+                continue;
             actor.StateTicks++;
+            if (actor.Kind == ActorKind.BodyPile)
+            {
+                if (actor.StateTicks >= DeathAdderEntrance.WalkTick + DeathAdderEntrance.PileFadeTicks)
+                    actor.SetState(FighterState.Gone);
+                continue;
+            }
             actor.Invulnerable = Math.Max(0, actor.Invulnerable - 1);
             actor.Cooldown = Math.Max(0, actor.Cooldown - 1);
             actor.MountCooldown = Math.Max(0, actor.MountCooldown - 1);
@@ -431,7 +461,7 @@ internal sealed class Game
             var previousX = actor.X;
             UpdateFighter(actor, command);
             if (TickCount % 10 == 0 && Math.Abs(actor.X - previousX) >= 2 &&
-                actor.State is FighterState.Walking or FighterState.Dashing &&
+                actor.State is FighterState.Walking or FighterState.RunningToPosition or FighterState.Dashing &&
                 Math.Abs(actor.Y - Ground(actor.X, actor.Z)) < 1 &&
                 Project(actor.X, actor.Z, actor.Y).X is > 16 and < 300)
                 m_landingDust.Add(new DustPuff(actor.X - actor.Facing * 5, actor.Z, actor.Y, 2, TickCount, false, true));
@@ -484,48 +514,82 @@ internal sealed class Game
             m_clearTicks = 0;
     }
 
+    private bool AdvanceSpawnParameter(Fighter actor)
+    {
+        // The set-6 spawner reserves the actor slot immediately. The actor reads its word at +0x74.
+        if (actor.SpawnParameter < 0x1000)
+        {
+            actor.SpawnParameter--;
+            // Mound and door entrances start on the decrement to zero. Walking enemies resume on the following update.
+            return actor.SpawnParameter == 0 && (actor.State == FighterState.Emerging || actor.EntranceDoor != null);
+        }
+
+        // $ffed5a counts allocated encounter actors, including this actor and other waiting reinforcements.
+        // A rider and its beast occupy one encounter slot. Spell effects, pickups and stone bodies occupy none.
+        var slots = m_brotherEntrances.Count + Actors.Count(a => !a.IsGone &&
+            (a.IsEnemy || a.Kind == ActorKind.Thief || a.Kind == ActorKind.Villager && a.Animation.Address != 0xa1ae));
+        // The castle script reserves Adder at scroll $1325, before his throne sequence starts at $14c0.
+        if (!IsCamp && AreaIndex == 4 && Progress >= 0x1325 && !m_deathAdderEntered)
+            slots++;
+        if (slots > (actor.SpawnParameter & 15))
+            return false;
+        actor.SpawnParameter = 0;
+        return true;
+    }
+
+    private void EnterDeathAdder()
+    {
+        m_deathAdderEntered = true;
+        var x = m_data.Stops[^1] + ArcadeData.Width / 2;
+        var boss = Add(ActorKind.DeathAdder, Moves.DeathAdder, 0x50, 64, x, FindFloor(x, 4112));
+        boss.SetState(FighterState.Entering, Moves.DeathAdder.Idle);
+        var bodies = Add(ActorKind.BodyPile, Moves.DeathAdder, DeathAdderEntrance.BodyPilePalette, 0, x, boss.Z + 23);
+        bodies.Animation.HoldFrame(1128);
+    }
+
+    private void SpawnClayEnemy(ActorKind kind, Moves moves, int palette, SpawnDefinition spawn)
+    {
+        var enemy = Add(kind, moves, palette, 16, spawn.X, spawn.Z);
+        enemy.SpawnParameter = spawn.Parameter;
+        enemy.SetState(FighterState.Entering, kind == ActorKind.Heninger ? 0x1c164 : 0x2111e);
+    }
+
     internal void Spawn(SpawnDefinition spawn)
     {
         if (IsCamp)
             spawn = spawn with { Z = spawn.Z + Camp.DepthOffset };
         switch (spawn.Routine)
         {
-            case 0x1b454: Add(ActorKind.Heninger, Moves.StrongHeninger, ClayHeningerPalette, 16, spawn.X, spawn.Z); break;
-            case 0x20414: Add(ActorKind.Longmoan, Moves.StrongLongmoan, ClayLongmoanPalette, 16, spawn.X, spawn.Z); break;
+            case 0x1b454: SpawnClayEnemy(ActorKind.Heninger, Moves.StrongHeninger, ClayHeningerPalette, spawn); break;
+            case 0x20414: SpawnClayEnemy(ActorKind.Longmoan, Moves.StrongLongmoan, ClayLongmoanPalette, spawn); break;
             case 0x23bda: SpawnSkeletonMound(spawn); break;
-            case 0x2536e: Add(ActorKind.Skeleton, Moves.Skeleton, 0x6f, 24, spawn.X, spawn.Z); break;
+            case 0x2536e: Add(ActorKind.Skeleton, Moves.Skeleton, 0x6f, 24, spawn.X, spawn.Z, spawn.Parameter); break;
             case 0x2538a: SpawnSkeletonMound(spawn); break;
-            case 0x25352:
-                if (spawn.Parameter == 0x1005)
-                    Add(ActorKind.DeathAdder, Moves.DeathAdder, 0x50, 64, spawn.X, spawn.Z);
-                else
-                    Add(ActorKind.Skeleton, Moves.Skeleton, 0x70, 16, spawn.X, spawn.Z);
-                break;
-            case 0x2a338: Add(ActorKind.Knight, Moves.Knight, 0x87, 32, spawn.X, spawn.Z); break;
-            case 0x29364: AddBadBrother(spawn, 0x39); break;
-            case 0x1a0a8: Add(ActorKind.Heninger, Moves.Heninger, 0x1a, 16, spawn.X, spawn.Z); break;
-            case 0x1f016: Add(ActorKind.Longmoan, Moves.FastLongmoan, 0x7b, 16, spawn.X, spawn.Z); break;
-            case 0x21854: Add(ActorKind.Amazon, Moves.Amazon, 0x63, 16, spawn.X, spawn.Z); break;
-            case 0x21876: Add(ActorKind.Amazon, Moves.Amazon, 0x64, 16, spawn.X, spawn.Z); break;
-            case 0x229c8: Add(ActorKind.Amazon, Moves.Amazon, 0x65, 16, spawn.X, spawn.Z); break;
-            case 0x2f60a: case 0x2f61c: SpawnMount(ActorKind.BlueDragon, spawn); break;
-            case 0x306aa: SpawnMount(ActorKind.RedDragon, spawn); break;
+            case 0x25352: Add(ActorKind.Skeleton, Moves.Skeleton, 0x70, 16, spawn.X, spawn.Z, spawn.Parameter); break;
+            case 0x2a338: Add(ActorKind.Knight, Moves.Knight, 0x87, 32, spawn.X, spawn.Z, spawn.Parameter); break;
+            case 0x29364: AddBadBrother(spawn, 0x39).SpawnParameter = spawn.Parameter; break;
+            case 0x1a0a8: Add(ActorKind.Heninger, Moves.Heninger, 0x1a, 16, spawn.X, spawn.Z, spawn.Parameter); break;
+            case 0x1f016: Add(ActorKind.Longmoan, Moves.FastLongmoan, 0x7b, 16, spawn.X, spawn.Z, spawn.Parameter); break;
+            case 0x21854: Add(ActorKind.Amazon, Moves.Amazon, 0x63, 16, spawn.X, spawn.Z, spawn.Parameter); break;
+            case 0x21876: Add(ActorKind.Amazon, Moves.Amazon, 0x64, 16, spawn.X, spawn.Z, spawn.Parameter); break;
+            case 0x229c8: Add(ActorKind.Amazon, Moves.Amazon, 0x65, 16, spawn.X, spawn.Z, spawn.Parameter); break;
+            case 0x2f60a: case 0x2f61c: case 0x306aa: SpawnMount(ActorKind.BlueDragon, spawn); break;
+            case 0x317b8: SpawnMount(ActorKind.RedDragon, spawn); break;
             case 0x2a358:
-                var knight = Add(ActorKind.Knight, Moves.Knight, 0x86, 32, spawn.X, spawn.Z);
+                var knight = Add(ActorKind.Knight, Moves.Knight, 0x86, 32, spawn.X, spawn.Z, spawn.Parameter);
                 EnterDoor(knight, spawn);
                 break;
-            case 0x18b50: Add(ActorKind.Heninger, Moves.Heninger, 0x1d, 16, spawn.X, spawn.Z); break;
-            case 0x18b28: Add(ActorKind.Heninger, Moves.Heninger, 0x1b, AreaIndex == 0 && m_stopIndex == 0 ? 8 : 16, spawn.X, spawn.Z); break;
-            case 0x317b8: Add(ActorKind.Heninger, Moves.Heninger, 0x1b, 16, spawn.X, spawn.Z); break;
+            case 0x18b50: Add(ActorKind.Heninger, Moves.Heninger, 0x1d, 16, spawn.X, spawn.Z, spawn.Parameter); break;
+            case 0x18b28: Add(ActorKind.Heninger, Moves.Heninger, 0x1b, AreaIndex == 0 && m_stopIndex == 0 ? 8 : 16, spawn.X, spawn.Z, spawn.Parameter); break;
             case 0x18b3c: case 0x18ba6: SpawnForestReinforcement(spawn, ActorKind.Heninger, Moves.Heninger, 0x18); break;
-            case 0x1c846: Add(ActorKind.Longmoan, Moves.Longmoan, 0x79, 16, spawn.X, spawn.Z); break;
-            case 0x1c868: Add(ActorKind.Longmoan, Moves.Longmoan, 0x78, 16, spawn.X, spawn.Z); break;
+            case 0x1c846: Add(ActorKind.Longmoan, Moves.Longmoan, 0x79, 16, spawn.X, spawn.Z, spawn.Parameter); break;
+            case 0x1c868: Add(ActorKind.Longmoan, Moves.Longmoan, 0x78, 16, spawn.X, spawn.Z, spawn.Parameter); break;
             case 0x1dc3e: SpawnForestReinforcement(spawn, ActorKind.Longmoan, Moves.FastLongmoan, 0x77); break;
             case 0x282ec:
                 // The two Stage 5 records share a trigger and doorway, but carry separate delays.
                 m_brotherEntrances.Enqueue((spawn, TickCount + spawn.Parameter));
                 break;
-            case 0x282d4: AddBadBrother(spawn, 0x38); break;
+            case 0x282d4: AddBadBrother(spawn, 0x38).SpawnParameter = spawn.Parameter; break;
             case 0x2c264: case 0x2c276: case 0x2b10c: SpawnMount(ActorKind.Chicken, spawn); break;
             case 0x17c7c: case 0x17d00: case 0x17d0e: case 0x17d24:
                 var food = spawn.Routine == 0x17d00;
@@ -627,6 +691,7 @@ internal sealed class Game
         if (!IsSkeletonMound(spawn) || !m_data.Spawns.Contains(spawn))
             return;
 
+        skeleton.SpawnParameter = spawn.Parameter;
         skeleton.Palette = 0x6f;
         skeleton.Facing = Hero.X < spawn.X ? -1 : 1;
         var animation = AreaIndex == 4 ? SkeletonEmergence.CastleAnimation : SkeletonEmergence.Animation;
@@ -637,6 +702,24 @@ internal sealed class Game
     private void SpawnForestReinforcement(SpawnDefinition spawn, ActorKind kind, Moves moves, int palette)
     {
         var enemy = Add(kind, moves, palette, 16, spawn.X, spawn.Z);
+        if (spawn.Routine == 0x18ba6)
+        {
+            var civilian = Actors.LastOrDefault(a => a.Kind == ActorKind.Villager && a.Owner == null &&
+                a.Animation.Address is 0xa170 or 0xa35c && a.X == spawn.X && a.Z == spawn.Z);
+            if (civilian != null)
+            {
+                // Both pairs in each stage share the spawn coordinate. The soldier starts 28 pixels to its right.
+                enemy.X += 28;
+                enemy.Facing = -1;
+                enemy.SetState(FighterState.Stamping, 0x199bc);
+                civilian.Owner = enemy;
+                if (civilian.Animation.Address == 0xa170)
+                {
+                    civilian.Palette = 0x4b;
+                    civilian.Animation.Play(0xa342);
+                }
+            }
+        }
         // Both entries at the forest's first stop wait for the preceding enemies to clear.
         if (!IsCamp && AreaIndex == 0 && spawn.Trigger == m_data.Stops[0] && spawn.Parameter == 0x1002)
             enemy.SetState(FighterState.Sleeping);
@@ -651,6 +734,7 @@ internal sealed class Game
             (0, _) => (ActorKind.Heninger, Moves.Heninger, 0x1a),
             (1, 0x2f61c) => (ActorKind.Amazon, Moves.Amazon, 0x65),
             (1, _) => (ActorKind.Amazon, Moves.Amazon, 0x64),
+            (2, 0x317b8) => (ActorKind.Heninger, Moves.Heninger, 0x1b),
             (2, 0x2c276) => (ActorKind.Amazon, Moves.Amazon, 0x64),
             (3, _) => (ActorKind.Longmoan, Moves.FastLongmoan, 0x7b),
             (4, _) => (ActorKind.Amazon, Moves.Amazon, 0x65),
@@ -660,6 +744,7 @@ internal sealed class Game
         var beast = Add(kind, kind == ActorKind.Chicken ? Moves.Chicken : Moves.BlueDragon,
             kind switch { ActorKind.Chicken => 0x23, ActorKind.BlueDragon => 0x43, _ => 0x44 }, 99, spawn.X, spawn.Z);
         Mount(rider, beast);
+        beast.SpawnParameter = spawn.Parameter;
     }
 
     private void UpdateFireball(Fighter fireball)
@@ -714,13 +799,15 @@ internal sealed class Game
             beast.EscapeDirection = screenX < 160 ? -1 : 1;
             beast.SetState(FighterState.Fleeing, beast.FreeMoves.Walk);
         }
+        // Set 6 accelerates a fleeing beast by half a pixel per tick to four times its walk speed.
+        var speed = Math.Min(6, (beast.StateTicks + 1) * 0.5);
         var direction = beast.EscapeDirection;
         var oldX = beast.X;
         var oldZ = beast.Z;
         if (direction < 0 && screenX < 24 || direction > 0 && screenX > 296)
         {
             // Keep running beyond the visible collision map until the whole sprite exits.
-            beast.X += direction * 3;
+            beast.X += direction * speed;
             beast.Facing = direction;
         }
         else
@@ -729,7 +816,8 @@ internal sealed class Game
             var input = ahead < beast.Y - 12 || ahead >= 5248
                 ? TerrainNavigator.Towards(this, beast, Progress + (direction < 0 ? 12 : 305), beast.Z)
                 : new GameInput(direction);
-            Move(beast, input.X * 3, input.Z * 1.5);
+            var step = input.X != 0 && input.Z != 0 ? Math.Min(speed, 4.25) : speed;
+            Move(beast, input.X * step, input.Z * step);
             if (input.X != 0)
                 beast.Facing = Math.Sign(input.X);
         }
@@ -821,7 +909,9 @@ internal sealed class Game
         var dz = target.Z - actor.Z;
         if (TryStartBrotherChuckle(actor, target, dx, dz))
             return default;
-        if (actor.IsHeavyEnemy && actor.IsFree && Hero.Health > 0 && HeavyEnemyFlank(actor, target) is { } flank)
+        if (actor.Kind is ActorKind.BadBrother or ActorKind.DeathAdder && actor.IsFree && TryStartHeavyRun(actor, target, dx, dz))
+            return default;
+        if (actor.IsEnemy && actor.IsFree && Hero.Health > 0 && EnemyFlank(actor, target) is { } flank)
             return flank;
         if (actor.IsFree)
             actor.Facing = dx < 0 ? -1 : 1;
@@ -832,9 +922,52 @@ internal sealed class Game
         if (EnemyCharge(actor, target, dx, dz) is { } charge)
             return charge;
         var attack = actor.IsFree && actor.Cooldown == 0 && Hero.Health > 0 &&
+            (actor.Kind != ActorKind.Knight || (TickCount & 3) == (actor.Id & 3)) &&
             Math.Abs(dx) < reach + 6 && Math.Abs(dz) < 6 && HasAttackWindow(actor, target);
         return new GameInput(Math.Abs(dx) > reach ? Math.Sign(dx) : 0, Math.Abs(dz) > 2 ? Math.Sign(dz) : 0,
             attack);
+    }
+
+    private bool TryStartHeavyRun(Fighter actor, Fighter target, double dx, double dz)
+    {
+        if (Hero.Health <= 0 || Math.Abs(target.Y - actor.Y) > 8 || dx == 0)
+            return false;
+
+        // Each heavy pursues a slot 48 pixels to one side of its target (set-6 routines 0x285c2 and 0x35074).
+        var direction = Math.Sign(dx);
+        if (actor.HeavyAttackSide == 0)
+        {
+            actor.HeavyAttackSide = -direction;
+            if (Actors.Any(other => other != actor && other.Health > 0 && other.HeavyAttackSide == -direction))
+                actor.HeavyAttackSide = direction;
+        }
+        var slotDistance = (dx + actor.HeavyAttackSide * 48) * direction;
+        var across = actor.HeavyAttackSide == direction;
+        var attackRun = !across && slotDistance >= 80 && Math.Abs(dz) < 3;
+        if (attackRun)
+        {
+            var brother = actor.Kind == ActorKind.BadBrother;
+            if (actor.Cooldown != 0 || !target.Vulnerable || Math.Abs(actor.X - (Progress + 160)) >= (brother ? 128 : 160))
+                return false;
+            actor.Facing = direction;
+            if (!brother)
+            {
+                actor.FlameStarted = false;
+                actor.SetState(FighterState.Attacking, Moves.DeathAdderCast, true);
+                return true;
+            }
+        }
+        else if (!across || slotDistance < 128 || Math.Abs(dz) < 16)
+            return false;
+
+        var destination = target.X + direction * (attackRun ? -96 : 32);
+        if (!FlankPathIsWalkable(actor.Y, actor.X, actor.Z, destination, actor.Z))
+            return false;
+        actor.ChargeAttackX = destination;
+        actor.Facing = direction;
+        actor.Vx = 0;
+        actor.SetState(FighterState.RunningToPosition, attackRun ? Moves.BrotherAttackRun : actor.Moves.Run);
+        return true;
     }
 
     private bool TryStartBrotherChuckle(Fighter actor, Fighter target, double dx, double dz)
@@ -858,7 +991,7 @@ internal sealed class Game
         return true;
     }
 
-    private GameInput? HeavyEnemyFlank(Fighter actor, Fighter target)
+    private GameInput? EnemyFlank(Fighter actor, Fighter target)
     {
         var distance = actor.X - target.X;
         if (Math.Abs(distance) >= 160 || Math.Abs(actor.Y - target.Y) > 12)
@@ -874,11 +1007,17 @@ internal sealed class Game
         foreach (var partner in Actors)
         {
             var partnerDistance = partner.X - target.X;
-            if (partner == actor || !partner.IsHeavyEnemy || partner.Health <= 0 || partner.State == FighterState.Entering ||
+            if (partner == actor || (actor.IsHeavyEnemy ? !partner.IsHeavyEnemy : partner.Kind != actor.Kind) ||
+                partner.Health <= 0 || partner.State == FighterState.Entering ||
                 Math.Abs(partnerDistance) >= 160 || Math.Abs(partner.Z - target.Z) >= 52 || Math.Abs(partner.Y - target.Y) > 12)
                 continue;
             hasPartner = true;
             oppositeSideTaken |= partnerDistance * side < 0 || partner.FlankSide != 0;
+            // The set-6 routines use paired left/right attack slots (e.g. Heninger at 0x18e8c).
+            // Give a stacked walker the spare side; let already separated foot soldiers keep their approach.
+            if (!actor.IsHeavyEnemy && (partner.Mount != null || !partner.IsFree ||
+                Math.Abs(partner.X - actor.X) > 16 || Math.Abs(partner.Z - actor.Z) > 8))
+                continue;
             closerPartner |= Math.Abs(partnerDistance) < Math.Abs(distance) ||
                 Math.Abs(partnerDistance) == Math.Abs(distance) && partner.Id < actor.Id;
         }
@@ -949,7 +1088,7 @@ internal sealed class Game
 
         var steps = m_data.Animations[address];
         var hitTicks = 1;
-        for (var i = Animation.FirstAttackStep(steps); i < attack[2]; i++)
+        for (var i = actor.Kind == ActorKind.Knight ? 1 : Animation.FirstAttackStep(steps); i < attack[2]; i++)
             hitTicks += steps[i].Duration;
 
         foreach (var other in Actors)
@@ -969,16 +1108,23 @@ internal sealed class Game
     private GameInput? EnemyCharge(Fighter actor, Fighter target, double dx, double dz)
     {
         var distance = Math.Abs(dx);
-        if (!actor.IsEnemy || !actor.IsFree || actor.Cooldown != 0 || !target.Vulnerable ||
-            actor.Moves.Dash == 0 && actor.Moves.JumpAttack == 0 || Math.Abs(dz) > 5 ||
+        var soldier = actor.Moves == Moves.Heninger || actor.Moves == Moves.Longmoan;
+        var running = actor.State == FighterState.Walking && actor.Animation.Address == actor.Moves.Run;
+        var committed = soldier && running;
+        if (!actor.IsEnemy || !actor.IsFree || actor.Cooldown != 0 || !committed && !target.Vulnerable ||
+            actor.Moves.Dash == 0 && actor.Moves.JumpAttack == 0 || !committed && (soldier ? Math.Abs(dz) >= 3 : Math.Abs(dz) > 5) ||
             Math.Abs(target.Y - actor.Y) > 8 || Project(actor.X, actor.Z, actor.Y).X is < 16 or > 304)
             return null;
 
-        var running = actor.State == FighterState.Walking && actor.Animation.Address == actor.Moves.Run;
         var leap = actor.Moves.Dash == 0;
         var attackRange = leap ? 85 : 48;
-        // Give a distant, stationary target time to react before committing to a rush.
-        if (distance < 32 || !running && (distance < 140 || target.State != FighterState.Idle || target.StateTicks < 36))
+        if (soldier)
+        {
+            // The attack slot is 40 pixels from the target. Start 96 pixels outside it.
+            if (!running && (distance < 136 || Math.Abs(actor.X - (Progress + 160)) >= 128))
+                return null;
+        }
+        else if (distance < 32 || !running && (distance < 140 || target.State != FighterState.Idle || target.StateTicks < 36))
             return null;
 
         if (!running && Actors.Any(other => other != actor && other.IsEnemy && other.Health > 0 &&
@@ -987,8 +1133,11 @@ internal sealed class Game
              other.State == FighterState.Walking && other.Animation.Address == other.Moves.Run)))
             return null;
 
-        var direction = Math.Sign(dx);
-        var attack = running && Math.Abs(actor.Vx) >= 2 && distance <= attackRange;
+        var direction = committed ? Math.Sign(actor.Vx) : Math.Sign(dx);
+        if (soldier && !running)
+            actor.ChargeAttackX = target.X - direction * 96;
+        var attack = running && Math.Abs(actor.Vx) >= 2 &&
+            (soldier ? (actor.ChargeAttackX - actor.X) * direction <= 0 : distance <= attackRange);
         var pathLength = attack && leap ? distance + 16 : Math.Min(distance, 48);
         for (var offset = 8; offset <= pathLength; offset += 8)
         {
@@ -1028,10 +1177,51 @@ internal sealed class Game
         }
         switch (actor.State)
         {
+            case FighterState.RunningToPosition:
+                var attackRun = actor.Animation.Address == Moves.BrotherAttackRun;
+                var remaining = (actor.ChargeAttackX - actor.X) * actor.Facing;
+                actor.Vx = actor.Facing * Math.Min(attackRun ? 4 : 3, Math.Abs(actor.Vx) + 0.5);
+                var oldX = actor.X;
+                Move(actor, actor.Facing * Math.Min(Math.Abs(actor.Vx), Math.Max(0, remaining)), 0);
+                actor.Animation.Tick();
+                if (actor.X == oldX || actor.X == actor.ChargeAttackX)
+                {
+                    if (attackRun && actor.X == actor.ChargeAttackX)
+                    {
+                        actor.Vy = -3;
+                        actor.SetState(FighterState.Jumping, Moves.BrotherChargeImpact);
+                    }
+                    else
+                    {
+                        actor.Vx = 0;
+                        actor.SetState(FighterState.Idle, actor.Moves.Idle);
+                    }
+                }
+                return;
+            case FighterState.Stamping:
+                actor.Animation.Tick();
+                if (actor.Animation.Index == 0 && (actor.StateTicks > 480 || Progress + 188 >= actor.X))
+                    actor.SetState(FighterState.Idle, actor.Moves.Idle);
+                return;
             case FighterState.Chuckling:
                 actor.Animation.Tick();
                 if (actor.StateTicks >= BrotherChuckleTicks)
                     actor.SetState(FighterState.Idle, actor.Moves.Idle);
+                return;
+            case FighterState.Entering when actor.Moves == Moves.StrongHeninger || actor.Moves == Moves.StrongLongmoan:
+                // Both clay initializers hold their entrance pose for 0x3c updates after the gate opens.
+                if (actor.StateTicks >= 60)
+                    actor.SetState(FighterState.Idle, actor.Moves.Idle);
+                return;
+            case FighterState.Entering when actor.Kind == ActorKind.DeathAdder:
+                if (actor.StateTicks >= DeathAdderEntrance.WalkTick)
+                {
+                    actor.Animation.Play(actor.Moves.Walk);
+                    actor.Animation.Tick();
+                    Move(actor, 0, 1);
+                    if (actor.StateTicks >= DeathAdderEntrance.WalkTick + 48)
+                        actor.SetState(FighterState.Idle, actor.Moves.Idle);
+                }
                 return;
             case FighterState.Entering:
                 if (actor.StateTicks < DoorRevealStart)
@@ -1118,6 +1308,8 @@ internal sealed class Game
                 if (actor.StateTicks >= 24)
                 {
                     actor.Invulnerable = actor == Hero ? 70 : 20;
+                    if (actor.Kind == ActorKind.Knight)
+                        actor.Combo = Array.IndexOf(actor.Moves.Attacks, Moves.KnightOverheadSwing);
                     if (actor.Kind == ActorKind.DeathAdder && Hero.Health > 0)
                     {
                         actor.Facing = Hero.X < actor.X ? -1 : 1;
@@ -1127,6 +1319,12 @@ internal sealed class Game
                     else
                         actor.SetState(FighterState.Idle, actor.Moves.Idle);
                 }
+                return;
+            case FighterState.StruckByOwnAxe:
+                if (actor.StateTicks == DeathAdderDefeat.ImpactTick)
+                    actor.Animation.Play(DeathAdderDefeat.EmbeddedPose);
+                if (actor.StateTicks >= DeathAdderDefeat.Duration)
+                    Petrify(actor);
                 return;
             case FighterState.Dying:
                 if (actor.StateTicks > 45)
@@ -1160,7 +1358,10 @@ internal sealed class Game
                     {
                         actor.Animation.Tick();
                         if (actor.Animation.Index != 0)
+                        {
+                            actor.Cooldown = 45;
                             actor.SetState(FighterState.Idle, actor.Moves.Idle);
+                        }
                         return;
                     }
                     if (actor.Animation.Index >= 3 && !actor.FlameStarted)
@@ -1193,8 +1394,12 @@ internal sealed class Game
                     fireball.Y = actor.Y - 28;
                     fireball.Animation.Play(0x32b00);
                 }
-                ResolveAttack(actor);
-                if (actor.Animation.Tick())
+                if (actor.Kind != ActorKind.Knight)
+                    ResolveAttack(actor);
+                var attackFinished = actor.Animation.Tick();
+                if (actor.Kind == ActorKind.Knight && !attackFinished)
+                    ResolveAttack(actor);
+                if (attackFinished)
                 {
                     actor.ComboTimer = 40;
                     actor.Combo = actor.Connected ? (actor.Combo + 1) % actor.Moves.Attacks.Length : 0;
@@ -1289,7 +1494,7 @@ internal sealed class Game
                     actor.Animation.Play(actor.Moves.JumpAttack, true, true);
                     actor.Struck.Clear();
                 }
-                if (actor.Animation.Address == actor.Moves.JumpAttack)
+                if (actor.Animation.Address == actor.Moves.JumpAttack || actor.Animation.Address == Moves.BrotherChargeImpact)
                 {
                     ResolveAttack(actor);
                     actor.Animation.Tick();
@@ -1350,6 +1555,8 @@ internal sealed class Game
             actor.Connected = false;
             actor.FlameStarted = false;
             actor.SetState(FighterState.Attacking, actor.Moves.Attacks[actor.Combo % actor.Moves.Attacks.Length], true);
+            if (actor.Kind == ActorKind.Knight)
+                actor.Animation.Seek(1);
             return;
         }
         if (input.Jump && actor.Moves.Jump != 0)
@@ -1359,14 +1566,14 @@ internal sealed class Game
             actor.SetState(FighterState.Crouching, actor.Moves.Jump);
             return;
         }
-        var speed = actor == Hero || actor.Rider == Hero ? 1.5 : actor.Kind switch
+        var speed = actor == Hero || actor.Rider != null ? 1.5 : actor.Kind switch
         {
             ActorKind.BadBrother => 0.5,
-            ActorKind.Knight or ActorKind.DeathAdder => 0.9,
-            ActorKind.Skeleton => 0.8,
+            ActorKind.Knight or ActorKind.DeathAdder => 1,
+            ActorKind.Skeleton => 2,
             _ => actor.Moves.WalkSpeed
         };
-        var run = (actor == Hero || actor.IsEnemy || actor.Rider != null) && input.Run && input.X != 0;
+        var run = (actor == Hero || actor.IsEnemy || actor.Rider != null) && input.Run && input.X != 0 && ((actor != Hero && actor.Rider == null) || input.Z == 0);
         if (run)
         {
             actor.Vx = Math.Sign(input.X) * Math.Min(actor == Hero || actor.Rider != null ? 4 : actor.Moves.RunSpeed, Math.Abs(actor.Vx) + 0.5);
@@ -1374,6 +1581,14 @@ internal sealed class Game
         }
         else
             actor.Vx = 0;
+        // Set-6 direction table 0x198a4 uses 90/128 of straight speed on each diagonal axis.
+        if (!run && input.X != 0 && input.Z != 0)
+        {
+            if (actor.Rider != null)
+                speed = 272.0 / 256;
+            else if (actor.IsEnemy || actor == Hero)
+                speed *= 90.0 / 128;
+        }
         Move(actor, input.X * speed, input.Z * speed);
         if (input.X != 0 || input.Z != 0)
         {
@@ -1828,6 +2043,7 @@ internal sealed class Game
         {
             var rider = target.Rider;
             target.Rider = null;
+            target.SpawnParameter = 0;
             target.Moves = target.FreeMoves;
             target.SetState(FighterState.Idle, target.Moves.Idle);
             rider.Mount = null;
@@ -1913,7 +2129,7 @@ internal sealed class Game
         m_landingDust.Add(new DustPuff(
             actor.X + (heavy ? pose.Dx * actor.Facing : 0),
             actor.Z,
-            actor.Y + (heavy ? pose.Dy : 0),
+            actor.Y + (heavy ? pose.Dy : 0) + (actor.State == FighterState.Down ? m_data.LandingContactY(sprite) : 0),
             heavy ? sprite.Width * 0.34 : 5,
             TickCount,
             heavy));
@@ -1929,13 +2145,21 @@ internal sealed class Game
             if (actor.IsEnemy)
             {
                 actor.Flash = actor.Invulnerable = 0;
-                actor.PetrifiedTick = TickCount;
-                actor.SetState(FighterState.Petrified);
-                m_stoneBodies.Add(actor);
+                if (actor.Kind == ActorKind.DeathAdder && AreaIndex == ArcadeData.AreaCount - 1)
+                    actor.SetState(FighterState.StruckByOwnAxe, DeathAdderDefeat.FallenPose);
+                else
+                    Petrify(actor);
             }
             else
                 actor.SetState(FighterState.Dying);
         }
+    }
+
+    private void Petrify(Fighter actor)
+    {
+        actor.PetrifiedTick = TickCount;
+        actor.SetState(FighterState.Petrified);
+        m_stoneBodies.Add(actor);
     }
 
     private void MoveVillager(Fighter actor)
@@ -2145,14 +2369,15 @@ internal sealed class Game
                 actor.Animation.Tick();
             return;
         }
-        if (actor.Kind == ActorKind.Villager && actor.Animation.Address == 0xa35c)
+        if (actor.Kind == ActorKind.Villager && actor.Animation.Address is 0xa342 or 0xa35c)
         {
             actor.Animation.Tick();
-            // The trace shows a stationary child before fleeing. Exact arcade release conditions
-            // are not captured, so use player proximity rather than inventing a fixed timer.
-            if (Math.Abs(Hero.X - actor.X) >= 128)
+            if (actor.Owner?.State == FighterState.Stamping)
                 return;
-            actor.Animation.Play(0xa10e);
+            if (actor.Owner == null && actor.Animation.Address == 0xa35c && Math.Abs(Hero.X - actor.X) >= 128)
+                return;
+            actor.Owner = null;
+            actor.Animation.Play(actor.Animation.Address == 0xa342 ? 0xa0ac : 0xa10e);
             actor.Facing = -1;
         }
         var previousPoseX = actor.Animation.Current.Dx;

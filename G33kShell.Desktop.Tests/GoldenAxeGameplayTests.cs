@@ -877,6 +877,103 @@ public class GoldenAxeGameplayTests
         Assert.That(hero.Health, Is.EqualTo(46));
     }
 
+    [TestCase(0)]
+    [TestCase(1)]
+    [TestCase(2)]
+    public void OnFootHeroWalksDiagonallyAndSprintsHorizontallyAtArcadeSpeed(int character)
+    {
+        var game = new Game(m_areas[0], character);
+        var hero = game.Hero;
+        var x = hero.X;
+        game.Tick(new GameInput(X: 1));
+        Assert.That(hero.X - x, Is.EqualTo(1.5));
+        for (var tick = 0; tick < 10; tick++)
+            game.Tick(new GameInput(X: 1, Run: true));
+        Assert.That(hero.Vx, Is.EqualTo(4));
+        x = hero.X;
+        var z = hero.Z;
+        game.Tick(new GameInput(X: 1, Z: -1, Run: true));
+        Assert.That(hero.X - x, Is.EqualTo(1.5 * 90 / 128));
+        Assert.That(z - hero.Z, Is.EqualTo(hero.X - x));
+        Assert.That(hero.Animation.Address, Is.EqualTo(hero.Moves.WalkUp));
+    }
+
+    [TestCase(135, 0, false)]
+    [TestCase(136, 2, true)]
+    [TestCase(136, 3, false)]
+    public void OpeningSoldierStartsAttackRunAtArcadeDistanceAgainstMovingHero(int distance, int depth, bool charge)
+    {
+        var game = new Game(m_areas[0]);
+        game.Tick(new GameInput(X: 1));
+        var hero = game.Hero;
+        var enemy = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, hero.X + distance + 1.5, hero.Z + depth);
+        enemy.Cooldown = 0;
+        game.Tick(new GameInput(X: 1));
+        Assert.That(enemy.Animation.Address == Moves.Heninger.Run, Is.EqualTo(charge));
+    }
+
+    [Test]
+    public void KnightCanStartOverheadSwingTwoTicksAfterStandingAndHitOnTickFifteen()
+    {
+        var game = new Game(m_areas[0]);
+        var hero = game.Hero;
+        var knight = game.Add(ActorKind.Knight, Moves.Knight, 0x86, 32, hero.X + 36, hero.Z);
+        knight.SetState(FighterState.GettingUp, Moves.Knight.GetUp);
+        knight.Cooldown = 0;
+        // Align the end of recovery with this knight's four-frame decision phase.
+        var ticksUntilStanding = 1 + ((knight.Id - game.TickCount - 3) & 3);
+        knight.StateTicks = 24 - ticksUntilStanding;
+        for (var tick = 0; tick < ticksUntilStanding; tick++)
+            game.Tick(default);
+        Assert.That(knight.State, Is.EqualTo(FighterState.Idle));
+        for (var tick = 1; tick <= 15; tick++)
+        {
+            game.Tick(default);
+            if (tick == 2)
+                Assert.That(knight.Animation.Address, Is.EqualTo(Moves.KnightOverheadSwing));
+            Assert.That(hero.Health, Is.EqualTo(tick < 15 ? 48 : 32), $"Tick {tick} after standing");
+        }
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void HeavyEnemyRunsAcrossToItsReservedSide(bool adder)
+    {
+        var game = new Game(m_areas[0]);
+        var hero = game.Hero;
+        var enemy = game.Add(adder ? ActorKind.DeathAdder : ActorKind.BadBrother, adder ? Moves.DeathAdder : Moves.Brother,
+            0x38, 32, hero.X + 100, hero.Z + 18);
+        enemy.HeavyAttackSide = -1;
+        var destination = hero.X - 32;
+        game.Tick(default);
+        Assert.That(enemy.State, Is.EqualTo(FighterState.RunningToPosition));
+        for (var tick = 0; tick < 6; tick++)
+            game.Tick(default);
+        Assert.That(enemy.Vx, Is.EqualTo(-3));
+        for (var tick = 0; tick < 60 && enemy.State == FighterState.RunningToPosition; tick++)
+            game.Tick(default);
+        Assert.That(enemy.X, Is.EqualTo(destination));
+    }
+
+    [Test]
+    public void BadBrotherAttackRunEndsInTheArcadeLeapingImpact()
+    {
+        var game = new Game(m_areas[0]);
+        var hero = game.Hero;
+        var enemy = game.Add(ActorKind.BadBrother, Moves.Brother, 0x38, 32, hero.X + 168, hero.Z);
+        enemy.Cooldown = 0;
+        for (var tick = 0; tick < 8; tick++)
+            game.Tick(default);
+        Assert.That(enemy.Animation.Address, Is.EqualTo(Moves.BrotherAttackRun));
+        Assert.That(enemy.Vx, Is.EqualTo(-4));
+        for (var tick = 0; tick < 30 && enemy.State == FighterState.RunningToPosition; tick++)
+            game.Tick(default);
+        Assert.That((enemy.X, enemy.Animation.Address), Is.EqualTo((hero.X + 96, Moves.BrotherChargeImpact)));
+        for (var tick = 0; tick < 36 && hero.Health == 48; tick++)
+            game.Tick(default);
+        Assert.That(hero.Health, Is.EqualTo(32));
+    }
+
     [Test]
     public void DistantEnemyRunsAndUsesItsClosingAttack([Values(false, true)] bool leap)
     {
@@ -901,8 +998,7 @@ public class GoldenAxeGameplayTests
         }
 
         Assert.That(ran, Is.True);
-        if (leap)
-            Assert.That(topSpeed, Is.EqualTo(3));
+        Assert.That(topSpeed, Is.EqualTo(4));
         Assert.That(usedClosingAttack, Is.True);
         Assert.That(hero.Health, Is.EqualTo(44));
     }
@@ -1973,6 +2069,12 @@ public class GoldenAxeGameplayTests
         Assert.That(beast.IsFree, Is.True);
         game.Tick(default);
         Assert.That(beast.State, Is.EqualTo(FighterState.Fleeing));
+        Assert.That((beast.X - startX) * direction, Is.EqualTo(0.5));
+        for (var tick = 0; tick < 12; tick++)
+            game.Tick(default);
+        var runningX = beast.X;
+        game.Tick(default);
+        Assert.That((beast.X - runningX) * direction, Is.EqualTo(6));
         Assert.That(beast.Facing, Is.EqualTo(direction));
         Assert.That(beast.IsFree, Is.False, "A fleeing mount must not attract new riders.");
         for (var tick = 0; tick < 180 && !beast.IsGone; tick++)
@@ -2625,6 +2727,13 @@ public class GoldenAxeGameplayTests
         game.Tick(default);
         var skeleton = game.Actors.Single(a => a.Kind == ActorKind.Skeleton && a.X == spawn.X && a.Z == spawn.Z);
         Assert.That(skeleton.State, Is.EqualTo(FighterState.Emerging));
+        if (spawn.Parameter is > 0 and < 0x1000)
+        {
+            Assert.That(skeleton.StateTicks, Is.Zero);
+            for (var tick = 1; tick < spawn.Parameter; tick++)
+                game.Tick(default);
+            Assert.That(skeleton.StateTicks, Is.EqualTo(1));
+        }
         Assert.That(skeleton.Animation.Address, Is.EqualTo(SkeletonEmergence.CastleAnimation));
         Assert.That(skeleton.Animation.Current.Frame, Is.EqualTo(846));
         for (var tick = 1; tick < SkeletonEmergence.Duration; tick++)
@@ -2695,6 +2804,97 @@ public class GoldenAxeGameplayTests
         }
         Assert.That(hero.State, Is.EqualTo(FighterState.Idle));
         Assert.That(hero.Animation.Address, Is.EqualTo(hero.Moves.Idle));
+    }
+
+    [Test]
+    public void CastleKnightsWaitForThreeAndTwoRemainingEncounterSlots()
+    {
+        var game = new Game(m_areas[4]);
+        AdvanceTo(game, 4900);
+        game.Tick(default);
+        var knights = game.Actors.Where(a => a.Kind == ActorKind.Knight).ToArray();
+        Assert.That(knights.Select(a => a.SpawnParameter), Is.EqualTo(new[] { 0x1003, 0x1002 }));
+        var others = game.Actors.Where(a => a.IsEnemy && a.Kind != ActorKind.Knight).ToArray();
+        Assert.That(others, Has.Length.EqualTo(3));
+
+        game.Actors.Remove(others[0]);
+        game.Tick(default);
+        Assert.That(knights.All(a => a.StateTicks == 0), Is.True);
+        game.Actors.Remove(others[1]);
+        game.Tick(default);
+        Assert.That(knights[0].SpawnParameter, Is.Zero);
+        Assert.That(knights[1].StateTicks, Is.Zero);
+        game.Actors.Remove(others[2]);
+        game.Tick(default);
+        Assert.That(knights[1].SpawnParameter, Is.Zero);
+    }
+
+    [Test]
+    public void CastleThroneSpawnsAdderSeparatelyFromHisThreeGatedGuards()
+    {
+        var game = new Game(m_areas[4]);
+        AdvanceTo(game, 5312);
+        var survivor = game.Add(ActorKind.Heninger, Moves.Heninger, 0x1a, 16, game.Hero.X + 100, game.Hero.Z);
+        game.Tick(default);
+        var guards = game.Actors.Where(a => a.Kind == ActorKind.Skeleton).ToArray();
+        Assert.That(guards.Select(a => a.SpawnParameter), Is.EqualTo(new[] { 0, 0x1004, 0x1003 }));
+        Assert.That(game.Actors.Count(a => a.Kind == ActorKind.DeathAdder), Is.EqualTo(1));
+        game.Actors.Remove(survivor);
+        game.Tick(default);
+        Assert.That(guards[1].SpawnParameter, Is.Zero);
+        Assert.That(guards[2].StateTicks, Is.Zero);
+        game.Actors.Remove(guards[0]);
+        game.Tick(default);
+        Assert.That(guards[2].SpawnParameter, Is.Zero);
+        Assert.That(game.Actors.Count(a => a.Kind == ActorKind.DeathAdder), Is.EqualTo(1));
+    }
+
+    [Test]
+    public void FinalEagleWaveReservesFiveActorsAndReleasesThemAtTheSetSixGates()
+    {
+        var data = m_areas[3];
+        var game = new Game(data);
+        AdvanceTo(game, 5312);
+        game.Hero.Invulnerable = 10000;
+        game.Hero.X = game.Progress + 60;
+        game.Tick(default);
+        var wave = game.Actors.Where(a => a.IsEnemy).ToArray();
+        Assert.That(wave, Has.Length.EqualTo(5));
+        var first = wave.Single(a => a.SpawnParameter == 127);
+        var second = wave.Single(a => a.SpawnParameter == 255);
+        var last = wave.Single(a => a.SpawnParameter == 0x1002);
+        var longmoan = wave.Single(a => a.SpawnParameter == 0x1004);
+        var heninger = wave.Single(a => a.Kind == ActorKind.Heninger);
+        Assert.That(wave.Count(a => a.WaitingUnderMound), Is.EqualTo(3));
+
+        for (var tick = 2; tick <= 256; tick++)
+        {
+            game.Tick(default);
+            if (tick == 127 || tick == 128)
+                Assert.That(first.WaitingUnderMound, Is.EqualTo(tick < 128));
+            Assert.That(second.WaitingUnderMound, Is.EqualTo(tick < 256));
+            Assert.That(last.WaitingUnderMound, Is.True);
+            Assert.That(longmoan.StateTicks, Is.Zero);
+        }
+        Assert.That(first.State, Is.Not.EqualTo(FighterState.Emerging));
+        Assert.That(second.Vulnerable, Is.False);
+
+        // One slot released opens Longmoan's gate. Its 60-tick entrance is separate from the wait.
+        heninger.SetState(FighterState.Petrified);
+        for (var tick = 1; tick <= 60; tick++)
+        {
+            game.Tick(default);
+            Assert.That(longmoan.SpawnParameter, Is.Zero);
+            Assert.That(longmoan.State == FighterState.Entering, Is.EqualTo(tick < 60));
+        }
+        first.SetState(FighterState.Petrified);
+        game.Tick(default);
+        Assert.That(last.WaitingUnderMound, Is.True);
+        second.SetState(FighterState.Petrified);
+        game.Tick(default);
+        Assert.That(last.WaitingUnderMound, Is.False);
+        Assert.That(last.State, Is.EqualTo(FighterState.Emerging));
+        Assert.That(last.Vulnerable, Is.False);
     }
 
     [Test]
@@ -2818,6 +3018,30 @@ public class GoldenAxeGameplayTests
         Assert.That(PromptPixels(), Is.Not.EqualTo(visible));
     }
 
+    [TestCase(0, 4511, 0xa342, 0xa0ac)]
+    [TestCase(0, 5136, 0xa342, 0xa0ac)]
+    [TestCase(1, 4784, 0xa35c, 0xa10e)]
+    [TestCase(1, 5184, 0xa35c, 0xa10e)]
+    public void StampingSoldierReleasesThePairedVillager(int area, int trigger, int waiting, int fleeing)
+    {
+        var data = m_areas[area];
+        var game = new Game(data);
+        foreach (var spawn in data.Spawns.Where(s => s.Trigger == trigger))
+            game.Spawn(spawn);
+        var soldier = game.Actors.Single(a => a.State == FighterState.Stamping);
+        var villager = game.Actors.Single(a => a.Owner == soldier);
+        Assert.That(soldier.X - villager.X, Is.EqualTo(28));
+        for (var tick = 0; tick < 38; tick++)
+            game.Tick(default);
+        Assert.That(villager.Animation.Address, Is.EqualTo(waiting));
+        typeof(Game).GetProperty(nameof(Game.CameraX))!.SetValue(game, 4096 - 7 - (soldier.X - 180));
+        game.Hero.X = soldier.X - 80;
+        for (var tick = 0; tick < 60 && villager.Owner != null; tick++)
+            game.Tick(default);
+        Assert.That(soldier.State, Is.Not.EqualTo(FighterState.Stamping));
+        Assert.That(villager.Animation.Address, Is.EqualTo(fleeing));
+    }
+
     [Test]
     public void ForestReinforcementsHoldUntilTheFirstFightersAreCleared()
     {
@@ -2920,23 +3144,30 @@ public class GoldenAxeGameplayTests
         Assert.That(brother.State, Is.EqualTo(FighterState.Chuckling));
     }
 
-    [TestCase((int)ActorKind.BadBrother, (int)ActorKind.BadBrother)]
-    [TestCase((int)ActorKind.Knight, (int)ActorKind.Knight)]
-    [TestCase((int)ActorKind.Knight, (int)ActorKind.DeathAdder)]
-    public void HeavyEnemiesOnTheSameSideSplitAroundThePlayer(int frontKind, int rearKind)
+    [TestCase((int)ActorKind.BadBrother, (int)ActorKind.BadBrother, 62)]
+    [TestCase((int)ActorKind.Knight, (int)ActorKind.Knight, 62)]
+    [TestCase((int)ActorKind.Knight, (int)ActorKind.DeathAdder, 62)]
+    [TestCase((int)ActorKind.Heninger, (int)ActorKind.Heninger, 32)]
+    public void EnemiesOnTheSameSideSplitAroundThePlayer(int frontKind, int rearKind, int rearOffset)
     {
         var game = new Game(m_areas[0]);
         var hero = game.Hero;
         hero.Z = 4224;
         hero.Y = game.Ground(hero.X, hero.Z);
         hero.Invulnerable = 1000;
-        Fighter AddHeavy(ActorKind kind, int offset)
+        Fighter AddEnemy(ActorKind kind, int offset)
         {
-            var moves = kind == ActorKind.BadBrother ? Moves.Brother : kind == ActorKind.Knight ? Moves.Knight : Moves.DeathAdder;
+            var moves = kind switch
+            {
+                ActorKind.Heninger => Moves.Heninger,
+                ActorKind.BadBrother => Moves.Brother,
+                ActorKind.Knight => Moves.Knight,
+                _ => Moves.DeathAdder
+            };
             return game.Add(kind, moves, 0x38, 32, hero.X + offset, hero.Z);
         }
-        var front = AddHeavy((ActorKind)frontKind, 32);
-        var rear = AddHeavy((ActorKind)rearKind, 62);
+        var front = AddEnemy((ActorKind)frontKind, 32);
+        var rear = AddEnemy((ActorKind)rearKind, rearOffset);
         for (var tick = 0; tick < 440 && rear.X > hero.X - 28; tick++)
             game.Tick(default);
 

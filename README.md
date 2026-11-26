@@ -338,6 +338,12 @@ remain behind. Stone-floor skeletons arrive normally. Mound skeletons use the wh
 palette. The ground and skeleton share their anchor and advance together every eight
 ticks, with normal AI starting at tick 48, matching the MAME trace. Which individual
 spawns use this entrance, including Stage 9, still needs verification.
+At the final Stage 7 scroll stop (5312), set 6 reserves all five enemy slots together.
+Two mounds wait 128 and 256 updates before opening. Clay Longmoan starts his
+60-update entrance when the encounter count reaches four or fewer. The last mound
+opens at two or fewer. Both thresholds include the waiting actors and any survivors
+from earlier waves. The MAME trace records the remaining spawn word and encounter
+count in the `actor_word_74` and `encounter_count` columns.
 Landing and emergence dust particles rise, disperse and fade over 2–2.5 seconds,
 with gentle leftward drift where the eagle's wind blows.
 Magic shakes the scene after the casting potions disappear until the spell ends,

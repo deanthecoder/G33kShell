@@ -51,6 +51,7 @@ internal sealed class ArcadeData
     public byte[] SurfPalette { get; }
     public byte[] SpritePens { get; }
     public int SpriteStride { get; }
+
     public byte[] TilePens { get; }
     public int TileStride { get; }
     public TileLayer Foreground { get; }
@@ -83,6 +84,28 @@ internal sealed class ArcadeData
     public byte Black { get; }
 
     public bool UsesCastleOpeningFraming(double progress) => AreaIndex == 4 && progress <= 0x1108;
+
+    internal int LandingContactY(SpriteFrame frame)
+    {
+        // A dangling hand or weapon can sit well below the part that strikes the floor.
+        var start = frame.Height / 2;
+        Span<int> widths = stackalloc int[frame.Height - start];
+        var widest = 0;
+        for (var y = start; y < frame.Height; y++)
+        {
+            var row = (frame.Y + y) * SpriteStride + frame.X;
+            var width = 0;
+            for (var x = 0; x < frame.Width; x++)
+                if (SpritePens[row + x] is > 0 and < 15)
+                    width++;
+            widths[y - start] = width;
+            widest = Math.Max(widest, width);
+        }
+        for (var i = widths.Length - 1; i >= 0; i--)
+            if (widths[i] * 3 >= widest * 2)
+                return frame.Oy + start + i + 1;
+        return frame.Oy + frame.Height;
+    }
 
     public (int Low, int High) CameraRange(double cameraX, bool extendLower = true)
     {
@@ -250,7 +273,7 @@ internal sealed class ArcadeData
         var actorPalettes = new HashSet<int> { 0x13, 0x14, 0x15, 0x18, 0x1a, 0x1b, 0x77, 0x78, 0x79, 0x38, 0x3d, 0x4a, 0x4d, 0x63, 0x64, 0x65, 0x7b, 0x23, 0x43, 0x44, 0x45, 0x1c, 0x1d, 0x86, 0x87, 0x73, 0x6f, 0x70, 0x50, 0x52, 0x39, 0x7a, 0x3c, 0x7f };
         foreach (var effect in Magic.Values.SelectMany(h => h).SelectMany(l => l).SelectMany(t => t)) actorPalettes.Add(effect[1]);
         if (AreaIndex == AreaCount - 1)
-            actorPalettes.UnionWith(new[] { 0x5a, 0x5b, 0x5c, 0x8d });
+            actorPalettes.UnionWith(new[] { 0x5a, 0x5b, 0x5c, 0x8d, DeathAdderEntrance.BodyPilePalette, DeathAdderEntrance.SnakePalette });
         actorPalettes.Add(0x40); // GO! sword and lettering.
         actorPalettes.UnionWith(new[] { 0x4b, 0x4c, 0x4d, 0x4e }); // Dean-selected civilian palettes.
         actorPalettes.Add(0x42); // Injured villager: grey clothes and red wounds, matched to Dean's MAME image.

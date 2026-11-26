@@ -17,22 +17,23 @@
 assert(manager.machine.system.name == "goldnaxe", "This trace expects the US set 6 arcade program.")
 local memory = manager.machine.devices[":maincpu"].spaces["program"]
 local output = assert(io.open(assert(os.getenv("GA_TRACE"), "Set GA_TRACE to the output CSV path."), "w"))
-output:write("tick,area,progress,slot,flags,routine,palette,animation,sprite,hp,x,z,y,base_x,base_z,base_y\n")
+output:write("tick,area,progress,slot,flags,routine,palette,animation,sprite,hp,x,z,y,base_x,base_z,base_y,actor_word_74,encounter_count\n")
 
 local tick = 0
 local function trace_frame()
     tick = tick + 1
     local area = memory:read_u8(0xffed4a)
     local progress = memory:read_u16(0xffed32)
+    local encounter_count = memory:read_u16(0xffed5a)
     for slot = 0xffc000, 0xffdf80, 0x80 do
         local flags = memory:read_u16(slot)
         if flags & 0x8000 ~= 0 then
-            output:write(string.format("%d,%d,%d,%06x,%04x,%06x,%02x,%06x,%04x,%d,%d,%d,%d,%.4f,%.4f,%.4f\n",
+            output:write(string.format("%d,%d,%d,%06x,%04x,%06x,%02x,%06x,%04x,%d,%d,%d,%d,%.4f,%.4f,%.4f,%04x,%d\n",
                 tick, area, progress, slot, flags, memory:read_u32(slot + 2), memory:read_u8(slot + 0xb),
                 memory:read_u32(slot + 0x28), memory:read_u16(slot + 6), memory:read_u8(slot + 0x70),
                 memory:read_u16(slot + 0x10), memory:read_u16(slot + 0x14), memory:read_u16(slot + 0x18),
                 memory:read_u32(slot + 0x2c) / 65536, memory:read_u32(slot + 0x30) / 65536,
-                memory:read_u32(slot + 0x34) / 65536))
+                memory:read_u32(slot + 0x34) / 65536, memory:read_u16(slot + 0x74), encounter_count))
         end
     end
     if tick % 60 == 0 then

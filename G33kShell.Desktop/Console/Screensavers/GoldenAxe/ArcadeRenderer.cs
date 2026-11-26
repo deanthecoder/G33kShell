@@ -34,6 +34,7 @@ internal sealed class ArcadeRenderer
     private readonly byte m_emberCore;
     private readonly byte[] m_campfireWood;
     private readonly byte[] m_redTint, m_whiteTint;
+    private readonly byte[] m_bloodColors;
     private readonly Dictionary<int[][][], MagicFrame[]> m_magicFrames = new();
     private TerrainShading m_terrainShading;
     internal const int MagicMeterTop = 12;
@@ -60,6 +61,7 @@ internal sealed class ArcadeRenderer
         m_darkRed = Color(160, 0, 0);
         m_filledRed = Color(255, 32, 32);
         m_hudRed = Color(255, 0, 0);
+        m_bloodColors = [Color(70, 22, 17), Color(82, 9, 22), Color(124, 12, 22), Color(180, 22, 32)];
         m_hudPink = Color(255, 165, 189);
         m_redTint = Enumerable.Repeat(m_hudRed, 16).ToArray();
         m_whiteTint = Enumerable.Repeat(data.White, 16).ToArray();
@@ -128,6 +130,17 @@ internal sealed class ArcadeRenderer
                 return;
         }
         ProfileStage?.Invoke("terrain shade");
+        if (game.AreaIndex == ArcadeData.AreaCount - 1 && !game.IsCamp)
+        {
+            foreach (var actor in game.Actors.Concat(game.StoneBodies))
+            {
+                if (actor.Kind != ActorKind.DeathAdder || actor.Animation.Address != DeathAdderDefeat.EmbeddedPose)
+                    continue;
+                var tick = actor.State == FighterState.Petrified ? DeathAdderDefeat.Duration : actor.StateTicks;
+                DeathAdderDefeat.DrawBlood(screen, game.ProjectView(actor.X, actor.Z, actor.Y),
+                    IsFlipped(actor, actor.Animation.Current), tick, m_bloodColors, landedOnly: true);
+            }
+        }
         byte[] dustTints = [];
         if (effects)
         {
@@ -160,7 +173,7 @@ internal sealed class ArcadeRenderer
         if (effects)
             DrawDragonSmoke(screen, game);
         ProfileStage?.Invoke("ground effects and smoke");
-        if (game.RescuingCaptives)
+        if (game.AreaIndex == ArcadeData.AreaCount - 1 && !game.IsCamp)
             CastleRescue.Draw(screen, game, m_data, this);
         var casting = game.MagicTick >= 0 && game.MagicTick < game.ActiveMagicEffects.Length;
         var flashMagicTargets = game.MagicTargetsFlashing;
@@ -175,13 +188,23 @@ internal sealed class ArcadeRenderer
                 continue;
             if (actor.State == FighterState.Entering && actor.EntranceDoor is { } entrance)
             {
-                if (actor.StateTicks < Game.DoorEntranceDuration)
+                if (actor.SpawnParameter == 0 && actor.StateTicks < Game.DoorEntranceDuration)
                 {
                     var door = game.ProjectView(entrance.X - 1, entrance.Z, game.Ground(entrance.X, entrance.Z));
                     var open = actor.StateTicks >= Game.StageFiveDoorOpeningTicks && actor.StateTicks < Game.DoorCloseStart;
                     Sprite(screen, open ? Game.StageFiveDoorOpenFrame : Game.StageFiveDoorAjarFrame,
                         Game.StageFiveDoorPalette, door.X, door.Y + (open ? 2 : -3), false);
                 }
+            }
+            if (actor.Kind == ActorKind.DeathAdder && actor.State == FighterState.Entering)
+                DeathAdderEntrance.Draw(screen, game, actor, this);
+            if (actor.WaitingUnderMound)
+            {
+                if (game.AreaIndex != 3)
+                    continue;
+                var ground = game.ProjectView(actor.X, actor.Z, actor.Y);
+                Sprite(screen, SkeletonEmergence.MoundFrame, SkeletonEmergence.GroundPalette, ground.X, ground.Y, false, keepTerrainShade: true);
+                continue;
             }
             var actorFade = ActorFade(game, actor);
             if (actorFade == 0)
@@ -213,11 +236,17 @@ internal sealed class ArcadeRenderer
                 point.X + step.Dx * actor.Facing, point.Y + step.Dy, flip,
                 flash: actor.Flash > 0 && !magicTint, softFlash: effects, softenOutline: effects && IsCharacter(actor),
                 campfireWood: effects && actor.Kind == ActorKind.Campfire);
+            if (actor.Kind == ActorKind.BodyPile)
+                Sprite(screen, 1129 + actor.StateTicks / 6 % 4, DeathAdderEntrance.SnakePalette, point.X, point.Y, flip);
             if (magicTint)
                 DrawMagicTint(screen, game, step.Frame, actor.Palette, point.X + step.Dx * actor.Facing, point.Y + step.Dy, flip);
+            if (actor.State == FighterState.StruckByOwnAxe)
+                DeathAdderDefeat.Draw(screen, m_data, this, actor, point, flip, m_bloodColors);
             if (actor.State == FighterState.Petrified)
             {
-                var stoneOpacity = (byte)(255 * Math.Clamp((game.TickCount - actor.PetrifiedTick) / 120.0, 0, 1));
+                // The gameplay clock stops at stage clear, but the bodies are still in view.
+                var stoneAge = game.TickCount - actor.PetrifiedTick + game.EndStateTicks;
+                var stoneOpacity = (byte)(255 * Math.Clamp(stoneAge / 120.0, 0, 1));
                 if (stoneOpacity > 0)
                 {
                     screen.BeginTranslucentSprite(stoneOpacity);
@@ -308,10 +337,13 @@ internal sealed class ArcadeRenderer
             PotionSparkles.DrawTrails(screen, game, m_lightBlue, m_data.White, effectOpacity);
         if (game.Opening == null && game.CanAdvance && game.MagicTick < 0 && game.TickCount % 60 < 30)
             DrawGoPrompt(screen);
-        if (game.GameOver || game.Complete && !game.IsCamp && game.AreaIndex < ArcadeData.AreaCount - 1)
+        const int stageClearDelayTicks = 60;
+        if (game.GameOver || game.Complete && !game.IsCamp && game.AreaIndex < ArcadeData.AreaCount - 1 &&
+            game.EndStateTicks >= stageClearDelayTicks)
         {
             var message = game.GameOver ? "GAME OVER" : "STAGE CLEAR";
-            var fade = Math.Clamp(game.EndStateTicks / 30.0, 0, 1);
+            var messageAge = game.EndStateTicks - (game.GameOver ? 0 : stageClearDelayTicks);
+            var fade = Math.Clamp(messageAge / 30.0, 0, 1);
             screen.BeginTranslucentSprite((byte)Math.Round(255 * fade));
             Text(screen, message, (ArcadeData.Width - message.Length * 8) / 2, 96);
             screen.EndTranslucentSprite();
@@ -467,6 +499,12 @@ internal sealed class ArcadeRenderer
 
     internal static double ActorFade(Game game, Fighter actor)
     {
+        if (actor.WaitingUnderMound)
+            return 0;
+        if (actor.Kind == ActorKind.BodyPile)
+            return 1 - Math.Clamp((actor.StateTicks - DeathAdderEntrance.WalkTick) / (double)DeathAdderEntrance.PileFadeTicks, 0, 1);
+        if (actor.State == FighterState.Entering && actor.Kind == ActorKind.DeathAdder)
+            return DeathAdderEntrance.BossOpacity(actor.StateTicks);
         if (actor.State == FighterState.Entering && actor.EntranceDoor != null)
             return Math.Clamp((actor.StateTicks - Game.DoorRevealStart) / (double)(Game.DoorRevealEnd - Game.DoorRevealStart), 0, 1);
         if (actor.Kind == ActorKind.Hero)
@@ -512,14 +550,27 @@ internal sealed class ArcadeRenderer
         if (effects)
             DrawMagicLighting(screen, game, frame, dwarf, tint, effectOpacity);
 
-        DrawSprites(frame.Dim);
-        DrawSprites(frame.Active);
+        if (game.Character.MagicKey == "tyris" && game.MagicLevel == 3)
+        {
+            DrawLayer(clouds: true);
+            DrawLayer(clouds: false);
+        }
+        else
+            DrawLayer();
         DrawLightningCages(screen, game, effects);
 
-        void DrawSprites(MagicVisual[] sprites)
+        void DrawLayer(bool? clouds = null)
+        {
+            DrawSprites(frame.Dim, clouds);
+            DrawSprites(frame.Active, clouds);
+        }
+
+        void DrawSprites(MagicVisual[] sprites, bool? clouds)
         {
             foreach (var sprite in sprites)
             {
+                if (clouds.HasValue && clouds.Value != (sprite.Effect[0] is >= 447 and <= 449))
+                    continue;
                 if (dwarf && LightningCage.IsSprite(sprite.Effect))
                     continue;
                 screen.BeginTranslucentSprite(sprite.SpriteOpacity);
@@ -984,7 +1035,7 @@ internal sealed class ArcadeRenderer
             var height = Math.Max(0, ground - actor.Y);
             var strength = 100 / (1 + height / 36) * ActorFade(game, actor);
             var validPose = (uint)step.Frame < (uint)m_data.Frames.Length;
-            if (!potion && actor.State is FighterState.Down or FighterState.Dying or FighterState.Petrified or FighterState.Respawning && validPose)
+            if (!potion && actor.State is FighterState.Down or FighterState.Dying or FighterState.StruckByOwnAxe or FighterState.Petrified or FighterState.Respawning && validPose)
             {
                 var prone = m_data.Frames[step.Frame];
                 var pose = ProjectFootprint(actor, step);
@@ -1525,7 +1576,7 @@ internal sealed class ArcadeRenderer
 
     internal void Sprite(PixelScreenData screen, int index, int palette, double anchorX, double anchorY, bool flip,
         bool flash = false, int divisor = 1, bool softFlash = false, bool softenOutline = false, bool campfireWood = false,
-        byte[] paletteOverride = null, bool keepTerrainShade = false, int verticalDivisor = 1)
+        byte[] paletteOverride = null, bool keepTerrainShade = false, int verticalDivisor = 1, bool flipY = false)
     {
         if (index < 0 || index >= m_data.Frames.Length)
             return;
@@ -1540,7 +1591,7 @@ internal sealed class ArcadeRenderer
         for (var x = Math.Max(0, -left); x < frame.Width / divisor && left + x < ArcadeData.Width; x++)
         {
             var frameX = flip ? frame.Width - 1 - x * divisor : x * divisor;
-            var frameY = y * yStride;
+            var frameY = flipY ? frame.Height - 1 - y * yStride : y * yStride;
             var sourceOffset = (frame.Y + frameY) * stride + frame.X + frameX;
             var pen = m_data.SpritePens[sourceOffset];
             if (IsOpaquePen(pen))
