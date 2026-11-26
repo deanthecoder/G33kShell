@@ -337,7 +337,16 @@ public class PixelScreenData
             m_translucent ??= new (PixelColor Background, byte Opacity, int Group)[Pixels.Length];
             // All parts of the sprite share the scene underneath their first draw at this pixel.
             if (m_translucent[offset].Group != m_spriteGroup)
-                m_translucent[offset] = (GetColorAtOffset(offset), m_spriteOpacity, m_spriteGroup);
+            {
+                var background = GetColorAtOffset(offset);
+                if (m_hasBgraFrame)
+                {
+                    // A stationary HUD halo blends over the already-shifted scene during a shake.
+                    var pixel = m_bgraFrame[offset];
+                    background = new PixelColor((byte)(pixel >> 16), (byte)(pixel >> 8), (byte)pixel);
+                }
+                m_translucent[offset] = (background, m_spriteOpacity, m_spriteGroup);
+            }
         }
         else if (m_translucent != null)
             m_translucent[offset] = default;

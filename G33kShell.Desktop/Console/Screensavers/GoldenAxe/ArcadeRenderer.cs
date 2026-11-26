@@ -31,6 +31,9 @@ internal sealed class ArcadeRenderer
     private readonly PoseFootprint?[] m_footprints;
     private readonly SunShadow[,] m_sunShadows;
     private readonly byte m_orange, m_darkRed, m_filledRed, m_hudRed, m_hudPink, m_blue, m_lightBlue, m_yellow, m_livesYellow;
+    private readonly byte m_slotRim, m_slotWell, m_blueLip, m_blueSide, m_blueDepth;
+    private (int Stage, int Capacity) m_glowLayout;
+    private (byte Strength, int[] Offsets)[] m_hudGlow;
     private readonly byte m_emberCore;
     private readonly byte[] m_campfireWood;
     private readonly byte[] m_redTint, m_whiteTint;
@@ -67,6 +70,11 @@ internal sealed class ArcadeRenderer
         m_whiteTint = Enumerable.Repeat(data.White, 16).ToArray();
         m_blue = Color(34, 34, 255);
         m_lightBlue = Color(120, 160, 255);
+        m_slotRim = Color(67, 59, 76);
+        m_slotWell = Color(21, 25, 53);
+        m_blueLip = Color(54, 153, 231);
+        m_blueSide = Color(30, 85, 172);
+        m_blueDepth = Color(12, 20, 145);
         m_yellow = Color(255, 255, 0);
         m_livesYellow = Color(255, 203, 0);
         m_emberCore = Color(255, 202, 94);
@@ -308,7 +316,9 @@ internal sealed class ArcadeRenderer
         ProfileStage?.Invoke("screen shake");
         if (game.Opening == null)
         {
-            var opacity = game.RescuingCaptives ? CastleRescue.HudOpacity(game.EndStateTicks) : byte.MaxValue;
+            var opacity = game.HudOpacity;
+            if (opacity > 0)
+                DrawHudGlow(screen, game, opacity);
             if (opacity == 255)
                 DrawHud(screen, game);
             else if (opacity > 0)
@@ -1407,6 +1417,47 @@ internal sealed class ArcadeRenderer
     private byte Color(int red, int green, int blue) => (byte)Enumerable.Range(0, m_data.StaticPaletteCount)
         .OrderBy(i => Math.Pow(m_data.Palette[i].R - red, 2) + Math.Pow(m_data.Palette[i].G - green, 2) + Math.Pow(m_data.Palette[i].B - blue, 2)).First();
 
+    private void DrawHudGlow(PixelScreenData screen, Game game, byte opacity)
+    {
+        var stage = m_data.StageNumber + (game.IsCamp ? 1 : 0);
+        var capacity = game.Character.PotionCapacity;
+        if (m_hudGlow == null || m_glowLayout != (stage, capacity))
+        {
+            // Stamp the actual glyphs and meter silhouette once per layout. Cache just the halo pixels.
+            var mask = new PixelScreenData(ArcadeData.Width, MagicMeterTop + 18 + 5, m_data.Palette);
+            Text(mask, $"STAGE {stage}", 16, 16, 70, 70);
+            Text(mask, "MAGIC", 104, 2, 70, 70);
+            Fill(mask, 104, MagicMeterTop, capacity * 10 + 1, 18, 69);
+            var glow = new byte[mask.Pixels.Length];
+            for (var offset = 0; offset < glow.Length; offset++)
+            {
+                if (mask.Pixels[offset] == 0)
+                    continue;
+                var x = offset % mask.Width;
+                var y = offset / mask.Width;
+                for (var dy = Math.Max(-4, -y); dy <= Math.Min(4, mask.Height - y - 1); dy++)
+                for (var dx = -4; dx <= 4; dx++)
+                {
+                    var neighbor = (y + dy) * mask.Width + x + dx;
+                    if (mask.Pixels[neighbor] != 0)
+                        continue;
+                    var strength = (byte)Math.Round(mask.Pixels[offset] * Math.Exp(-(dx * dx + dy * dy) / 5.0));
+                    glow[neighbor] = Math.Max(glow[neighbor], strength);
+                }
+            }
+            m_hudGlow = Enumerable.Range(0, glow.Length).Where(i => glow[i] > 0)
+                .GroupBy(i => glow[i]).Select(g => (g.Key, g.ToArray())).ToArray();
+            m_glowLayout = (stage, capacity);
+        }
+        foreach (var (strength, offsets) in m_hudGlow)
+        {
+            screen.BeginTranslucentSprite((byte)(strength * opacity / 255));
+            foreach (var offset in offsets)
+                screen.SetPixelAtOffset(offset, m_hudRed);
+            screen.EndTranslucentSprite();
+        }
+    }
+
     private void DrawHud(PixelScreenData screen, Game game)
     {
         Text(screen, $"STAGE {m_data.StageNumber + (game.IsCamp ? 1 : 0)}", 16, 16, m_hudRed, m_yellow);
@@ -1414,12 +1465,32 @@ internal sealed class ArcadeRenderer
         for (var bar = 0; bar < 3; bar++)
         {
             var amount = Math.Clamp(game.Hero.Health - bar * 16, 0, 16);
-            Fill(screen, 56 + bar * 24, 205, 22, 8, m_data.Black);
-            Fill(screen, 57 + bar * 24, 206, amount * 20 / 16, 6, m_blue);
-            Fill(screen, 57 + bar * 24, 206, amount * 20 / 16, 1, m_lightBlue);
+            var left = 56 + bar * 24;
+            var width = amount * 20 / 16;
+            Fill(screen, left, 204, 22, 8, m_data.Black);
+            Fill(screen, left + 1, 204, 20, 1, m_slotRim);
+            Fill(screen, left + 1, 205, 20, 6, m_slotWell);
+            if (width == 0)
+                continue;
+            Fill(screen, left + 1, 205, width, 6, m_blueSide);
+            Fill(screen, left + 1, 205, width, 1, m_blueLip);
+            if (width > 2)
+            {
+                Fill(screen, left + 2, 206, width - 2, 3, m_blue);
+                Fill(screen, left + 2, 209, width - 2, 1, m_blueDepth);
+            }
         }
         DrawLives(screen, game.Lives);
         DrawHudPortrait(screen, game.Character.PortraitTile);
+
+        // A faint reflection over the side shade keeps the lower edge between indexed palette colours.
+        screen.BeginTranslucentSprite((byte)(game.HudOpacity * 0.16));
+        for (var bar = 0; bar < 3; bar++)
+        {
+            var width = Math.Clamp(game.Hero.Health - bar * 16, 0, 16) * 20 / 16;
+            Fill(screen, 57 + bar * 24, 210, width, 1, m_blueLip);
+        }
+        screen.EndTranslucentSprite();
     }
 
     private void DrawLives(PixelScreenData screen, int lives)
@@ -1475,7 +1546,7 @@ internal sealed class ArcadeRenderer
             var filled = Math.Min(end, game.Potions) - start;
             if (filled > 0)
             {
-                if (game.RescuingCaptives)
+                if (game.HudOpacity < byte.MaxValue)
                 {
                     // Keep the meter in the same fading group as the labels, portrait and health.
                     var dark = m_data.Palette[m_darkRed];
