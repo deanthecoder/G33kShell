@@ -76,3 +76,11 @@ Stage 7 static scenery alignment: level4.json uses 1:1 vertical background scrol
 to align the captured pavement with the foreground house base. The extracted fitted
 factor (0.993, offset 1) exposed a one-pixel backing-color seam as the camera moved.
 The separately animated eagle sky retains its independent scrolling.
+
+The Stage 9 rescue uses the original captive and chain sprites, with poses and
+positions from Dean's US set-6 hardware trace (Brain 9ab84e0b46608736).
+tools/build-golden-axe-victory-map.py builds map5.gmap from the parchment
+opening in atomic14's public/assets/ending.mp4. The tile font writes the set-6
+message at 0x76ac in the two colors sampled from the MAME ending still.
+Quill sprite 1042 uses palette 0x80 matched to the fourth map recording.
+The FIN handwriting and timing are reconstructed.

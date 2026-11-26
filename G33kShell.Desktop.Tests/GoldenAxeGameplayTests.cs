@@ -156,6 +156,33 @@ public class GoldenAxeGameplayTests
         Assert.That(controller.Read(game).Magic, Is.True, "Low-health survival takes priority over waiting.");
     }
 
+    [Test]
+    public void AutoplaySpendsOnePotionWhenFlankedAndAboutToBeHit()
+    {
+        var data = m_areas[0];
+        var game = new Game(data, character: 1);
+        game.Actors.RemoveAll(a => a != game.Hero);
+        var left = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, game.Hero.X - 32, game.Hero.Z);
+        var right = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, game.Hero.X + 32, game.Hero.Z);
+        var controller = new CodedController();
+        Assert.That(game.Potions, Is.EqualTo(1));
+        Assert.That(controller.Read(game).Magic, Is.False, "Save the potion while the flanking enemies are still just approaching.");
+
+        right.SetState(FighterState.Attacking, right.Moves.Attacks[0], true);
+        right.Animation.Seek(data.Attacks[right.Animation.Address][2]);
+        Assert.That(game.CanHitWithMagic(left) && game.CanHitWithMagic(right), Is.True);
+        Assert.That(controller.Read(game).Magic, Is.False, "Sidestepping is still an option at the start of the exchange.");
+
+        game.Hero.Health = 36;
+        game.Hero.Hits = 1;
+        game.Hero.HitTimer = 20;
+        var input = controller.Read(game);
+        Assert.That(input.Magic, Is.True, "Cast before reaching critical health when flanked and about to take a hit.");
+        game.Tick(input);
+        Assert.That(game.Potions, Is.Zero);
+        Assert.That(game.MagicTick, Is.GreaterThanOrEqualTo(0));
+    }
+
     [TestCase(7, 660, 170)]
     [TestCase(8, 518, 292)]
     [TestCase(9, 680, 366)]
@@ -481,6 +508,47 @@ public class GoldenAxeGameplayTests
         for (var tick = 12; tick < 64; tick++)
             game.Tick(default);
         Assert.That(crowd.Select(a => a.Z), Is.EqualTo(new[] { 4192, 4168, 4208, 4195, 4186, 4179 }));
+    }
+
+    [TestCase(0)]
+    [TestCase(1)]
+    [TestCase(2)]
+    public void ForestOpeningPlaysBothStrikesBeforeReleasingControl(int character)
+    {
+        var game = new Game(m_areas[0], character, playOpening: true);
+        var villager = game.Actors.Single(a => a.Animation.Address == 0xa170);
+        var soldier = game.Actors.Single(a => a.Animation.Address == 0xa228);
+        void AdvanceTo(int tick)
+        {
+            while (game.TickCount < tick)
+                game.Tick(new GameInput(X: 1, Magic: true));
+        }
+
+        AdvanceTo(108);
+        Assert.That((soldier.X, soldier.Animation.Current.Frame), Is.EqualTo((4396.0, 124)));
+        AdvanceTo(120);
+        Assert.That((villager.X, villager.Animation.Current.Frame, soldier.Animation.Current.Frame), Is.EqualTo((4364.0, 609, 126)));
+        AdvanceTo(148);
+        Assert.That((villager.Animation.Current.Frame, soldier.Animation.Current.Frame), Is.EqualTo((609, 131)));
+        AdvanceTo(163);
+        Assert.That((soldier.Facing, soldier.Animation.Address), Is.EqualTo((1, 0xa228)));
+        AdvanceTo(209);
+        Assert.That(game.Opening.ShowingDialogue, Is.True);
+        for (var page = 0; page < 4; page++)
+        {
+            Assert.That(game.Opening.ShowingDialogue, Is.True);
+            game.Tick(new GameInput(Attack: true, AdvanceDialogue: true));
+        }
+        Assert.That(villager.Animation.Current.Frame, Is.EqualTo(611));
+        AdvanceTo(221);
+        Assert.That(game.Opening, Is.Null);
+        Assert.That(game.Potions, Is.EqualTo(1));
+        Assert.That(game.Actors.Any(a => a.IsEnemy), Is.False);
+        Assert.That(villager.Animation.Current.Frame, Is.EqualTo(612));
+        for (var i = 0; i < 60; i++)
+            game.Tick(new GameInput(X: 1));
+        Assert.That(game.Actors.Any(a => a.IsEnemy), Is.True);
+        Assert.That(villager.Animation.Current.Frame, Is.EqualTo(612));
     }
 
     [Test]
@@ -1155,6 +1223,27 @@ public class GoldenAxeGameplayTests
         Assert.That((hero.X - farBank) * direction, Is.GreaterThanOrEqualTo(0));
         Assert.That(hero.Y, Is.EqualTo(game.Ground(hero.X, hero.Z)));
         Assert.That(game.Lives, Is.EqualTo(2));
+    }
+
+    [TestCase(4750, 4172)]
+    [TestCase(4798, 4216)]
+    public void AutoplayBargesAcrossTheBridgeFromEitherAnApproachOrAStandingStart(int start, int lane)
+    {
+        var game = new Game(m_areas[2], 1, new Random(0));
+        AdvanceTo(game, 4625);
+        var hero = game.Hero;
+        hero.X = start;
+        hero.Z = lane;
+        hero.Y = game.Ground(hero.X, hero.Z);
+        var controller = new CodedController();
+        var charged = false;
+        for (var tick = 0; tick < 180 && hero.X < 4850; tick++)
+        {
+            game.Tick(controller.Read(game));
+            charged |= hero.State == FighterState.Dashing;
+        }
+        Assert.That(charged && hero.X >= 4850 && game.Lives == 2, Is.True,
+            $"Ended at ({hero.X}, {hero.Z}) in {hero.State} with {game.Lives} lives.");
     }
 
     [Test]
@@ -1919,6 +2008,20 @@ public class GoldenAxeGameplayTests
         Assert.That(beast.State, Is.EqualTo(FighterState.Idle));
         game.Tick(default);
         Assert.That(beast.State, Is.EqualTo(FighterState.Fleeing));
+    }
+
+    [TestCase(1, 4816, 0x2f60a, 0x64)]
+    [TestCase(1, 5312, 0x2f61c, 0x65)]
+    [TestCase(2, 4184, 0x2c276, 0x64)]
+    public void VillageMountsSpawnWithTheirAmazonRiders(int area, int progress, int routine, int palette)
+    {
+        var data = m_areas[area];
+        var game = new Game(data);
+        game.Spawn(data.Spawns.Single(s => s.Trigger == progress && s.Routine == routine));
+        var mount = game.Actors.Single(a => a.IsMount);
+        Assert.That(mount.Rider.Kind, Is.EqualTo(ActorKind.Amazon));
+        Assert.That(mount.Rider.Palette, Is.EqualTo(palette));
+        Assert.That(mount.Moves, Is.SameAs(area == 1 ? Moves.AmazonDragon : Moves.AmazonChicken));
     }
 
     [TestCase(4624, (int)ActorKind.Amazon, 0x63)]
@@ -2764,7 +2867,7 @@ public class GoldenAxeGameplayTests
         Assert.That(first.State, Is.EqualTo(FighterState.Entering));
         Assert.That(first.Vulnerable, Is.False);
 
-        for (var tick = 0; tick < 65; tick++)
+        for (var tick = 0; tick <= Game.DoorEntranceDuration; tick++)
             game.Tick(default);
         Assert.That(first.State, Is.EqualTo(FighterState.Chuckling));
         Assert.That(first.X, Is.LessThan(5136));

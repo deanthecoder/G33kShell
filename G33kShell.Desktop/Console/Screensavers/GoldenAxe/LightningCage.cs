@@ -14,7 +14,7 @@ namespace G33kShell.Desktop.Console.Screensavers.GoldenAxe;
 /// </summary>
 internal static class LightningCage
 {
-    public static bool IsSprite(int[] effect) => effect[0] is >= 569 and <= 574;
+    public static bool IsSprite(int[] effect) => effect.Length == 6 && effect[0] is >= 569 and <= 574;
 
     // The two- and three-potion spell has no cage around the caster in the arcade.
     public static IEnumerable<Fighter> Targets(Game game) =>
@@ -30,6 +30,4 @@ internal static class LightningCage
         return Math.Clamp(start + (game.MagicTick - game.MagicShakeStart) * (source.Length - start - 1) /
             Math.Max(1, game.MagicDuration - game.MagicShakeStart - 1), start, source.Length - 1);
     }
-
-    public static byte WhiteOpacity(int tick) => (byte)Math.Round(220 * (0.5 - 0.5 * Math.Cos(tick * Math.PI / 6)));
 }

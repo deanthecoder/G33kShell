@@ -190,8 +190,8 @@ Use `--scene campfire` to regenerate a single clip.
 Use `--ffmpeg /path/to/ffmpeg` to select a specific encoder executable.
 The bundled arcade opening card fades in, holds for two seconds, then fades through black
 into the title. The title displays for 2½ seconds before play starts automatically.
-The four bundled map recordings play after their corresponding camps. To override any of these
-assets, place `intro.png`, `title.png`, or `map1.gmap` through `map4.gmap` in the
+The first four map recordings play after their corresponding camps. After Stage 9, the king and queen descend on chains. The victory parchment opens, a quill writes FIN, and the screensaver restarts. To override any of these
+assets, place `intro.png`, `title.png`, or `map1.gmap` through `map5.gmap` in the
 `GoldenAxe` folder in the application's user settings directory. Use an opaque 320×224 PNG
 with at most 256 colors for either card.
 The map encoder uses one optimized 256-color palette per recording, stores deltas only across

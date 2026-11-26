@@ -25,7 +25,7 @@ public class GoldenAxeInputTests
         keyboard.SetKey(Key.Left, true);
         keyboard.SetKey(Key.Up, true);
         keyboard.SetKey(Key.LeftCtrl, true);
-        Assert.That(keyboard.Read(), Is.EqualTo(new GameInput(-1, -1, Attack: true)));
+        Assert.That(keyboard.Read(), Is.EqualTo(new GameInput(-1, -1, Attack: true, AdvanceDialogue: true)));
         Assert.That(keyboard.Read(), Is.EqualTo(new GameInput(-1, -1, Attack: true)));
         keyboard.SetKey(Key.LeftCtrl, false);
         Assert.That(keyboard.Read().Attack, Is.False);

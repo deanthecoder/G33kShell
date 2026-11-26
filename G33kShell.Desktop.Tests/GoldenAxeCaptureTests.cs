@@ -37,10 +37,19 @@ public sealed class GoldenAxeCaptureTests
 
         foreach (var name in sceneList.Split(','))
         {
-            var area = name switch { "skeleton-dust" or "eagle-sunset" or "eagle-clouds" => 3, "village-routing" or "village-opening" or "camp-thieves" => 1, "turtle-eye" => 2, "eagle-eye" or "castle-camera" => 4, _ => 0 };
+            var area = name switch { "skeleton-dust" or "eagle-sunset" or "eagle-clouds" => 3, "village-routing" or "village-opening" or "camp-thieves" => 1, "turtle-eye" => 2, "bridge-barge" or "knight-door" or "brothers-door" => 2, "eagle-eye" or "castle-camera" or "castle-ending" => 4, _ => 0 };
             var data = new ArcadeData(ArcadeData.AssetDirectory, area);
+            if (name == "castle-ending")
+            {
+                CaptureCastleEnding(data, Path.Combine(output, name + ".bgra"));
+                continue;
+            }
             var (game, ticks, input) = name switch
             {
+                "bridge-barge" => BridgeBarge(data),
+                "knight-door" => KnightDoor(data),
+                "brothers-door" => BrothersDoor(data),
+                "forest-opening" => (new Game(data, playOpening: true), 800, _ => new GameInput(X: 1)),
                 "shadows" => Shadows(data),
                 "campfire" => Campfire(data),
                 "camp-thieves" => (new Game(data, character: 2, random: new Random(0), startInCamp: true), 840, _ => default(GameInput)),
@@ -71,6 +80,10 @@ public sealed class GoldenAxeCaptureTests
                 "ax-two" => HeroSpell(data, 0, 2),
                 "ax-three" => HeroSpell(data, 0, 3),
                 "ax-four" => HeroSpell(data, 0, 4),
+                "ax-five" => HeroSpell(data, 0, 5),
+                "ax-six" => HeroSpell(data, 0, 6),
+                "gilius-four" => HeroSpell(data, 2, 4),
+                "tyris-six" => HeroSpell(data, 1, 6),
                 "tyris-seven" => HeroSpell(data, 1, 7),
                 "tyris-eight" => HeroSpell(data, 1, 8),
                 "tyris-dragon" => HeroSpell(data, 1, 9),
@@ -85,6 +98,74 @@ public sealed class GoldenAxeCaptureTests
             };
             Capture(data, game, ticks, input, Path.Combine(output, name + ".bgra"));
         }
+    }
+
+    private static (Game, int, Func<int, GameInput>) BridgeBarge(ArcadeData data)
+    {
+        var game = new Game(data, 1, new Random(0));
+        PrepareAt(game, 4625, 4750, 4184);
+        var controller = new CodedController();
+        return (game, 145, _ => controller.Read(game));
+    }
+
+    private static (Game, int, Func<int, GameInput>) KnightDoor(ArcadeData data)
+    {
+        var game = new Game(data, character: 2, random: new Random(0));
+        var spawn = data.Spawns.Single(s => s.Routine == 0x2a358);
+        PrepareAt(game, spawn.Trigger, spawn.X - 75, spawn.Z + 70);
+        return (game, 180, tick =>
+        {
+            if (tick == 30)
+                game.Spawn(spawn);
+            return default;
+        });
+    }
+
+    private static (Game, int, Func<int, GameInput>) BrothersDoor(ArcadeData data)
+    {
+        var game = new Game(data, character: 2, random: new Random(0));
+        PrepareAt(game, 4908, 5100, 4196);
+        return (game, 650, _ => default);
+    }
+
+    private static void CaptureCastleEnding(ArcadeData data, string path)
+    {
+        var game = new Game(data, 1, new Random(0));
+        var controller = new CodedController();
+        for (var tick = 0; tick < 18000 && !game.Complete && !game.GameOver; tick++)
+            game.Tick(controller.Read(game));
+        Assert.That(game.Complete, Is.True, "The capture starts with the actual cleared arena.");
+        Capture(data, game, CastleRescue.Duration, _ => default, path);
+        using var map = ArcadeMapRecording.Load(data.AreaIndex);
+        Assert.That(map, Is.Not.Null);
+        var screen = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
+        var pixels = new int[screen.Pixels.Length];
+        using var output = new FileStream(path, FileMode.Append);
+        for (var frame = 0; map.AdvanceTo(frame / 30.0); frame++)
+        {
+            map.Draw(screen, null, frame / 30.0);
+            screen.CopyToBgra(pixels);
+            output.Write(MemoryMarshal.AsBytes(pixels.AsSpan()));
+        }
+    }
+
+    private static void PrepareAt(Game game, int progress, int x, int z)
+    {
+        for (var tick = 0; tick < 4000 && game.Progress < progress; tick++)
+        {
+            game.Actors.RemoveAll(a => a != game.Hero);
+            game.Hero.X = game.Progress + 180;
+            game.Hero.Z = game.FindFloor(game.Hero.X, 4240, keepVisible: true);
+            game.Hero.Y = game.Ground(game.Hero.X, game.Hero.Z);
+            game.Tick(default);
+        }
+        Assert.That(game.Progress, Is.GreaterThanOrEqualTo(progress));
+        game.Tick(default);
+        game.Actors.RemoveAll(a => a != game.Hero);
+        game.Hero.X = x;
+        game.Hero.Z = z;
+        game.Hero.Y = game.Ground(x, z);
+        game.ViewCamera.Reset(game.CameraX, game.CameraY);
     }
 
     private static (Game, int, Func<int, GameInput>) VillageRouting(ArcadeData data, bool opening = false)

@@ -17,4 +17,4 @@ namespace G33kShell.Desktop.Console.Screensavers.GoldenAxe;
 /// Controllers request actions; they never change fighter state directly.
 /// </remarks>
 internal readonly record struct GameInput(int X = 0, int Z = 0, bool Attack = false, bool Jump = false, bool Magic = false,
-    bool Run = false, bool Dismount = false);
+    bool Run = false, bool Dismount = false, bool AdvanceDialogue = false);

@@ -35,6 +35,7 @@ internal sealed class Fighter
     public int KnockdownVariation;
     public int FlankSide;
     public int NextChuckleAge = -1;
+    public SpawnDefinition EntranceDoor;
     public int PetrifiedTick;
     public int PickupTick = -1;
     public int RespawnTick = -1;

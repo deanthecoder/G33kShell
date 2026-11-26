@@ -71,7 +71,7 @@ internal sealed class KeyboardController
             var z = (m_held.Contains(Key.Down) ? 1 : 0) - (m_held.Contains(Key.Up) ? 1 : 0);
             var attack = m_attack || m_held.Contains(Key.LeftCtrl) || m_held.Contains(Key.RightCtrl);
             var run = x != 0 && m_runDirection == (x < 0 ? Key.Left : Key.Right);
-            var input = new GameInput(x, z, attack, m_jump, m_magic, run, m_dismount);
+            var input = new GameInput(x, z, attack, m_jump, m_magic, run, m_dismount, AdvanceDialogue: m_attack);
             m_attack = m_jump = m_magic = m_dismount = false;
             return input;
         }

@@ -160,20 +160,32 @@ internal sealed class ArcadeRenderer
         if (effects)
             DrawDragonSmoke(screen, game);
         ProfileStage?.Invoke("ground effects and smoke");
+        if (game.RescuingCaptives)
+            CastleRescue.Draw(screen, game, m_data, this);
+        var casting = game.MagicTick >= 0 && game.MagicTick < game.ActiveMagicEffects.Length;
+        var flashMagicTargets = game.MagicTargetsFlashing;
+        var behindActors = casting && game.MagicTick >= 48 &&
+            (game.Character.MagicKey == "ax" && game.MagicLevel == 4 || game.Character.MagicKey == "tyris" && game.MagicLevel == 5);
+        if (behindActors)
+            DrawMagic(screen, game, effects, tint, effectOpacity);
         foreach (var actor in game.Actors.Concat(game.StoneBodies).Concat(game.FadingPickups).OrderBy(a => a.Z).ThenByDescending(a => a.Y))
         {
-            if (actor.Mount != null || actor.State == FighterState.Gone && actor.PickupTick < 0 || ActorFade(game, actor) == 0 ||
+            if (actor.Mount != null || actor.State == FighterState.Gone && actor.PickupTick < 0 ||
                 actor.State == FighterState.Dying && actor.Kind is not (ActorKind.Fireball or ActorKind.Flame) && game.TickCount % 4 < 2)
                 continue;
-            if (actor.State == FighterState.Entering && actor.StateTicks < Game.BrotherDoorClosingTick)
+            if (actor.State == FighterState.Entering && actor.EntranceDoor is { } entrance)
             {
-                var door = game.ProjectView(actor.X - 1, actor.Z, actor.Y);
-                var open = actor.StateTicks is >= Game.BrotherDoorOpeningTicks and < 24;
-                Sprite(screen, open ? Game.BrotherDoorOpenFrame : Game.BrotherDoorAjarFrame,
-                    Game.BrotherDoorPalette, door.X, door.Y + (open ? 2 : -3), false);
-                if (actor.StateTicks < Game.BrotherDoorOpeningTicks)
-                    continue;
+                if (actor.StateTicks < Game.DoorEntranceDuration)
+                {
+                    var door = game.ProjectView(entrance.X - 1, entrance.Z, game.Ground(entrance.X, entrance.Z));
+                    var open = actor.StateTicks >= Game.StageFiveDoorOpeningTicks && actor.StateTicks < Game.DoorCloseStart;
+                    Sprite(screen, open ? Game.StageFiveDoorOpenFrame : Game.StageFiveDoorAjarFrame,
+                        Game.StageFiveDoorPalette, door.X, door.Y + (open ? 2 : -3), false);
+                }
             }
+            var actorFade = ActorFade(game, actor);
+            if (actorFade == 0)
+                continue;
             if (actor.State == FighterState.Emerging)
             {
                 var ground = game.ProjectView(actor.X, actor.Z, actor.Y);
@@ -192,17 +204,17 @@ internal sealed class ArcadeRenderer
             var opacity = actor.PickupTick >= 0
                 ? (byte)(255 * Math.Clamp(1 - (game.TickCount - actor.PickupTick) / (double)Game.PickupFadeTicks, 0, 1))
                 : (byte)(255 - 18 * Math.Min(pulse, 12 - pulse));
-            opacity = (byte)(opacity * ActorFade(game, actor));
+            opacity = (byte)(opacity * actorFade);
             var translucent = opacity < 255;
             if (translucent)
                 screen.BeginTranslucentSprite(opacity);
-            var lightningTint = LightningCage.SampleTick(game) >= 66 && game.MagicTargets.Contains(actor);
+            var magicTint = flashMagicTargets && game.MagicTargets.Contains(actor);
             Sprite(screen, step.Frame, actor.Palette,
                 point.X + step.Dx * actor.Facing, point.Y + step.Dy, flip,
-                flash: actor.Flash > 0 && !lightningTint, softFlash: effects, softenOutline: effects && IsCharacter(actor),
+                flash: actor.Flash > 0 && !magicTint, softFlash: effects, softenOutline: effects && IsCharacter(actor),
                 campfireWood: effects && actor.Kind == ActorKind.Campfire);
-            if (lightningTint)
-                DrawLightningTint(screen, game, step.Frame, actor.Palette, point.X + step.Dx * actor.Facing, point.Y + step.Dy, flip);
+            if (magicTint)
+                DrawMagicTint(screen, game, step.Frame, actor.Palette, point.X + step.Dx * actor.Facing, point.Y + step.Dy, flip);
             if (actor.State == FighterState.Petrified)
             {
                 var stoneOpacity = (byte)(255 * Math.Clamp((game.TickCount - actor.PetrifiedTick) / 120.0, 0, 1));
@@ -223,8 +235,8 @@ internal sealed class ArcadeRenderer
                 Sprite(screen, rider[0], actor.Rider.Palette,
                     point.X + (step.Dx + rider[2]) * actor.Facing, point.Y + step.Dy + rider[3],
                     (rider[1] != 0) ^ actor.Facing < 0, softenOutline: effects);
-                if (LightningCage.SampleTick(game) >= 66 && game.MagicTargets.Contains(actor.Rider))
-                    DrawLightningTint(screen, game, rider[0], actor.Rider.Palette,
+                if (flashMagicTargets && game.MagicTargets.Contains(actor.Rider))
+                    DrawMagicTint(screen, game, rider[0], actor.Rider.Palette,
                         point.X + (step.Dx + rider[2]) * actor.Facing, point.Y + step.Dy + rider[3],
                         (rider[1] != 0) ^ actor.Facing < 0);
             }
@@ -243,7 +255,7 @@ internal sealed class ArcadeRenderer
             }
         }
         ProfileStage?.Invoke("actors");
-        if (game.MagicTick >= 0 && game.MagicTick < game.ActiveMagicEffects.Length)
+        if (casting && !behindActors)
             DrawMagic(screen, game, effects, tint, effectOpacity);
         ProfileStage?.Invoke("magic");
         if (effects)
@@ -265,15 +277,40 @@ internal sealed class ArcadeRenderer
         if (shake != default)
             screen.OffsetScene(shake.X, shake.Y);
         ProfileStage?.Invoke("screen shake");
-        DrawHud(screen, game);
+        if (game.Opening == null)
+        {
+            var opacity = game.RescuingCaptives ? CastleRescue.HudOpacity(game.EndStateTicks) : byte.MaxValue;
+            if (opacity == 255)
+                DrawHud(screen, game);
+            else if (opacity > 0)
+            {
+                screen.BeginTranslucentSprite(opacity);
+                DrawHud(screen, game);
+                screen.EndTranslucentSprite();
+            }
+        }
+        else if (game.Opening.ShowingDialogue)
+        {
+            var speaker = game.Opening.Speaker(game);
+            var point = game.ProjectView(speaker.X, speaker.Z, speaker.Y);
+            var lines = game.Opening.DialogueLines;
+            var width = lines.Max(line => line.Length) * 8 + 10;
+            var height = lines.Length * 8 + 6;
+            var left = Math.Clamp((int)point.X - width + 8, 2, ArcadeData.Width - width - 2);
+            var top = (int)point.Y - 56 - height;
+            Fill(screen, left, top, width, height, m_data.White);
+            Fill(screen, left + 1, top + 1, width - 2, height - 2, m_data.Black);
+            for (var row = 0; row < lines.Length; row++)
+                Text(screen, lines[row], left + 4, top + 3 + row * 8);
+        }
         ProfileStage?.Invoke("HUD");
         if (effects && game.MagicTick < 0)
             PotionSparkles.DrawTrails(screen, game, m_lightBlue, m_data.White, effectOpacity);
-        if (game.CanAdvance && game.MagicTick < 0 && game.TickCount % 60 < 30)
+        if (game.Opening == null && game.CanAdvance && game.MagicTick < 0 && game.TickCount % 60 < 30)
             DrawGoPrompt(screen);
-        if (game.GameOver || game.Complete && !game.IsCamp)
+        if (game.GameOver || game.Complete && !game.IsCamp && game.AreaIndex < ArcadeData.AreaCount - 1)
         {
-            var message = game.GameOver ? "GAME OVER" : game.AreaIndex == ArcadeData.AreaCount - 1 ? "YOU WIN" : "STAGE CLEAR";
+            var message = game.GameOver ? "GAME OVER" : "STAGE CLEAR";
             var fade = Math.Clamp(game.EndStateTicks / 30.0, 0, 1);
             screen.BeginTranslucentSprite((byte)Math.Round(255 * fade));
             Text(screen, message, (ArcadeData.Width - message.Length * 8) / 2, 96);
@@ -430,6 +467,8 @@ internal sealed class ArcadeRenderer
 
     internal static double ActorFade(Game game, Fighter actor)
     {
+        if (actor.State == FighterState.Entering && actor.EntranceDoor != null)
+            return Math.Clamp((actor.StateTicks - Game.DoorRevealStart) / (double)(Game.DoorRevealEnd - Game.DoorRevealStart), 0, 1);
         if (actor.Kind == ActorKind.Hero)
         {
             if (actor.State == FighterState.Respawning)
@@ -508,12 +547,14 @@ internal sealed class ArcadeRenderer
         return frames[tick] = new MagicFrame(active, dim, cages);
     }
 
-    private void DrawLightningTint(PixelScreenData screen, Game game, int frame, int palette, double x, double y, bool flip)
+    private void DrawMagicTint(PixelScreenData screen, Game game, int frame, int palette, double x, double y, bool flip)
     {
         screen.BeginTranslucentSprite(180);
         Sprite(screen, frame, palette, x, y, flip, paletteOverride: m_redTint);
         screen.EndTranslucentSprite();
-        screen.BeginTranslucentSprite(LightningCage.WhiteOpacity(game.MagicTick - game.MagicShakeStart));
+        var tick = game.MagicTick - game.MagicShakeStart;
+        var whiteOpacity = (byte)Math.Round(220 * (0.5 - 0.5 * Math.Cos(tick * Math.PI / 6)));
+        screen.BeginTranslucentSprite(whiteOpacity);
         Sprite(screen, frame, palette, x, y, flip, paletteOverride: m_whiteTint);
         screen.EndTranslucentSprite();
     }
@@ -566,13 +607,15 @@ internal sealed class ArcadeRenderer
     private void DrawMagicSprite(PixelScreenData screen, Game game, int[] effect)
     {
         var point = ProjectMagic(game, effect);
-        Sprite(screen, effect[0], effect[1], point.X, point.Y, effect[2] == 1);
+        // Foreshorten the complete floor artwork, including its curved front edge.
+        var floorPiece = effect[0] is >= 518 and <= 521;
+        Sprite(screen, effect[0], effect[1], point.X, point.Y, effect[2] == 1, verticalDivisor: floorPiece ? 2 : 1);
     }
 
     internal static byte MagicEffectOpacity(int[][][] recording, int tick, int[] effect)
     {
-        // Potion choreography and physical props stay solid; spell energy peaks at 80%.
-        if (effect[1] is 0x4a or 0x51 or 0x47 || effect[0] == 518)
+        // Keep the potion count readable. The spell artwork shares the opacity envelope.
+        if (effect[1] == 0x4a)
             return 255;
         const int fadeTicks = 12;
         var envelope = Math.Min(Extent(-1), Extent(1));
@@ -595,7 +638,7 @@ internal sealed class ArcadeRenderer
                 var nearest = int.MaxValue;
                 foreach (var sprite in recording[sample])
                 {
-                    if (sprite[1] != anchor[1])
+                    if (anchor[0] == 518 ? sprite[0] != 518 || sprite[2] != anchor[2] : sprite[1] != anchor[1])
                         continue;
                     var separation = Math.Abs(sprite[3] - anchor[3]) + Math.Abs(sprite[4] - anchor[4]) +
                         Math.Abs(sprite[5] - anchor[5]);
@@ -686,18 +729,19 @@ internal sealed class ArcadeRenderer
     {
         var effect = sprite.Effect;
         // Potion icons, the dragon's silver head and solid meteor pieces do not emit flame light.
-        if (effect[1] is 0x4a or 0x51 or 0x47 || effect[0] == 518)
+        if (effect[1] is 0x4a or 0x51 or 0x47)
             return;
 
         var frame = m_data.Frames[effect[0]];
         var point = ProjectMagic(game, effect);
         var direction = effect[2] == 1 ? -1 : 1;
         var centerX = point.X + (frame.Ox + frame.Width / 2.0) * direction;
-        var centerY = point.Y + frame.Oy + frame.Height / 2.0;
+        var verticalScale = effect[0] == 518 ? 0.5 : 1;
+        var centerY = point.Y + (frame.Oy + frame.Height / 2.0) * verticalScale;
         var opacity = sprite.GapOpacity / 255.0 * (sprite.Opacity / 204.0);
         var strength = Math.Clamp(36 + frame.Width * 0.85, 46, 91) * opacity;
         DrawSoftEllipse(screen, centerX, centerY,
-            24 + frame.Width * 0.64, 16 + frame.Height * 0.66, strength, EllipseEffect.Magic);
+            24 + frame.Width * 0.64, 16 + frame.Height * 0.66 * verticalScale, strength, EllipseEffect.Magic);
     }
 
     private static void DrawMagicGroundGlow(PixelScreenData screen, Game game, Rgb tint, byte effectOpacity)
@@ -919,7 +963,7 @@ internal sealed class ArcadeRenderer
         {
             var potion = actor.Kind is ActorKind.Potion or ActorKind.CampPotion or ActorKind.Food;
             if (actor.Mount != null || actor.State == FighterState.Gone && actor.PickupTick < 0 || ActorFade(game, actor) == 0 ||
-                actor.State == FighterState.Entering && actor.StateTicks < Game.BrotherDoorOpeningTicks ||
+                actor.State == FighterState.Entering && actor.StateTicks < Game.StageFiveDoorOpeningTicks ||
                 (!potion && !IsCharacter(actor)))
                 continue;
 
@@ -1377,9 +1421,22 @@ internal sealed class ArcadeRenderer
             var filled = Math.Min(end, game.Potions) - start;
             if (filled > 0)
             {
-                screen.BeginTranslucentSprite(pulse);
-                Fill(screen, x, top + 1, filled * slotWidth - 1, height - 2, m_filledRed);
-                screen.EndTranslucentSprite();
+                if (game.RescuingCaptives)
+                {
+                    // Keep the meter in the same fading group as the labels, portrait and health.
+                    var dark = m_data.Palette[m_darkRed];
+                    var bright = m_data.Palette[m_filledRed];
+                    var weight = pulse / 255.0;
+                    var fill = Color((int)(dark.R + (bright.R - dark.R) * weight),
+                        (int)(dark.G + (bright.G - dark.G) * weight), (int)(dark.B + (bright.B - dark.B) * weight));
+                    Fill(screen, x, top + 1, filled * slotWidth - 1, height - 2, fill);
+                }
+                else
+                {
+                    screen.BeginTranslucentSprite(pulse);
+                    Fill(screen, x, top + 1, filled * slotWidth - 1, height - 2, m_filledRed);
+                    screen.EndTranslucentSprite();
+                }
             }
         }
 
@@ -1463,23 +1520,24 @@ internal sealed class ArcadeRenderer
         }
     }
 
-    private void Sprite(PixelScreenData screen, int index, int palette, double anchorX, double anchorY, bool flip,
+    internal void Sprite(PixelScreenData screen, int index, int palette, double anchorX, double anchorY, bool flip,
         bool flash = false, int divisor = 1, bool softFlash = false, bool softenOutline = false, bool campfireWood = false,
-        byte[] paletteOverride = null, bool keepTerrainShade = false)
+        byte[] paletteOverride = null, bool keepTerrainShade = false, int verticalDivisor = 1)
     {
         if (index < 0 || index >= m_data.Frames.Length)
             return;
         var frame = m_data.Frames[index];
         var left = (int)Math.Round(flip ? anchorX - (frame.Ox + frame.Width) / (double)divisor : anchorX + frame.Ox / (double)divisor);
-        var top = (int)Math.Round(anchorY + frame.Oy / (double)divisor);
+        var yStride = divisor * verticalDivisor;
+        var top = (int)Math.Round(anchorY + frame.Oy / (double)yStride);
         var spritePalette = paletteOverride ?? m_data.SpritePalette[palette];
         var sourceColors = softenOutline ? m_data.SpriteColors[palette] : null;
         var stride = m_data.SpriteStride;
-        for (var y = Math.Max(0, -top); y < frame.Height / divisor && top + y < ArcadeData.Height; y++)
+        for (var y = Math.Max(0, -top); y < frame.Height / yStride && top + y < ArcadeData.Height; y++)
         for (var x = Math.Max(0, -left); x < frame.Width / divisor && left + x < ArcadeData.Width; x++)
         {
             var frameX = flip ? frame.Width - 1 - x * divisor : x * divisor;
-            var frameY = y * divisor;
+            var frameY = y * yStride;
             var sourceOffset = (frame.Y + frameY) * stride + frame.X + frameX;
             var pen = m_data.SpritePens[sourceOffset];
             if (IsOpaquePen(pen))

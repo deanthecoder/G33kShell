@@ -35,6 +35,8 @@ internal sealed class CodedController
         var needsMagic = game.Potions < game.Character.PotionCapacity;
         if (!game.IsCamp && game.Boss && !game.Actors.Any(a => a.IsEnemy && a.Health > 0))
             return default;
+        if (ShouldCastEmergencyMagic(game, hero))
+            return new GameInput(Magic: true);
         if (m_lightningJumpHero == hero && hero.State is FighterState.Crouching or FighterState.Jumping)
             return default;
         m_lightningJumpHero = null;
@@ -97,6 +99,9 @@ internal sealed class CodedController
         var tz = item?.Z ?? target?.Z ?? game.FindFloor(hero.X + 24, hero.Z);
         var dx = tx - hero.X;
         var dz = tz - hero.Z;
+        if (game.AreaIndex == 2 && !game.IsCamp && hero == game.Hero && hero.IsFree &&
+            hero.X is >= 4736 and <= 4912 && BridgeCrossing(game, hero, tx) is { } crossing)
+            return crossing;
         if (target != null && item == null && Math.Abs(target.Y - hero.Y) > 24)
             return TerrainNavigator.Towards(game, hero, tx, tz);
         var targetInShot = target != null && game.ProjectView(target.X, target.Z, target.Y).X is >= 24 and <= 296;
@@ -145,6 +150,29 @@ internal sealed class CodedController
         return new GameInput(x, z, Run: run);
     }
 
+    private static GameInput? BridgeCrossing(Game game, Fighter hero, double targetX)
+    {
+        var direction = Math.Sign(targetX - hero.X);
+        if (direction == 0)
+            return null;
+        // The break widens toward the front of the bridge. Probe this lane's actual banks.
+        var edge = 1;
+        while (edge <= 40 && game.Ground(hero.X + edge * direction, hero.Z) < 5248)
+            edge++;
+        if (edge > 40 || Math.Abs(targetX - hero.X) < edge)
+            return null;
+        var landing = hero.X + Game.HeroBargeDistance * direction;
+        if (Math.Abs(game.Ground(landing, hero.Z) - hero.Y) > 12)
+            return null;
+        var speed = hero.Vx * direction;
+        if (speed >= 3 && edge <= 24)
+            return new GameInput(X: direction, Attack: true, Run: true);
+        // From rest the six acceleration ticks consume 10.5 pixels before fire can start a barge.
+        var ticks = Math.Max(0, Math.Ceiling((3 - Math.Max(0, speed)) * 2));
+        var runup = ticks * Math.Max(0, speed) + ticks * (ticks + 1) / 4;
+        return edge <= runup + 1 ? new GameInput(X: -direction) : new GameInput(X: direction, Run: true);
+    }
+
     private GameInput? AvoidLightning(Game game, Fighter hero)
     {
         var jumpDistance = hero.IsMount ? 48 : 80;
@@ -174,6 +202,32 @@ internal sealed class CodedController
         return default(GameInput);
     }
 
+    private static bool ShouldCastEmergencyMagic(Game game, Fighter hero)
+    {
+        if (game.IsCamp || game.MagicTick >= 0 || game.Potions == 0 || !hero.IsFree || game.Hero.Health <= 0 || hero.Invulnerable > 12)
+            return false;
+
+        var imminentStrikes = 0;
+        var enemyOnLeft = false;
+        var enemyOnRight = false;
+        foreach (var enemy in game.Actors)
+        {
+            var dx = enemy.X - hero.X;
+            if (enemy.Mount != null || Math.Abs(dx) >= 65 || Math.Abs(enemy.Z - hero.Z) >= 12 ||
+                Math.Abs(enemy.Y - hero.Y) >= 12 || enemy.State is not (FighterState.Idle or FighterState.Walking or FighterState.Attacking) ||
+                !game.CanHitWithMagic(enemy.Rider ?? enemy))
+                continue;
+
+            enemyOnLeft |= dx < 0;
+            enemyOnRight |= dx > 0;
+            if (game.HasImminentStrikeAgainst(enemy, hero))
+                imminentStrikes++;
+        }
+
+        // An active hit chain means the hero is already taking damage in this exchange.
+        return imminentStrikes >= 2 || imminentStrikes == 1 && game.Hero.Hits > 0 && enemyOnLeft && enemyOnRight;
+    }
+
     private bool ShouldCastMagic(Game game)
     {
         if (m_magicGame != game || game.IsCamp || game.MagicTick >= 0 || game.Potions == 0)
@@ -192,7 +246,6 @@ internal sealed class CodedController
             m_magicWaitTick = null;
             return false;
         }
-        // Survival beats efficiency: do not wait for reinforcements with a nearby attacker and low health.
         if (game.Hero.Health <= 12 && targets.Any(a => game.HasImminentStrike(a) && Math.Abs(a.X - game.Hero.X) < 65 &&
                 Math.Abs(a.Z - game.Hero.Z) < 12 && Math.Abs(a.Y - game.Hero.Y) < 12))
             return true;

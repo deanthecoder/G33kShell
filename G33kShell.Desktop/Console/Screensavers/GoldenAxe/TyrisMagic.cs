@@ -19,8 +19,20 @@ namespace G33kShell.Desktop.Console.Screensavers.GoldenAxe;
 /// </remarks>
 internal static class TyrisMagic
 {
+    internal const int MeteorCenterX = 184;
+    internal const int MeteorFloorY = 191;
+
     public static int[][][][] Expand(int[][][][] recordings, SpriteFrame[] frames)
     {
+        // Keep the six-potion skulls and their trails clear of the HUD as the orbit widens.
+        foreach (var tick in recordings[5])
+        foreach (var sprite in tick)
+        {
+            if (sprite[1] is not (0x24 or 0x35))
+                continue;
+            var rise = -(sprite[5] + 0.75 * sprite[4]);
+            sprite[5] += (int)Math.Round(Math.Max(0, rise - 42) * 0.28);
+        }
         if (recordings.Length >= 9)
             return recordings;
         return recordings.Concat(Enumerable.Range(7, 3).Select(Build)).ToArray();
@@ -46,7 +58,7 @@ internal static class TyrisMagic
                     }
                 }
                 else if (potions == 7)
-                    Pillars(tick + 2, sprites);
+                    FireWall(tick + 2, sprites);
                 else if (potions == 8)
                     Meteors(tick + 2, sprites);
                 else
@@ -62,16 +74,19 @@ internal static class TyrisMagic
             sprites.Add([frame, palette, flip ? 1 : 0, (int)Math.Round(flip ? left + bounds.Ox + bounds.Width : left - bounds.Ox), 0, (int)Math.Round(top - bounds.Oy), 1]);
         }
 
-        void Pillars(int tick, List<int[]> sprites)
+        void FireWall(int tick, List<int[]> sprites)
         {
             int[] poses = [660, 659, 661, 662];
+            var age = tick - 50;
+            var width = frames[poses[0]].Width;
+            // The rear flame leads. The nearest flame clears the right edge at tick 171.
+            const int depthOffsetX = 8;
+            var leadX = 1 - width + age / 121.0 * (ArcadeData.Width + width + 5 * depthOffsetX - 2);
             for (var i = 0; i < 6; i++)
             {
-                if (tick > 165 + i % 3 * 3)
-                    continue;
-                var phase = ((tick - 50) / 3 + (i % 3 == 0 ? 0 : i % 3 + 1)) % poses.Length;
+                var phase = (age / 3 + i) % poses.Length;
                 var frame = poses[phase];
-                Piece(sprites, frame, 0x26, 4 + i * 49, 176 + i % 2 * 20 - frames[frame].Height);
+                Piece(sprites, frame, 0x26, leadX - i * depthOffsetX, 165 + i * 8 - frames[frame].Height);
             }
         }
 
@@ -80,22 +95,25 @@ internal static class TyrisMagic
             // The rippling core and rocky rim are half-sprites: each needs its mirrored partner.
             // MAME's instance counts also show two simultaneous copies of each core/rim pose.
             var age = tick - 50;
-            var top = 22 - Math.Max(0, 24 - age) * 5 - Math.Max(0, tick - 234) * 5;
             if (tick <= 258)
             {
                 var palette = 0x27 + (tick - 49) % 14;
                 var rim = 519 + age / 8 % 3;
-                Piece(sprites, 518, palette, 62, top);
-                Piece(sprites, 518, palette, 160, top, flip: true);
-                Piece(sprites, rim, 0x47, 42, top + 12);
-                Piece(sprites, rim, 0x47, 160, top + 12, flip: true);
+                Piece(sprites, 518, palette, MeteorCenterX - frames[518].Width, MeteorFloorY - frames[518].Height);
+                Piece(sprites, 518, palette, MeteorCenterX, MeteorFloorY - frames[518].Height, flip: true);
+                Piece(sprites, rim, 0x47, MeteorCenterX - frames[rim].Width, MeteorFloorY + 12 - frames[rim].Height);
+                Piece(sprites, rim, 0x47, MeteorCenterX, MeteorFloorY + 12 - frames[rim].Height, flip: true);
             }
             // Trajectories are reconstructed; preserve the observed meteor and flame windows.
             for (var i = 0; i < 3; i++)
             {
-                var phase = (age + i * 18) % 60;
-                var x = 20 + i * 100;
-                var bottom = 100 + phase * 1.6;
+                var launchAge = age - i * 4;
+                if (launchAge < 0 || launchAge >= 215 && i != 0)
+                    continue;
+                var phase = launchAge % 43;
+                var direction = (launchAge / 43 + i) % 2 == 0 ? 1 : -1;
+                var x = 146 + direction * phase * 1.4;
+                var bottom = 150 - phase * 3.5;
                 if (tick >= 53 && tick <= 287)
                 {
                     var impact = 675 + (tick - 53) / 2 % 3;
@@ -104,7 +122,7 @@ internal static class TyrisMagic
                 if (tick >= 56 && tick <= 293)
                 {
                     var flame = 98 + (tick - 56) / 3 % 3;
-                    Piece(sprites, flame, 0x35, x + 15, bottom - frames[flame].Height);
+                    Piece(sprites, flame, 0x35, x + 8, bottom - frames[flame].Height);
                 }
             }
         }

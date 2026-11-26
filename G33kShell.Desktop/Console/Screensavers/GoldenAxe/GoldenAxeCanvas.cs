@@ -57,7 +57,8 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
     public GoldenAxeCanvas(int width, int height) : base(width, height, 60) => Name = "goldenaxe";
     public override bool IsReadyToRun => ArcadeData.IsAvailable;
     private int StartingStage => Enumerable.Range(1, ArcadeData.AreaCount * 2 - 1).LastOrDefault(i => HasSwitch($"stage{i}"), 1);
-    private int EndDelayTicks => m_game.IsCamp && m_game.Complete ? EndFadeTicks : StageEndTicks;
+    private int EndDelayTicks => m_game.RescuingCaptives
+        ? CastleRescue.Duration : m_game.IsCamp && m_game.Complete ? EndFadeTicks : StageEndTicks;
     public bool IsInteractive => HasSwitch("play");
     public void SetKey(Key key, bool down)
     {
@@ -141,7 +142,7 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
                 m_map.Dispose();
                 m_map = null;
                 ClearInput();
-                AdvanceArea();
+                FinishMap();
                 return;
             }
         }
@@ -168,30 +169,27 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
             if ((m_game.Complete || m_game.GameOver) && ++m_endTicks >= EndDelayTicks)
             {
                 ClearInput();
-                if (m_game.Complete && m_game.AreaIndex + 1 < m_areas.Length)
-                {
-                    if (!m_game.IsCamp)
-                    {
-                        m_game.StartCamp();
-                        m_fadePalettes = null;
-                    }
-                    else
-                    {
-                        m_map = ArcadeMapRecording.Load(m_game.AreaIndex);
-                        if (m_map == null)
-                            AdvanceArea();
-                        else
-                        {
-                            m_mapSeconds = 0;
-                            m_accumulator = 0;
-                            m_lastTime = Time;
-                        }
-                    }
-                }
-                else
+                if (m_game.GameOver)
                 {
                     OnCycleCompleted();
                     StartCycle();
+                }
+                else if (!m_game.IsCamp && m_game.AreaIndex + 1 < m_areas.Length)
+                {
+                    m_game.StartCamp();
+                    m_fadePalettes = null;
+                }
+                else
+                {
+                    m_map = ArcadeMapRecording.Load(m_game.AreaIndex);
+                    if (m_map == null)
+                        FinishMap();
+                    else
+                    {
+                        m_mapSeconds = 0;
+                        m_accumulator = 0;
+                        m_lastTime = Time;
+                    }
                 }
                 m_endTicks = 0;
             }
@@ -226,15 +224,23 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
             }
 
             var fadeTicks = EndDelayTicks - m_endTicks;
-            var fade = fadeTicks < EndFadeTicks ? Math.Clamp(fadeTicks * 30 / EndFadeTicks, 0, 30) : Math.Min(30, m_game.TickCount);
+            var fadeDuration = m_game.RescuingCaptives ? CastleRescue.FadeTicks : EndFadeTicks;
+            var fade = fadeTicks < fadeDuration ? Math.Clamp(fadeTicks * 30 / fadeDuration, 0, 30) : Math.Min(30, m_game.TickCount);
             pixels.SetPalette(GetFadePalette(fade));
             m_renderer.Draw(pixels, m_game, tint: HasSwitch("color") ? null : Foreground, effectOpacity: (byte)(255 * fade / 30),
                 showTerrainShade: HasSwitch("ao"));
         }
     }
 
-    private void AdvanceArea()
+    private void FinishMap()
     {
+        if (m_game.AreaIndex + 1 == m_areas.Length)
+        {
+            OnCycleCompleted();
+            StartCycle();
+            return;
+        }
+
         LoadArea(m_game.AreaIndex + 1);
         m_game = m_game.ContinueIn(m_data);
     }
@@ -243,7 +249,7 @@ public sealed class GoldenAxeCanvas : PixelScreensaverBase, IInteractiveScreensa
     {
         var stage = StartingStage;
         LoadArea((stage - 1) / 2);
-        m_game = new Game(m_data, Settings.Instance.GoldenAxeCharacter, startInCamp: stage % 2 == 0);
+        m_game = new Game(m_data, Settings.Instance.GoldenAxeCharacter, startInCamp: stage % 2 == 0, playOpening: stage == 1);
         m_endTicks = 0;
         m_fadeInTitle = m_introTicks > 0;
         m_titleTicks = m_title == null ? 0 : ArcadeTitleCard.DurationTicks;

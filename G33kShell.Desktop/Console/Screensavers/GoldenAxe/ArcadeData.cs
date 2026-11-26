@@ -224,6 +224,8 @@ internal sealed class ArcadeData
         CameraPath = ((JObject)level["camPath"]).Properties().ToDictionary(p => int.Parse(p.Name, CultureInfo.InvariantCulture), p => p.Value.ToObject<int[]>());
         TileColors = ((JObject)level["palettes"]).Properties().Where(p => p.Name == DayPalette || p.Name == BossPalette || p.Name == "0").ToDictionary(p => p.Name, p => DecodeWords((string)p.Value));
         Magic = JObject.Parse(File.ReadAllText(Path.Combine(directory, "magic.json"))).Properties().ToDictionary(p => p.Name, p => p.Value.ToObject<int[][][][]>());
+        Magic["ax"] = HighMagic.Ax(Magic["ax"]);
+        Magic["gilius"] = HighMagic.Gilius(Magic["gilius"]);
         Magic["tyris"] = TyrisMagic.Expand(Magic["tyris"], Frames);
 
         // Weight visible tiles and actor colors, rather than unused ROM palette entries.
@@ -247,6 +249,8 @@ internal sealed class ArcadeData
         }
         var actorPalettes = new HashSet<int> { 0x13, 0x14, 0x15, 0x18, 0x1a, 0x1b, 0x77, 0x78, 0x79, 0x38, 0x3d, 0x4a, 0x4d, 0x63, 0x64, 0x65, 0x7b, 0x23, 0x43, 0x44, 0x45, 0x1c, 0x1d, 0x86, 0x87, 0x73, 0x6f, 0x70, 0x50, 0x52, 0x39, 0x7a, 0x3c, 0x7f };
         foreach (var effect in Magic.Values.SelectMany(h => h).SelectMany(l => l).SelectMany(t => t)) actorPalettes.Add(effect[1]);
+        if (AreaIndex == AreaCount - 1)
+            actorPalettes.UnionWith(new[] { 0x5a, 0x5b, 0x5c, 0x8d });
         actorPalettes.Add(0x40); // GO! sword and lettering.
         actorPalettes.UnionWith(new[] { 0x4b, 0x4c, 0x4d, 0x4e }); // Dean-selected civilian palettes.
         actorPalettes.Add(0x42); // Injured villager: grey clothes and red wounds, matched to Dean's MAME image.
@@ -257,7 +261,7 @@ internal sealed class ArcadeData
         if (AreaIndex == 2)
         {
             actorPalettes.Add(SceneryEyes.TurtlePalette);
-            actorPalettes.Add(Game.BrotherDoorPalette);
+            actorPalettes.Add(Game.StageFiveDoorPalette);
         }
         if (AreaIndex == 4)
         {
@@ -266,7 +270,7 @@ internal sealed class ArcadeData
             actorPalettes.Add(Game.LightningTrailPalette);
         }
         if (AreaIndex == 3)
-            actorPalettes.Add(EagleFeathers.Palette);
+            actorPalettes.UnionWith(new[] { EagleFeathers.Palette, Game.ClayHeningerPalette, Game.ClayLongmoanPalette });
         foreach (var p in actorPalettes)
         for (var i = 1; i < 15; i++) Count(SpriteColors[p][i], 500);
         Count(0, 10000);

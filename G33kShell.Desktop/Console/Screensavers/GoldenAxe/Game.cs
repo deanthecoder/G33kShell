@@ -27,11 +27,17 @@ internal sealed class Game
     internal const int HeroFadeTicks = 18;
     internal const int LandingDustTicks = 150;
     internal const int PickupFadeTicks = 15;
-    internal const int BrotherDoorPalette = 0x68;
-    internal const int BrotherDoorAjarFrame = 770;
-    internal const int BrotherDoorOpenFrame = 771;
-    internal const int BrotherDoorOpeningTicks = 8;
-    internal const int BrotherDoorClosingTick = 32;
+    internal const int ClayHeningerPalette = 0x1f;
+    internal const int ClayLongmoanPalette = 0x7d;
+    internal const int StageFiveDoorPalette = 0x68;
+    internal const int StageFiveDoorAjarFrame = 770;
+    internal const int StageFiveDoorOpenFrame = 771;
+    internal const int StageFiveDoorOpeningTicks = 8;
+    internal const int DoorRevealStart = StageFiveDoorOpeningTicks + 8;
+    internal const int DoorRevealEnd = DoorRevealStart + 30;
+    private const int DoorInteriorDepth = 24;
+    internal const int DoorCloseStart = DoorRevealEnd + 40;
+    internal const int DoorEntranceDuration = DoorCloseStart + StageFiveDoorOpeningTicks;
     private const int BrotherChuckleTicks = 100;
     internal const int LightningPalette = 0x61;
     internal const int LightningTrailPalette = 0x60;
@@ -66,6 +72,7 @@ internal sealed class Game
     private int m_pendingHero = -1;
     private int? m_surfStartTick;
     private readonly Queue<(SpawnDefinition Spawn, int Tick)> m_brotherEntrances = new();
+    public ForestOpening Opening { get; private set; }
     public HeroDefinition Character { get; private set; }
     public int[][][][] MagicEffects => m_data.Magic[Character.MagicKey];
     public List<Fighter> Actors { get; } = [];
@@ -84,6 +91,7 @@ internal sealed class Game
         AreaIndex == 3 && spawn.Routine == 0x23bda || AreaIndex == 4 && spawn.Routine == 0x2538a;
     public Fighter Hero { get; }
     public int TickCount { get; private set; }
+    public bool RescuingCaptives => Complete && AreaIndex == ArcadeData.AreaCount - 1 && !IsCamp;
     public int EndStateTicks { get; private set; }
     public int? SurfAge => !IsCamp && m_surfStartTick is { } start ? TickCount - start : null;
     public int EagleSkyTick { get; private set; } = -1;
@@ -105,6 +113,8 @@ internal sealed class Game
     public int MagicLevel { get; private set; }
     public int MagicDuration => Math.Max(60, ActiveMagicEffects.Length);
     public int MagicShakeStart { get; private set; }
+    public bool MagicTargetsFlashing => MagicTick >= MagicShakeStart &&
+        (Character.MagicKey == "gilius" ? LightningCage.SampleTick(this) >= 66 : MagicTick >= m_magicPeak);
     public int[][][] ActiveMagicEffects { get; private set; } = [];
     private bool FinalWaveSpawned => m_stopIndex == m_data.Stops.Length - 1 && m_spawnIndex == m_data.Spawns.Length;
     public bool CanAdvance => !IsCamp && !Complete && !GameOver && Hero.Health > 0 && !FinalWaveSpawned && Progress < m_data.Stops[m_stopIndex] &&
@@ -116,7 +126,7 @@ internal sealed class Game
         m_data.Spawns.Skip(m_spawnIndex).TakeWhile(s => s.Trigger <= Math.Min(Progress + 64, m_data.Stops[m_stopIndex]))
             .Any(s => s.IsEnemy));
 
-    public Game(ArcadeData data, int character = 0, Random random = null, bool startInCamp = false)
+    public Game(ArcadeData data, int character = 0, Random random = null, bool startInCamp = false, bool playOpening = false)
     {
         m_data = data;
         m_random = random ?? Random.Shared;
@@ -128,6 +138,11 @@ internal sealed class Game
         Hero.Z = FindFloor(Hero.X, Hero.Z, keepVisible: true);
         Hero.Y = Ground(Hero.X, Hero.Z);
         ViewCamera.Reset(CameraX, CameraY);
+        if (playOpening && !startInCamp && AreaIndex == 0)
+        {
+            Opening = new ForestOpening(this, data.Spawns[0], data.Spawns[1]);
+            m_spawnIndex = 2;
+        }
         if (startInCamp)
         {
             Complete = true;
@@ -246,9 +261,31 @@ internal sealed class Game
         {
             // End messages keep animating while the gameplay clock is stopped.
             EndStateTicks++;
+            if (RescuingCaptives)
+            {
+                CameraY = Math.Min(CameraRange().High, CameraY + 0.65);
+                var witness = Hero.Mount ?? Hero;
+                var dx = Math.Clamp(Progress + 64 - witness.X, -1, 1);
+                var dz = Math.Clamp(4112 - witness.Z, -1.25, 1.25);
+                var previous = (witness.X, witness.Z);
+                Move(witness, dx, dz);
+                witness.Y = Ground(witness.X, witness.Z);
+                var walking = previous != (witness.X, witness.Z);
+                witness.Facing = walking && dx < 0 ? -1 : 1;
+                witness.Animation.Play(walking ? witness.Moves.Walk : witness.Moves.Idle);
+                witness.Animation.Tick();
+                if (Hero.Mount != null)
+                    (Hero.X, Hero.Z, Hero.Y) = (witness.X, witness.Z, witness.Y);
+            }
             return;
         }
         TickCount++;
+        if (Opening != null)
+        {
+            if (Opening.Tick(this, input.AdvanceDialogue))
+                Opening = null;
+            return;
+        }
         if (AreaIndex == 0 && !IsCamp && Boss && BossPaletteTick < 0)
             BossPaletteTick = TickCount;
         if (m_lightningTrail.Count != 0)
@@ -453,8 +490,8 @@ internal sealed class Game
             spawn = spawn with { Z = spawn.Z + Camp.DepthOffset };
         switch (spawn.Routine)
         {
-            case 0x1b454: Add(ActorKind.Heninger, Moves.StrongHeninger, 0x1c, 16, spawn.X, spawn.Z); break;
-            case 0x20414: Add(ActorKind.Longmoan, Moves.StrongLongmoan, 0x7a, 16, spawn.X, spawn.Z); break;
+            case 0x1b454: Add(ActorKind.Heninger, Moves.StrongHeninger, ClayHeningerPalette, 16, spawn.X, spawn.Z); break;
+            case 0x20414: Add(ActorKind.Longmoan, Moves.StrongLongmoan, ClayLongmoanPalette, 16, spawn.X, spawn.Z); break;
             case 0x23bda: SpawnSkeletonMound(spawn); break;
             case 0x2536e: Add(ActorKind.Skeleton, Moves.Skeleton, 0x6f, 24, spawn.X, spawn.Z); break;
             case 0x2538a: SpawnSkeletonMound(spawn); break;
@@ -473,7 +510,10 @@ internal sealed class Game
             case 0x229c8: Add(ActorKind.Amazon, Moves.Amazon, 0x65, 16, spawn.X, spawn.Z); break;
             case 0x2f60a: case 0x2f61c: SpawnMount(ActorKind.BlueDragon, spawn); break;
             case 0x306aa: SpawnMount(ActorKind.RedDragon, spawn); break;
-            case 0x2a358: Add(ActorKind.Knight, Moves.Knight, 0x86, 32, spawn.X, spawn.Z); break;
+            case 0x2a358:
+                var knight = Add(ActorKind.Knight, Moves.Knight, 0x86, 32, spawn.X, spawn.Z);
+                EnterDoor(knight, spawn);
+                break;
             case 0x18b50: Add(ActorKind.Heninger, Moves.Heninger, 0x1d, 16, spawn.X, spawn.Z); break;
             case 0x18b28: Add(ActorKind.Heninger, Moves.Heninger, 0x1b, AreaIndex == 0 && m_stopIndex == 0 ? 8 : 16, spawn.X, spawn.Z); break;
             case 0x317b8: Add(ActorKind.Heninger, Moves.Heninger, 0x1b, 16, spawn.X, spawn.Z); break;
@@ -563,7 +603,14 @@ internal sealed class Game
     private void EnterBadBrother(SpawnDefinition spawn)
     {
         var brother = AddBadBrother(spawn, 0x38);
-        brother.SetState(FighterState.Entering, 0x2915a, attack: true);
+        EnterDoor(brother, spawn);
+    }
+
+    private static void EnterDoor(Fighter actor, SpawnDefinition spawn)
+    {
+        actor.EntranceDoor = spawn;
+        actor.Z = spawn.Z - DoorInteriorDepth;
+        actor.SetState(FighterState.Entering, actor.Moves.Walk);
     }
 
     private Fighter AddBadBrother(SpawnDefinition spawn, int palette)
@@ -602,7 +649,9 @@ internal sealed class Game
             (0, 0x2c264) => (ActorKind.Amazon, Moves.Amazon, 0x63),
             (0, 0x2b10c) => (ActorKind.Heninger, Moves.Heninger, 0x1b),
             (0, _) => (ActorKind.Heninger, Moves.Heninger, 0x1a),
+            (1, 0x2f61c) => (ActorKind.Amazon, Moves.Amazon, 0x65),
             (1, _) => (ActorKind.Amazon, Moves.Amazon, 0x64),
+            (2, 0x2c276) => (ActorKind.Amazon, Moves.Amazon, 0x64),
             (3, _) => (ActorKind.Longmoan, Moves.FastLongmoan, 0x7b),
             (4, _) => (ActorKind.Amazon, Moves.Amazon, 0x65),
             _ => (ActorKind.Longmoan, Moves.Longmoan, 0x79)
@@ -883,6 +932,12 @@ internal sealed class Game
     internal bool HasImminentStrike(Fighter actor) => actor.State == FighterState.Attacking &&
         m_data.Attacks.TryGetValue(actor.Animation.Address, out var attack) && actor.Animation.TicksUntilStep(attack[2]) is >= 0 and <= 12;
 
+    internal bool HasImminentStrikeAgainst(Fighter attacker, Fighter target) =>
+        attacker.State == FighterState.Attacking && Math.Abs(attacker.Z - target.Z) < 7 && !attacker.Struck.Contains(target.Id) &&
+        m_data.Attacks.TryGetValue(attacker.Animation.Address, out var attack) &&
+        attacker.Animation.TicksUntilStep(attack[2]) is >= 0 and <= 4 &&
+        AttackOverlapsBody(attacker, attacker.Animation.Steps[attack[2]], attack, target, target.Animation.Current);
+
     private bool HasAttackWindow(Fighter actor, Fighter target)
     {
         const int separation = 9;
@@ -979,16 +1034,18 @@ internal sealed class Game
                     actor.SetState(FighterState.Idle, actor.Moves.Idle);
                 return;
             case FighterState.Entering:
-                if (actor.StateTicks >= BrotherDoorClosingTick)
+                if (actor.StateTicks < DoorRevealStart)
+                    return;
+                actor.Animation.Tick();
+                if (actor.StateTicks <= DoorRevealEnd && actor.EntranceDoor is { } door)
                 {
-                    actor.Animation.Play(actor.Moves.Walk);
-                    actor.Animation.Tick();
-                    Move(actor, -0.5, 0.5);
-                    if (actor.StateTicks >= BrotherDoorClosingTick + 32)
-                        actor.SetState(FighterState.Idle, actor.Moves.Idle);
+                    // The door interior is outside the walkable height map. Keep the sill elevation until the feet reach it.
+                    actor.Z = door.Z - DoorInteriorDepth * (DoorRevealEnd - actor.StateTicks) / (double)(DoorRevealEnd - DoorRevealStart);
                 }
-                else if (actor.StateTicks > BrotherDoorOpeningTicks)
-                    actor.Animation.Tick();
+                else
+                    Move(actor, -0.5, 0.75);
+                if (actor.StateTicks >= DoorEntranceDuration)
+                    actor.SetState(FighterState.Idle, actor.Moves.Idle);
                 return;
             case FighterState.Emerging:
                 if (actor.StateTicks is 8 or 24)
@@ -1375,6 +1432,14 @@ internal sealed class Game
         if (MagicTick >= ActiveMagicEffects.Length)
             return;
         var hero = ProjectView(Hero.X, Hero.Z, Ground(Hero.X, Hero.Z));
+        // The core keeps the same patch of ground hot while the last flames are still overhead.
+        if (Character.MagicKey == "tyris" && MagicLevel == 5 && MagicTick >= 48)
+        {
+            var center = Hero.X + TyrisMagic.MeteorCenterX - hero.X;
+            var depth = Hero.Z + (TyrisMagic.MeteorFloorY - hero.Y) / 0.75;
+            for (var offset = -48; offset <= 48; offset += 48)
+                RefreshGroundHeat(center + offset, depth, 1, "tyris");
+        }
         foreach (var effect in ActiveMagicEffects[MagicTick])
         {
             // Physical props and the airborne sections of the dwarf's cages do not light the floor.
@@ -1719,9 +1784,6 @@ internal sealed class Game
         if (attack == null || !mountedCharge && actor.Animation.Index != attack[2])
             return;
         var step = actor.Animation.Current;
-        var origin = actor.X + step.Dx * actor.Facing;
-        var left = origin + (actor.Facing > 0 ? attack[3] : -attack[4]);
-        var right = origin + (actor.Facing > 0 ? attack[4] : -attack[3]);
         var friendly = actor == Hero || actor.Rider == Hero || actor.Kind == ActorKind.Fireball && actor.Owner == Hero;
         foreach (var target in Actors.ToArray())
         {
@@ -1738,15 +1800,24 @@ internal sealed class Game
             if (target == Hero && target.State is FighterState.Grabbing or FighterState.Throwing &&
                 (body.Body[1] <= body.Body[0] || body.Body[3] <= body.Body[2]))
                 body = m_data.Animations[target.Moves.Idle][0];
-            var bx = target.X + body.Dx * target.Facing;
-            var bl = bx + (target.Facing > 0 ? body.Body[0] : -body.Body[1]);
-            var br = bx + (target.Facing > 0 ? body.Body[1] : -body.Body[0]);
-            if (br < left || bl > right || target.Y + body.Dy + body.Body[3] < actor.Y + step.Dy + attack[5] || target.Y + body.Dy + body.Body[2] > actor.Y + step.Dy + attack[6])
+            if (!AttackOverlapsBody(actor, step, attack, target, body))
                 continue;
             actor.Struck.Add(target.Id);
             actor.Connected = true;
             Hit(actor, target, attack[1], attack[0] >= 5);
         }
+    }
+
+    private static bool AttackOverlapsBody(Fighter actor, AnimationStep step, int[] attack, Fighter target, AnimationStep body)
+    {
+        var origin = actor.X + step.Dx * actor.Facing;
+        var left = origin + (actor.Facing > 0 ? attack[3] : -attack[4]);
+        var right = origin + (actor.Facing > 0 ? attack[4] : -attack[3]);
+        var bx = target.X + body.Dx * target.Facing;
+        var bl = bx + (target.Facing > 0 ? body.Body[0] : -body.Body[1]);
+        var br = bx + (target.Facing > 0 ? body.Body[1] : -body.Body[0]);
+        return br >= left && bl <= right && target.Y + body.Dy + body.Body[3] >= actor.Y + step.Dy + attack[5] &&
+            target.Y + body.Dy + body.Body[2] <= actor.Y + step.Dy + attack[6];
     }
 
     private void Hit(Fighter source, Fighter target, int damage, bool knock)
