@@ -1104,8 +1104,8 @@ internal sealed class ArcadeRenderer
             var orientation = flip ? 1 : 0;
             var shadow = m_sunShadows[frame, orientation] ??= CreateSunShadow(m_data.Frames[frame], flip);
             var verticalOffset = offsetY - height;
-            var left = (int)Math.Round(point.X + offsetX + verticalOffset * ShadowSkew) + shadow.Left;
-            var top = (int)Math.Round(point.Y + verticalOffset * ShadowSquash) + shadow.Top;
+            var left = SnapSpriteCoordinate(point.X + offsetX + verticalOffset * ShadowSkew) + shadow.Left;
+            var top = SnapSpriteCoordinate(point.Y + verticalOffset * ShadowSquash) + shadow.Top;
             for (var sy = Math.Max(0, -top); sy < shadow.Height && top + sy < screen.Height; sy++)
             {
                 var y = top + sy;
@@ -1397,7 +1397,8 @@ internal sealed class ArcadeRenderer
         var index = TurtleVillageSurf.Frame(age);
         var frame = m_data.Frames[index];
         var point = game.ProjectView(TurtleVillageSurf.X(age), TurtleVillageSurf.Depth, TurtleVillageSurf.Y(age));
-        var opacity = TurtleVillageSurf.Opacity(ArcadeData.Height - (int)Math.Round(point.Y + frame.Oy));
+        var top = SnapSpriteCoordinate(point.Y + frame.Oy);
+        var opacity = TurtleVillageSurf.Opacity(ArcadeData.Height - top);
         if (opacity == 0)
             return;
 
@@ -1411,7 +1412,7 @@ internal sealed class ArcadeRenderer
         if (opacity < 255)
             screen.EndTranslucentSprite();
         if (effectOpacity != 0)
-            TurtleVillageSurf.DrawHighlights(screen, age, (int)Math.Round(point.Y + frame.Oy),
+            TurtleVillageSurf.DrawHighlights(screen, age, top,
                 (int)Math.Round(game.ViewCamera.X), opacity * effectOpacity / 255, m_data.SurfPalette[2]);
     }
 
@@ -1673,9 +1674,9 @@ internal sealed class ArcadeRenderer
         if (index < 0 || index >= m_data.Frames.Length)
             return;
         var frame = m_data.Frames[index];
-        var left = (int)Math.Round(flip ? anchorX - (frame.Ox + frame.Width) / (double)divisor : anchorX + frame.Ox / (double)divisor);
+        var left = SnapSpriteCoordinate(flip ? anchorX - (frame.Ox + frame.Width) / (double)divisor : anchorX + frame.Ox / (double)divisor);
         var yStride = divisor * verticalDivisor;
-        var top = (int)Math.Round(anchorY + frame.Oy / (double)yStride);
+        var top = SnapSpriteCoordinate(anchorY + frame.Oy / (double)yStride);
         var spritePalette = paletteOverride ?? m_data.SpritePalette[palette];
         var sourceColors = softenOutline ? m_data.SpriteColors[palette] : null;
         var stride = m_data.SpriteStride;
@@ -1701,6 +1702,9 @@ internal sealed class ArcadeRenderer
             }
         }
     }
+
+    // Resolve midpoint ties consistently as the camera moves between even and odd pixels.
+    private static int SnapSpriteCoordinate(double coordinate) => (int)Math.Floor(coordinate + 0.5);
 
     private bool IsSilhouetteEdge(SpriteFrame frame, int x, int y, int offset)
     {

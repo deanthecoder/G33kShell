@@ -258,13 +258,12 @@ internal sealed class Game
         return z;
     }
 
-    public (double X, double Y) Project(double x, double z, double y) => (x - 4096 + CameraX + 8, z - 4096 - Math.Floor((z - 4096) / 4) + y - 4096 + CameraY);
+    public (double X, double Y) Project(double x, double z, double y) => Project(x, z, y, CameraX, CameraY);
 
-    public (double X, double Y) ProjectView(double x, double z, double y)
-    {
-        var point = Project(x, z, y);
-        return (point.X + ViewCamera.X - CameraX, point.Y + ViewCamera.Y - CameraY);
-    }
+    public (double X, double Y) ProjectView(double x, double z, double y) => Project(x, z, y, ViewCamera.X, ViewCamera.Y);
+
+    private static (double X, double Y) Project(double x, double z, double y, double cameraX, double cameraY) =>
+        (x - 4096 + cameraX + 8, z - 4096 - Math.Floor((z - 4096) / 4) + y - 4096 + cameraY);
 
     private (int Low, int High) CameraRange() => m_data.CameraRange(CameraX, extendLower: !IsCamp);
 

@@ -769,6 +769,40 @@ public class GoldenAxeTests
 
     [TestCase(false)]
     [TestCase(true)]
+    public void FallenEnemyStaysAnchoredDuringAVerticalCameraPan(bool petrified)
+    {
+        var data = new ArcadeData(ArcadeData.AssetDirectory);
+        var game = new Game(data);
+        game.Actors.Clear();
+        // Sample a fully petrified pose, on the hidden phase of the GO prompt.
+        typeof(Game).GetProperty(nameof(Game.TickCount))!.SetValue(game, 150);
+        // A defeated enemy can come to rest halfway between two depth coordinates.
+        var enemy = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 0, game.Hero.X, Math.Floor(game.Hero.Z) + 0.5);
+        enemy.SetState(petrified ? FighterState.Petrified : FighterState.Down, enemy.Moves.GetUp);
+        enemy.Animation.Seek(1);
+        var renderer = new ArcadeRenderer(data);
+        var frame = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
+
+        int[] Footprint(int pan)
+        {
+            game.ViewCamera.Reset(game.CameraX, game.CameraY + pan);
+            game.Actors.Remove(enemy);
+            renderer.Draw(frame, game, effects: false);
+            var scenery = (byte[])frame.Pixels.Clone();
+            game.Actors.Add(enemy);
+            renderer.Draw(frame, game, effects: false);
+            return Enumerable.Range(0, scenery.Length).Where(i => scenery[i] != frame.Pixels[i])
+                .Select(i => i - pan * frame.Width).ToArray();
+        }
+
+        var footprint = Footprint(0);
+        Assert.That(footprint, Is.Not.Empty);
+        foreach (var pan in new[] { 1, 2, 1, 0, -1, -2, -1 })
+            Assert.That(Footprint(pan), Is.EqualTo(footprint), $"Camera offset {pan} must move the body with the floor.");
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
     public void DefeatedEnemyShadowHugsTheProneBody(bool longmoan)
     {
         var data = new ArcadeData(ArcadeData.AssetDirectory);
