@@ -626,6 +626,54 @@ public class GoldenAxeGameplayTests
     }
 
     [Test]
+    public void TyrisFloorExplosionDrawsBetweenFightersAtDifferentDepths()
+    {
+        var data = m_areas[0];
+        var game = new Game(data, character: 1);
+        game.Tick(new GameInput(Magic: true));
+        Assert.That(game.MagicLevel, Is.EqualTo(1));
+        game.Actors.Clear();
+        var effect = game.ActiveMagicEffects[180].First(sprite => sprite[0] == 94);
+        var recording = Enumerable.Repeat(new[] { effect }, 25).ToArray();
+        typeof(Game).GetProperty(nameof(Game.ActiveMagicEffects))!.SetValue(game, recording);
+        var magicTick = typeof(Game).GetProperty(nameof(Game.MagicTick))!;
+        var renderer = new ArcadeRenderer(data);
+        var screen = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
+        var depth = game.Hero.Z + effect[4];
+        var x = game.Hero.X + effect[3];
+        var y = game.Hero.Y + effect[5];
+        var burst = game.ProjectView(x, depth, y);
+        var enemy = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, x, depth);
+        enemy.Animation.HoldFrame(123);
+
+        byte[] Sample(bool showExplosion, bool showEnemy, double enemyDepth)
+        {
+            magicTick.SetValue(game, showExplosion ? 12 : -1);
+            game.Actors.Clear();
+            if (showEnemy)
+            {
+                // Hold the silhouette at the same screen position so only its draw depth changes.
+                enemy.Z = enemyDepth;
+                enemy.Y = y + burst.Y - game.ProjectView(x, enemy.Z, y).Y;
+                game.Actors.Add(enemy);
+            }
+            renderer.Draw(screen, game, effects: false);
+            return (byte[])screen.Pixels.Clone();
+        }
+
+        var scenery = Sample(false, false, depth);
+        var explosion = Sample(true, false, depth);
+        var fighter = Sample(false, true, depth);
+        var overlap = Enumerable.Range(0, scenery.Length).Where(i =>
+            scenery[i] != fighter[i] && scenery[i] != explosion[i] && fighter[i] != explosion[i]).ToArray();
+        Assert.That(overlap.Length, Is.GreaterThan(100));
+        var nearer = Sample(true, true, depth + 16);
+        var farther = Sample(true, true, depth - 16);
+        Assert.That(overlap.Select(i => nearer[i]), Is.EqualTo(overlap.Select(i => fighter[i])));
+        Assert.That(overlap.Select(i => farther[i]), Is.EqualTo(overlap.Select(i => explosion[i])));
+    }
+
+    [Test]
     public void FullMagicMeterKeepsNumbersInFrontOfPotions()
     {
         var data = m_areas[0];

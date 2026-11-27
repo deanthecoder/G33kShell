@@ -194,12 +194,22 @@ internal sealed class ArcadeRenderer
             CastleRescue.Draw(screen, game, m_data, this);
         var casting = game.MagicTick >= 0 && game.MagicTick < game.ActiveMagicEffects.Length;
         var flashMagicTargets = game.MagicTargetsFlashing;
+        var sortFloorExplosions = casting && game.Character.MagicKey == "tyris" && game.MagicLevel == 1;
+        var floorExplosions = sortFloorExplosions ? FloorExplosions(game) : [];
+        var nextExplosion = 0;
+        void DrawExplosionsThrough(double depth)
+        {
+            while (nextExplosion < floorExplosions.Length && game.Hero.Z + floorExplosions[nextExplosion].Effect[4] <= depth)
+                DrawMagicVisual(screen, game, floorExplosions[nextExplosion++]);
+        }
+
         var behindActors = casting && game.MagicTick >= 48 &&
             (game.Character.MagicKey == "ax" && game.MagicLevel == 4 || game.Character.MagicKey == "tyris" && game.MagicLevel == 5);
         if (behindActors)
             DrawMagic(screen, game, effects, tint, effectOpacity);
         foreach (var actor in game.Actors.Concat(game.StoneBodies).Concat(game.FadingPickups).OrderBy(a => a.Z).ThenByDescending(a => a.Y))
         {
+            DrawExplosionsThrough(actor.Z);
             if (actor.Mount != null || actor.State == FighterState.Gone && actor.PickupTick < 0 ||
                 actor.State == FighterState.Dying && actor.Kind is not (ActorKind.Fireball or ActorKind.Flame) && game.TickCount % 4 < 2)
                 continue;
@@ -300,9 +310,10 @@ internal sealed class ArcadeRenderer
                 DrawCampfireEmbers(screen, point.X, point.Y, game.TickCount);
             }
         }
+        DrawExplosionsThrough(double.PositiveInfinity);
         ProfileStage?.Invoke("actors");
         if (casting && !behindActors)
-            DrawMagic(screen, game, effects, tint, effectOpacity);
+            DrawMagic(screen, game, effects, tint, effectOpacity, skipFloorExplosions: sortFloorExplosions);
         ProfileStage?.Invoke("magic");
         if (effects)
         {
@@ -562,7 +573,15 @@ internal sealed class ArcadeRenderer
         effect.Length > 6 && effect[6] == 1 ? (effect[3], effect[5]) :
             game.ProjectView(game.Hero.X + effect[3], game.Hero.Z + effect[4], game.Hero.Y + effect[5]);
 
-    private void DrawMagic(PixelScreenData screen, Game game, bool effects, Rgb tint, byte effectOpacity)
+    private MagicVisual[] FloorExplosions(Game game)
+    {
+        var frame = GetMagicFrame(game.ActiveMagicEffects, game.MagicTick);
+        return frame.Dim.Concat(frame.Active).Where(IsFloorExplosion).OrderBy(sprite => sprite.Effect[4]).ToArray();
+    }
+
+    private static bool IsFloorExplosion(MagicVisual sprite) => sprite.Effect[0] is >= 94 and <= 97;
+
+    private void DrawMagic(PixelScreenData screen, Game game, bool effects, Rgb tint, byte effectOpacity, bool skipFloorExplosions = false)
     {
         var dwarf = game.Character.MagicKey == "gilius";
         var frame = GetMagicFrame(game.ActiveMagicEffects, game.MagicTick);
@@ -590,13 +609,18 @@ internal sealed class ArcadeRenderer
             {
                 if (clouds.HasValue && clouds.Value != (sprite.Effect[0] is >= 447 and <= 449))
                     continue;
-                if (dwarf && LightningCage.IsSprite(sprite.Effect))
+                if (dwarf && LightningCage.IsSprite(sprite.Effect) || skipFloorExplosions && IsFloorExplosion(sprite))
                     continue;
-                screen.BeginTranslucentSprite(sprite.SpriteOpacity);
-                DrawMagicSprite(screen, game, sprite.Effect);
-                screen.EndTranslucentSprite();
+                DrawMagicVisual(screen, game, sprite);
             }
         }
+    }
+
+    private void DrawMagicVisual(PixelScreenData screen, Game game, MagicVisual sprite)
+    {
+        screen.BeginTranslucentSprite(sprite.SpriteOpacity);
+        DrawMagicSprite(screen, game, sprite.Effect);
+        screen.EndTranslucentSprite();
     }
 
     private MagicFrame GetMagicFrame(int[][][] recording, int tick)
