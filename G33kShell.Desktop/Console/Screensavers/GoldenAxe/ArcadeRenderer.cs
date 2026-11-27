@@ -10,6 +10,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using DTC.Core;
 
@@ -40,6 +41,8 @@ internal sealed class ArcadeRenderer
     private readonly byte[] m_bloodColors;
     private readonly Dictionary<int[][][], MagicFrame[]> m_magicFrames = new();
     private TerrainShading m_terrainShading;
+    private (int X, int Y)? m_checkedSceneryView;
+    private bool m_reportedSceneryGap;
     internal const int MagicMeterTop = 12;
     private const byte MinimumMagicOpacity = 64;
     private const double ShadowSkew = 0.55;
@@ -114,6 +117,7 @@ internal sealed class ArcadeRenderer
         var sunsetOpacity = (byte)Math.Round(sunset * 255);
         var backgroundX = (int)Math.Floor(u * m_data.Parallax[0][0] + m_data.Parallax[0][1]);
         var backgroundY = (int)(v * m_data.Parallax[1][0] + m_data.Parallax[1][1]);
+        CheckBottomScenery(game, (int)u, v, backgroundX, backgroundY);
         if (m_data.Sky != null && !game.IsCamp)
         {
             var scroll = EagleSky.Scroll(game.EagleSkyTick, m_data.SkyScrollX);
@@ -1587,6 +1591,18 @@ internal sealed class ArcadeRenderer
         for (var x = left; x < left + width; x++)
             screen.SetPixel(x, y, color);
     }
+    [Conditional("DEBUG")]
+    private void CheckBottomScenery(Game game, int x, int y, int backgroundX, int backgroundY)
+    {
+        if (game.IsCamp || m_checkedSceneryView == (x, y))
+            return;
+        m_checkedSceneryView = (x, y);
+        var gap = m_data.FindBottomSceneryGap(x, y, backgroundX, backgroundY);
+        if (gap is { } cell && !m_reportedSceneryGap)
+            Debug.WriteLine($"Golden Axe Stage {m_data.StageNumber}: possible bottom scenery gap at world ({cell.X}, {cell.Y}), camera ({-7 - x}, {-512 - y}).");
+        m_reportedSceneryGap = gap != null;
+    }
+
     private void Layer(PixelScreenData screen, TileLayer layer, int u, int v, byte[] palette, bool high, bool opaque,
         bool wrap = false, bool skipSky = false, byte[] previousPalette = null, byte opacity = 255)
     {

@@ -32,6 +32,9 @@ public class GoldenAxeTests
     [TestCase(-1156, -560)]
     [TestCase(-1156, -581)]
     [TestCase(-1059, -624)]
+    [TestCase(-512, -691)]
+    [TestCase(-549, -712)]
+    [TestCase(-549, -720)]
     public void EagleLowerRightUndersideDoesNotExposeTheSky(int cameraX, int cameraY)
     {
         var data = new ArcadeData(ArcadeData.AssetDirectory, 3);
@@ -41,6 +44,27 @@ public class GoldenAxeTests
         new ArcadeRenderer(data).Draw(screen, game, effects: false);
         var corner = Enumerable.Range(208, 16).SelectMany(y => screen.Pixels.Skip(y * 320 + 275).Take(45));
         Assert.That(corner.All(p => p < EagleSky.PaletteStart), Is.True, "Missing underside cells must not show cloud palette pixels.");
+    }
+
+    [Test]
+    public void BottomSceneryCheckFindsAMissingFeatherTile()
+    {
+        var data = new ArcadeData(ArcadeData.AssetDirectory, 3);
+        const int left = 505;
+        const int top = 179;
+        Assert.That(data.CameraRange(-549).Low, Is.LessThanOrEqualTo(-712),
+            "The camera should reach the depth observed in MAME.");
+        Assert.That(data.FindBottomSceneryGap(left, top, left, top), Is.Null);
+        var layer = data.Foreground;
+        var index = (400 - layer.Y) / 8 * layer.Width + 704 / 8;
+        layer.Cells[index] = uint.MaxValue;
+        var gap = data.FindBottomSceneryGap(left, top, left, top);
+        Assert.That(gap, Is.Not.Null);
+        Assert.That(gap.Value.X, Is.InRange(704, 711));
+        Assert.That(gap.Value.Y, Is.InRange(400, 402));
+        layer.Cells[index] = 0;
+        Assert.That(data.FindBottomSceneryGap(left, top, left, top), Is.Null,
+            "An explicit transparent tile can show the open sky.");
     }
 
     [Test]

@@ -215,6 +215,54 @@ internal sealed class ArcadeData
         return true;
     }
 
+    internal (int X, int Y)? FindBottomSceneryGap(int foregroundX, int foregroundY, int backgroundX, int backgroundY)
+    {
+        for (var y = Height - 8; y < Height; y++)
+        for (var x = 0; x < Width; x++)
+        {
+            var fx = foregroundX + x;
+            var fy = foregroundY + y;
+            var foreground = CellAt(Foreground, fx, fy);
+            if (foreground != uint.MaxValue && TilePen(foreground, fx - Foreground.X, fy - Foreground.Y) != 0)
+                continue;
+
+            var background = CellAt(Background, backgroundX + x, backgroundY + y);
+            if (Sky == null)
+            {
+                if (background == uint.MaxValue)
+                    return (fx, fy);
+                continue;
+            }
+
+            // Stage 7 deliberately uses sky behind open gaps and transparent tiles.
+            // An uncaptured cell immediately below the eagle's feathers is different.
+            if (foreground == uint.MaxValue &&
+                (background == uint.MaxValue || (background >> 16 & 127) is 114 or 115))
+            {
+                for (var above = fy - 8; above >= fy - 16; above -= 8)
+                {
+                    var edge = CellAt(Foreground, fx, above);
+                    if (edge == uint.MaxValue)
+                        continue;
+                    if ((edge >> 16 & 127) is >= 73 and <= 78 &&
+                        TilePen(edge, fx - Foreground.X, above - Foreground.Y) != 0)
+                        return (fx, fy);
+                    break;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static uint CellAt(TileLayer layer, int x, int y)
+    {
+        x -= layer.X;
+        y -= layer.Y;
+        return x >= 0 && y >= 0 && x / 8 < layer.Width && y / 8 < layer.Height
+            ? layer.Cells[y / 8 * layer.Width + x / 8]
+            : uint.MaxValue;
+    }
+
     public ArcadeData(string directory, int areaIndex = 0)
     {
         AreaIndex = areaIndex is >= 0 and < AreaCount ? areaIndex : throw new ArgumentOutOfRangeException(nameof(areaIndex));
@@ -348,8 +396,6 @@ internal sealed class ArcadeData
         Black = Map(0);
         White = Map(0xffffff);
         FillBackgroundGaps();
-        if (AreaIndex == 3)
-            ExtendEagleLowerEdge();
         // The castle's layers share the same tile coordinates and scroll offsets.
         if (AreaIndex == 4)
             m_castleCoverage = BuildCastleCoverage();
@@ -440,40 +486,6 @@ internal sealed class ArcadeData
                     return;
                 cells[neighbour] = cells[index];
                 pending.Enqueue(neighbour);
-            }
-        }
-    }
-
-    private void ExtendEagleLowerEdge()
-    {
-        // The captured underside stops at X=1424 below Y=272, then X=1280 at Y=328. Continue its
-        // existing feather pattern so uncaptured foreground does not expose the sky.
-        // This narrow fallback is not a claim about the original missing tile words.
-        var cells = Foreground.Cells;
-        for (var y = 272; y <= 328; y += 8)
-        {
-            var row = (y - Foreground.Y) / 8;
-            var start = ((y == 328 ? 1280 : 1424) - Foreground.X) / 8;
-            for (var x = start; x < Foreground.Width; x++)
-            {
-                var index = row * Foreground.Width + x;
-                if (cells[index] != uint.MaxValue)
-                    continue;
-                var replacement = cells[index - 5];
-                if (y == 272)
-                {
-                    // Match the upper border tile to a captured continuation where possible.
-                    var above = cells[index - Foreground.Width];
-                    for (var sourceX = start - 1; sourceX >= start - 16; sourceX--)
-                    {
-                        var source = row * Foreground.Width + sourceX;
-                        if (cells[source - Foreground.Width] != above)
-                            continue;
-                        replacement = cells[source];
-                        break;
-                    }
-                }
-                cells[index] = replacement;
             }
         }
     }

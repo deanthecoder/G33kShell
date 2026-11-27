@@ -55,10 +55,15 @@ offset matches all 642 long-trace samples modulo the repeated hardware pages.
 References: Brain 85b1ee0e0a59e8f5, stage7-sky-hardware-tiles.csv and
 stage7-sky-registers.csv. Initial activation and behavior beyond the capture are
 approximations. Non-sky scenery and camp backgrounds retain their original layers.
-The uncaptured lower-right eagle foreground at world X>=1424, Y=272..320, and X>=1280, Y=328 uses
-a narrow runtime continuation of existing underside tiles to avoid a rectangular
-sky leak. This is an approximation pending the original MAME foreground tile words;
-it does not modify the source map or fill intentional transparent foreground pens.
+The far-right eagle foreground contains 130 restored cells from the same
+US set-6 tile RAM captures. Three traces agree on those tile words, and the
+mapping matches 255 neighboring cells and 45 directly visible restored cells.
+The restored cells retain the arcade palette groups and priority bits, and all
+of their pen patterns already exist in the tile atlas.
+The Stage 7 camera audit also exposed an uncaptured underside beginning at world
+(896, 376). Restored 153 foreground cells in rows 376–416 from the US set-6 tile
+trace. The capture matches all 144 sampled cells already present in that region.
+Three missing pen patterns were appended to tiles.png as atlas IDs 8192–8194.
 
 These extracted JSON/PNG assets are bundled with the repository and copied into
 build and publish output. No upstream TypeScript source is included in the
@@ -78,6 +83,8 @@ Stage 7 static scenery alignment: level4.json uses 1:1 vertical background scrol
 to align the captured pavement with the foreground house base. The extracted fitted
 factor (0.993, offset 1) exposed a one-pixel backing-color seam as the camera moved.
 The separately animated eagle sky retains its independent scrolling.
+The underside below the Stage 7 bridge uses the US set-6 foreground words
+at X 664–888, Y 400–424. Its tile patterns come from the original tile ROM.
 
 The Stage 9 rescue uses the original captive and chain sprites, with poses and
 positions from Dean's US set-6 hardware trace (Brain 9ab84e0b46608736).
