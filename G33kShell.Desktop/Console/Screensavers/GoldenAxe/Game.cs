@@ -1694,7 +1694,7 @@ internal sealed class Game
             var frame = m_data.Frames[effect[0]];
             var screenSpace = effect.Length > 6 && effect[6] == 1;
             var point = screenSpace
-                ? (X: (double)effect[3], Y: (double)effect[5])
+                ? (X: effect[3], Y: effect[5])
                 : ProjectView(Hero.X + effect[3], Hero.Z + effect[4], Hero.Y + effect[5]);
             var x = Hero.X + point.X + (frame.Ox + frame.Width * 0.5) * (effect[2] == 1 ? -1 : 1) - hero.X;
             double z;
@@ -1783,7 +1783,7 @@ internal sealed class Game
             var lowerOnly = effect[1] == 0x52 && random.NextDouble() < 0.85;
             var frame = m_data.Frames[effect[0]];
             var point = effect.Length > 6 && effect[6] == 1
-                ? (X: (double)effect[3], Y: (double)effect[5])
+                ? (X: effect[3], Y: effect[5])
                 : ProjectView(Hero.X + effect[3], Hero.Z + effect[4], Hero.Y + effect[5]);
             for (var attempt = 0; attempt < 16; attempt++)
             {

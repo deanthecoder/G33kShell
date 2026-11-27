@@ -2831,9 +2831,9 @@ public class GoldenAxeGameplayTests
         Assert.That(skeleton.State, Is.EqualTo(FighterState.Collapsing));
     }
 
-    [TestCase(0, new int[] { 1, 1, 2, 2, 3, 4 })]
-    [TestCase(1, new int[] { 1, 1, 1, 1, 2, 3, 4, 5, 6 })]
-    [TestCase(2, new int[] { 1, 2, 2, 3 })]
+    [TestCase(0, new[] { 1, 1, 2, 2, 3, 4 })]
+    [TestCase(1, new[] { 1, 1, 1, 1, 2, 3, 4, 5, 6 })]
+    [TestCase(2, new[] { 1, 2, 2, 3 })]
     public void PotionSlotsUnlockTheCorrectSpellTiers(int character, int[] tiers)
     {
         for (var potions = 1; potions <= tiers.Length + 1; potions++)
