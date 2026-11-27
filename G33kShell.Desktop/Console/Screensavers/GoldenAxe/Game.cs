@@ -71,6 +71,8 @@ internal sealed class Game
     private int m_magicPeak;
     private int m_pendingHero = -1;
     private int? m_surfStartTick;
+    private int? m_forestPaletteStartTick;
+    private int? m_eagleSunsetStartTick;
     private bool m_deathAdderEntered;
     private Fighter m_meleeLeft;
     private Fighter m_meleeRight;
@@ -111,6 +113,8 @@ internal sealed class Game
     public bool RescuingCaptives => Complete && AreaIndex == ArcadeData.AreaCount - 1 && !IsCamp;
     public int EndStateTicks { get; private set; }
     public int? SurfAge => !IsCamp && m_surfStartTick is { } start ? TickCount - start : null;
+    public int ForestPaletteAge => TickCount - (m_forestPaletteStartTick ?? TickCount);
+    public int EagleSunsetAge => TickCount - (m_eagleSunsetStartTick ?? TickCount);
     public int EagleSkyTick { get; private set; } = -1;
     public double CameraX { get; private set; }
     public double CameraY { get; private set; }
@@ -269,6 +273,12 @@ internal sealed class Game
         TickSimulation(input);
         if (AreaIndex == TurtleVillageSurf.Area && !IsCamp && Progress >= TurtleVillageSurf.StartProgress)
             m_surfStartTick ??= TickCount;
+        if (!IsCamp && Progress >= m_data.ForestPaletteTrigger)
+            m_forestPaletteStartTick ??= TickCount;
+        if (AreaIndex == 3 && !IsCamp && Progress >= EagleSky.SunsetTrigger)
+            m_eagleSunsetStartTick ??= TickCount;
+        if (!IsCamp && Boss && BossPaletteTick < 0)
+            BossPaletteTick = TickCount;
         ViewCamera.Tick(this, m_data);
     }
 
@@ -307,8 +317,6 @@ internal sealed class Game
             }
             return;
         }
-        if (AreaIndex == 0 && !IsCamp && Boss && BossPaletteTick < 0)
-            BossPaletteTick = TickCount;
         if (m_lightningTrail.Count != 0)
             m_lightningTrail.RemoveAll(mark => TickCount - mark.Tick >= LightningTrailTicks);
         if (AreaIndex == 3 && !IsCamp && Progress >= EagleSky.FirstCapturedProgress)

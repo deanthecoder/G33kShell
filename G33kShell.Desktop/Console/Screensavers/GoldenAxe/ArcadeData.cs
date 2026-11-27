@@ -29,6 +29,7 @@ namespace G33kShell.Desktop.Console.Screensavers.GoldenAxe;
 /// </remarks>
 internal sealed class ArcadeData
 {
+    private readonly (int Progress, byte[] Pens)[] m_forestPaletteSteps = [];
     private readonly bool[] m_capturedBackground;
     private readonly int[] m_castleCoverage;
     private readonly Dictionary<(int X, int StartY, int EndY), int> m_lowerCoverage = new();
@@ -69,6 +70,32 @@ internal sealed class ArcadeData
     public int StageNumber => AreaIndex * 2 + 1;
     public string DayPalette => StageNumber.ToString(CultureInfo.InvariantCulture);
     public string BossPalette => (100 + StageNumber).ToString(CultureInfo.InvariantCulture);
+    public int? ForestPaletteTrigger => m_forestPaletteSteps.Length == 0 ? null : m_forestPaletteSteps[0].Progress;
+
+    public (byte[] Pens, byte[] Previous, byte Opacity) DayTilePalette(int elapsedTicks)
+    {
+        var pens = TilePalettes[DayPalette];
+        if (m_forestPaletteSteps.Length == 0)
+            return (pens, null, 255);
+
+        var previousProgress = m_forestPaletteSteps[0].Progress - 1;
+        // Sample the captured palette sequence at half speed, treating one captured pixel as one reference tick.
+        var sampleProgress = previousProgress + elapsedTicks * 0.5;
+        foreach (var step in m_forestPaletteSteps)
+        {
+            if (sampleProgress <= previousProgress)
+                break;
+            if (sampleProgress < step.Progress)
+            {
+                var opacity = (byte)Math.Round((sampleProgress - previousProgress) * 255 / (step.Progress - previousProgress));
+                return (step.Pens, pens, opacity);
+            }
+            pens = step.Pens;
+            previousProgress = step.Progress;
+        }
+        return (pens, null, 255);
+    }
+
     public Dictionary<int, int[]> CameraPath { get; }
     public Dictionary<string, uint[]> TileColors { get; }
     public Dictionary<string, byte[]> TilePalettes { get; }
@@ -294,6 +321,16 @@ internal sealed class ArcadeData
         CameraY = (int)level["cam"][1][1];
         CameraPath = ((JObject)level["camPath"]).Properties().ToDictionary(p => int.Parse(p.Name, CultureInfo.InvariantCulture), p => p.Value.ToObject<int[]>());
         TileColors = ((JObject)level["palettes"]).Properties().Where(p => p.Name == DayPalette || p.Name == BossPalette || p.Name == "0").ToDictionary(p => p.Name, p => DecodeWords((string)p.Value));
+        var forestCapture = Path.Combine(directory, "forest-palettes.json");
+        var forestSteps = areaIndex == 0 && File.Exists(forestCapture)
+            ? JObject.Parse(File.ReadAllText(forestCapture)).Properties().Select(step =>
+            {
+                var colors = (uint[])TileColors[DayPalette].Clone();
+                // The capture contains only the affected tile palette range, starting at group 64.
+                DecodeWords((string)step.Value).CopyTo(colors, 64 * 8);
+                return (Progress: int.Parse(step.Name, CultureInfo.InvariantCulture), Colors: colors);
+            }).OrderBy(step => step.Progress).ToArray()
+            : [];
         Magic = JObject.Parse(File.ReadAllText(Path.Combine(directory, "magic.json"))).Properties().ToDictionary(p => p.Name, p => p.Value.ToObject<int[][][][]>());
         Magic["ax"] = HighMagic.Ax(Magic["ax"]);
         Magic["gilius"] = HighMagic.Gilius(Magic["gilius"]);
@@ -302,7 +339,8 @@ internal sealed class ArcadeData
         // Weight visible tiles and actor colors, rather than unused ROM palette entries.
         var histogram = new Dictionary<int, int>();
         void Count(int rgb, int weight) => histogram[rgb] = histogram.GetValueOrDefault(rgb) + weight;
-        foreach (var colors in TileColors.Values)
+        var tileColorSets = forestSteps.Length == 0 ? TileColors.Values.AsEnumerable() : TileColors.Values.Append(forestSteps[^1].Colors);
+        foreach (var colors in tileColorSets)
         foreach (var layer in new[] { Background, Foreground })
         foreach (var cell in layer.Cells)
         {
@@ -382,11 +420,12 @@ internal sealed class ArcadeData
             }
         }
         TilePalettes = TileColors.ToDictionary(p => p.Key, p => p.Value.Select(c => Map((int)c)).ToArray());
+        m_forestPaletteSteps = forestSteps.Select(step => (step.Progress, step.Colors.Select(c => Map((int)c)).ToArray())).ToArray();
         if (AreaIndex == 3)
         {
             for (var pen = 0; pen < 8; pen++)
             {
-                Palette[EagleSky.PaletteStart + pen] = EagleSky.Color(EagleSky.Blue[pen], 0, 5055);
+                Palette[EagleSky.PaletteStart + pen] = EagleSky.Color(EagleSky.Blue[pen], 0, 0);
                 foreach (var key in new[] { DayPalette, BossPalette })
                 foreach (var group in new[] { 114, 115 })
                     TilePalettes[key][group * 8 + pen] = (byte)(EagleSky.PaletteStart + pen);

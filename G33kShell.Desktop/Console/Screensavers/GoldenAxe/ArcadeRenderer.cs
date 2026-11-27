@@ -95,7 +95,7 @@ internal sealed class ArcadeRenderer
             var white = screen.Palette[m_data.White];
             for (var pen = 0; pen < 8; pen++)
             {
-                var color = EagleSky.Color(EagleSky.Blue[pen], m_data.TileColors[m_data.BossPalette][114 * 8 + pen], game.Progress);
+                var color = EagleSky.Color(EagleSky.Blue[pen], m_data.TileColors[m_data.BossPalette][114 * 8 + pen], game.EagleSunsetAge);
                 // Keep scene fades and monochrome rendering, without changing reusable asset palettes.
                 if (tint != null)
                 {
@@ -110,23 +110,28 @@ internal sealed class ArcadeRenderer
         }
         var u = -7 - game.ViewCamera.X;
         var v = (int)Math.Round(-512 - game.ViewCamera.Y);
-        var palette = m_data.TilePalettes[game.IsCamp ? "0" : game.Boss ? m_data.BossPalette : m_data.DayPalette];
-        var sunset = game.AreaIndex == 0 && !game.IsCamp && game.Boss
-            ? Math.Clamp((game.BossPaletteTick < 0 ? 0 : game.TickCount - game.BossPaletteTick) / 150.0, 0, 1) : 1;
-        var previousPalette = sunset < 1 ? m_data.TilePalettes[m_data.DayPalette] : null;
-        var sunsetOpacity = (byte)Math.Round(sunset * 255);
+        var (palette, previousPalette, paletteOpacity) = game.IsCamp
+            ? (m_data.TilePalettes["0"], null, (byte)255)
+            : m_data.DayTilePalette(game.ForestPaletteAge);
+        if (!game.IsCamp && game.Boss)
+        {
+            var sunset = Math.Clamp((game.BossPaletteTick < 0 ? 0 : game.TickCount - game.BossPaletteTick) / 150.0, 0, 1);
+            previousPalette = sunset < 1 ? palette : null;
+            palette = m_data.TilePalettes[m_data.BossPalette];
+            paletteOpacity = (byte)Math.Round(sunset * 255);
+        }
         var backgroundX = (int)Math.Floor(u * m_data.Parallax[0][0] + m_data.Parallax[0][1]);
         var backgroundY = (int)(v * m_data.Parallax[1][0] + m_data.Parallax[1][1]);
         CheckBottomScenery(game, (int)u, v, backgroundX, backgroundY);
-        if (m_data.Sky != null && !game.IsCamp)
+        var drawSky = m_data.Sky != null && !game.IsCamp;
+        if (drawSky)
         {
             var scroll = EagleSky.Scroll(game.EagleSkyTick, m_data.SkyScrollX);
             Layer(screen, m_data.Sky, scroll.X, scroll.Y, palette, false, true, wrap: true);
-            Layer(screen, m_data.Background, backgroundX, backgroundY, palette, false, true, skipSky: true);
         }
-        else
-            Layer(screen, m_data.Background, backgroundX, backgroundY, palette, false, true, previousPalette: previousPalette, opacity: sunsetOpacity);
-        Layer(screen, m_data.Foreground, (int)u, v, palette, false, false, previousPalette: previousPalette, opacity: sunsetOpacity);
+        Layer(screen, m_data.Background, backgroundX, backgroundY, palette, false, true, skipSky: drawSky,
+            previousPalette: previousPalette, opacity: paletteOpacity);
+        Layer(screen, m_data.Foreground, (int)u, v, palette, false, false, previousPalette: previousPalette, opacity: paletteOpacity);
         if (SceneryEyes.Sample(game.AreaIndex, game.IsCamp, game.TickCount) is { } eye)
         {
             var frame = m_data.Frames[eye.Frame];
@@ -309,7 +314,7 @@ internal sealed class ArcadeRenderer
                 PotionSparkles.DrawBursts(screen, game, m_lightBlue, m_data.White, effectOpacity);
         }
         ProfileStage?.Invoke("lighting and dust");
-        Layer(screen, m_data.Foreground, (int)u, v, palette, true, false, previousPalette: previousPalette, opacity: sunsetOpacity);
+        Layer(screen, m_data.Foreground, (int)u, v, palette, true, false, previousPalette: previousPalette, opacity: paletteOpacity);
         ProfileStage?.Invoke("priority scenery");
         DrawSurf(screen, game, effects ? effectOpacity : (byte)0);
         ProfileStage?.Invoke("surf");

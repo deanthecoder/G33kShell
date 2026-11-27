@@ -29,6 +29,102 @@ namespace G33kShell.Desktop.Tests;
 [TestFixture]
 public class GoldenAxeTests
 {
+    [Test]
+    public void ForestSceneryFadesWhileTheCameraIsStoppedAndStaysGreenAtSunsetStart()
+    {
+        var data = new ArcadeData(ArcadeData.AssetDirectory);
+        var game = new Game(data);
+        var renderer = new ArcadeRenderer(data);
+        var screen = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
+        var cameraX = typeof(Game).GetProperty(nameof(Game.CameraX))!;
+        var pixels = new int[screen.Pixels.Length];
+        void StartAt(int progress)
+        {
+            cameraX.SetValue(game, 4089.0 - progress);
+            game.Hero.X = progress + 100;
+            game.Hero.Z = game.FindFloor(game.Hero.X, 4240);
+            game.Hero.Y = game.Ground(game.Hero.X, game.Hero.Z);
+            game.Hero.Invulnerable = 1000;
+            game.Tick(default);
+        }
+
+        (int R, int G, int B) FoliageAt(int age)
+        {
+            for (var i = game.ForestPaletteAge; i < age; i++)
+            {
+                game.Actors.RemoveAll(a => a != game.Hero);
+                game.Tick(default);
+            }
+            Assert.That(game.ForestPaletteAge, Is.EqualTo(age));
+            // Sample the same piece of foliage on each frame.
+            game.ViewCamera.Reset(-401, data.CameraRange(-401).Low);
+            renderer.Draw(screen, game, effects: false);
+            screen.CopyToBgra(pixels, applyOutputCurve: false);
+            var color = pixels[75 * ArcadeData.Width + 241];
+            return (color >> 16 & 255, color >> 8 & 255, color & 255);
+        }
+
+        StartAt(4416);
+        var pale = FoliageAt(0);
+        StartAt(4417);
+        Assert.That(FoliageAt(0), Is.EqualTo(pale));
+        var from = FoliageAt(20);
+        var middle = FoliageAt(29);
+        var to = FoliageAt(38);
+        var halfway = FoliageAt(63);
+        var green = FoliageAt(126);
+        Assert.That(game.Progress, Is.EqualTo(4417));
+        Assert.That(pale.B, Is.GreaterThan(pale.G));
+        Assert.That(from, Is.Not.EqualTo(to));
+        Assert.That(middle.R, Is.EqualTo((from.R + to.R) / 2.0).Within(1));
+        Assert.That(middle.G, Is.EqualTo((from.G + to.G) / 2.0).Within(1));
+        Assert.That(middle.B, Is.EqualTo((from.B + to.B) / 2.0).Within(1));
+        Assert.That(halfway, Is.Not.EqualTo(green));
+        Assert.That(green.G - green.R, Is.GreaterThan(30));
+        cameraX.SetValue(game, 4089.0 - data.Stops[^1]);
+        Assert.That(FoliageAt(126), Is.EqualTo(green));
+    }
+
+    [TestCase(1)]
+    [TestCase(2)]
+    [TestCase(3)]
+    [TestCase(4)]
+    public void BossSceneryBlendsFromDaylightOnLaterStages(int area)
+    {
+        var data = new ArcadeData(ArcadeData.AssetDirectory, area);
+        var game = new Game(data);
+        var renderer = new ArcadeRenderer(data);
+        var screen = new PixelScreenData(ArcadeData.Width, ArcadeData.Height, data.Palette);
+        var camera = 4089.0 - data.Stops[^1];
+        typeof(Game).GetProperty(nameof(Game.CameraX))!.SetValue(game, camera);
+        game.Tick(default);
+        Assert.That(game.BossPaletteTick, Is.EqualTo(game.TickCount));
+        game.Actors.Clear();
+        game.ViewCamera.Reset(camera, data.CameraRange(camera).Low);
+
+        int[] FrameAt(int age)
+        {
+            typeof(Game).GetProperty(nameof(Game.TickCount))!.SetValue(game, game.BossPaletteTick + age);
+            renderer.Draw(screen, game, effects: false);
+            var pixels = new int[screen.Pixels.Length];
+            screen.CopyToBgra(pixels, applyOutputCurve: false);
+            return pixels;
+        }
+
+        var day = FrameAt(0);
+        var midway = FrameAt(75);
+        var boss = FrameAt(150);
+        int[] channelShifts = [0, 8, 16];
+        var blended = Enumerable.Range(0, day.Length).Count(i =>
+            day[i] != midway[i] && midway[i] != boss[i] && day[i] != boss[i] &&
+            channelShifts.All(shift =>
+            {
+                int Channel(int color) => color >> shift & 255;
+                return Math.Abs(Channel(midway[i]) - (Channel(day[i]) + Channel(boss[i])) / 2.0) <= 1;
+            }));
+        Assert.That(blended, Is.GreaterThan(1000));
+    }
+
     [TestCase(-1156, -560)]
     [TestCase(-1156, -581)]
     [TestCase(-1059, -624)]
@@ -107,16 +203,29 @@ public class GoldenAxeTests
         var game = new Game(data);
         var renderer = new ArcadeRenderer(data);
         var screen = new PixelScreenData(320, 224, data.Palette);
-        foreach (var progress in new[] { 5055, 5079, 5107, 5312 })
+        var cameraX = typeof(Game).GetProperty(nameof(Game.CameraX))!;
+        cameraX.SetValue(game, 4089.0 - EagleSky.SunsetTrigger);
+        game.Hero.X = EagleSky.SunsetTrigger + 100;
+        game.Hero.Z = game.FindFloor(game.Hero.X, 4240);
+        game.Hero.Y = game.Ground(game.Hero.X, game.Hero.Z);
+        game.Hero.Invulnerable = 1000;
+        game.Tick(default);
+        foreach (var age in new[] { 0, 24, 52, 75 })
         {
-            typeof(Game).GetProperty(nameof(Game.CameraX))!.SetValue(game, (double)(4096 - 7 - progress));
+            for (var i = game.EagleSunsetAge; i < age; i++)
+            {
+                game.Actors.RemoveAll(a => a != game.Hero);
+                game.Tick(default);
+            }
+            Assert.That(game.EagleSunsetAge, Is.EqualTo(age));
             renderer.Draw(screen, game, effects: false);
-            var expected = EagleSky.Color(0x8cc5e6, 0xffa57b, progress);
+            var expected = EagleSky.Color(0x8cc5e6, 0xffa57b, age);
             var actual = screen.Palette[EagleSky.PaletteStart + 3];
             Assert.That((actual.R, actual.G, actual.B), Is.EqualTo((expected.R, expected.G, expected.B)));
             Assert.That(screen.Palette.Take(EagleSky.PaletteStart).Select(c => (c.R, c.G, c.B)),
                 Is.EqualTo(original.Take(EagleSky.PaletteStart)));
         }
+        Assert.That(game.Progress, Is.EqualTo(EagleSky.SunsetTrigger));
         Assert.That(data.SpritePalette.SelectMany(p => p).All(p => p < EagleSky.PaletteStart), Is.True);
         screen.SetPalette(PixelScreenData.CreateGreyscalePalette(data.Palette, Rgb.Black, Rgb.White));
         renderer.Draw(screen, game, effects: false, tint: Rgb.White);

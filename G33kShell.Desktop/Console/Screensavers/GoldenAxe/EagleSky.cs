@@ -9,12 +9,14 @@ using DTC.Core;
 namespace G33kShell.Desktop.Console.Screensavers.GoldenAxe;
 
 /// <summary>
-/// Independently scrolling eagle clouds and the progress-driven sunset, from MAME set-6 captures.
+/// Independently scrolling eagle clouds and sunset colors from MAME set-6 captures.
 /// </summary>
 internal static class EagleSky
 {
     public const int PaletteStart = 248;
     public const int FirstCapturedProgress = 4990;
+    public const int SunsetTrigger = 5055;
+    public const int SunsetTicks = 52;
     public static readonly uint[] Blue = [0x73adce, 0x7bb5d6, 0x84bdde, 0x8cc5e6, 0x94ceef, 0x9cd6f7, 0xa5deff, 0xade6ff];
 
     public static (int X, int Y) Scroll(int tick, int[] capturedX)
@@ -27,9 +29,9 @@ internal static class EagleSky
         return (x & 511, y & 255);
     }
 
-    public static Rgb Color(uint blue, uint peach, double progress)
+    public static Rgb Color(uint blue, uint peach, int elapsedTicks)
     {
-        var amount = Math.Clamp((progress - 5055) / 52, 0, 1);
+        var amount = Math.Clamp(elapsedTicks / (double)SunsetTicks, 0, 1);
         byte Channel(int shift) => (byte)Math.Round((blue >> shift & 255) * (1 - amount) + (peach >> shift & 255) * amount);
         return new Rgb(Channel(16), Channel(8), Channel(0));
     }

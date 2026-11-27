@@ -22,6 +22,12 @@ The local files were copied from the reference's public/assets directory:
 
 The first four area files also supply the camp spawn lists and night palettes.
 
+forest-palettes.json contains eight Stage 1 scenery palette snapshots from
+MAME US set 6. Keys are camera progress values (4417 through 4479). Each value
+stores groups 64 through 92 as little-endian 32-bit RGB words, matching the
+format of the level palettes. The first position triggers a 126-tick blend
+through the samples, before the separate boss sunset.
+
 The eagle area's drifting feathers use Dean-identified original atlas frame 1042.
 The half-size rendering and muted palette 0x87 approximate the MAME reference;
 exact hardware scaling, palette selection and drift timing remain unverified.
