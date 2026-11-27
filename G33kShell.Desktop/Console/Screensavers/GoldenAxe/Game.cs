@@ -976,7 +976,23 @@ internal sealed class Game
 
     private GameInput AssignedMeleeInput(Fighter actor, Fighter target, double dx, double dz)
     {
-        if (!actor.IsFree || !CanAssignMeleeAgainst(target))
+        if (!actor.IsFree)
+            return default;
+
+        var canEngage = CanAssignMeleeAgainst(target);
+        // A pursuing enemy can follow the player into a mapped drop. Limit the probe to
+        // the space between them so a player still on this bank doesn't lure it past them.
+        if (actor.IsEnemy && actor.Kind != ActorKind.DeathAdder && Hero.Health > 0 &&
+            (canEngage || target.State == FighterState.Falling) &&
+            Ground(actor.X + Math.Clamp(dx, -16, 16), actor.Z + Math.Clamp(dz, -16, 16)) >= 5248)
+        {
+            var followX = Math.Sign(dx);
+            var followZ = Math.Sign(dz);
+            if (followX != 0)
+                actor.Facing = followX;
+            return new GameInput(followX, followZ, FollowOverPit: true);
+        }
+        if (!canEngage)
             return default;
 
         var side = actor == m_meleeLeft ? -1 : actor == m_meleeRight ? 1 : 0;
@@ -1603,7 +1619,7 @@ internal sealed class Game
             else if (actor.IsEnemy || actor == Hero)
                 speed *= 90.0 / 128;
         }
-        Move(actor, input.X * speed, input.Z * speed);
+        Move(actor, input.X * speed, input.Z * speed, input.FollowOverPit);
         if (input.X != 0 || input.Z != 0)
         {
             if (actor.State != FighterState.Walking)
@@ -1968,11 +1984,11 @@ internal sealed class Game
         return true;
     }
 
-    private void Move(Fighter actor, double dx, double dz)
+    private void Move(Fighter actor, double dx, double dz, bool followOverPit = false)
     {
         var airborne = actor.State is FighterState.Jumping or FighterState.Falling ||
             actor == Hero && actor.State == FighterState.Dashing;
-        var canEnterPit = airborne || !IsCamp && actor.IsFree && (actor == Hero || actor.Rider == Hero);
+        var canEnterPit = airborne || !IsCamp && actor.IsFree && (actor == Hero || actor.Rider == Hero || followOverPit);
         var next = Ground(actor.X + dx + Math.Sign(dx) * 8, actor.Z);
         if (next >= actor.Y - 12 && (next < 5248 || canEnterPit))
             actor.X += dx;

@@ -1597,6 +1597,60 @@ public class GoldenAxeGameplayTests
     }
 
     [Test]
+    public void EnemyFollowsTheHeroIntoTheStageFiveBridgeGap()
+    {
+        var game = new Game(m_areas[2], 1, new Random(0));
+        AdvanceTo(game, 4625);
+        var hero = game.Hero;
+        hero.X = 4778;
+        hero.Z = 4184;
+        hero.Y = game.Ground(hero.X, hero.Z);
+        var enemy = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, 4756, hero.Z);
+        enemy.Cooldown = 1000;
+
+        // Clear the gap on the far bank while the soldier pursues the player on foot.
+        for (var tick = 0; tick < 6; tick++)
+            game.Tick(new GameInput(X: 1, Run: true));
+        game.Tick(new GameInput(X: 1, Run: true, Attack: true));
+        for (var tick = 0; tick < 120 && enemy.State != FighterState.Falling; tick++)
+            game.Tick(default);
+
+        Assert.That(hero.X, Is.GreaterThanOrEqualTo(4840));
+        Assert.That(enemy.State, Is.EqualTo(FighterState.Falling));
+        Assert.That(enemy.Health, Is.EqualTo(16), "The enemy walked off the edge without taking a hit.");
+        Assert.That(game.Ground(enemy.X, enemy.Z), Is.GreaterThanOrEqualTo(5248));
+
+        for (var tick = 0; tick < 120 && !enemy.IsGone; tick++)
+            game.Tick(default);
+        Assert.That(enemy.IsGone, Is.True);
+        Assert.That(game.Kills, Is.EqualTo(1));
+        Assert.That(game.Lives, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void EnemyCanFollowTheHeroOverTheTurtleVillageFrontEdge()
+    {
+        var game = new Game(m_areas[1], 0, new Random(0));
+        AdvanceTo(game, 4185);
+        var hero = game.Hero;
+        hero.X = 4333;
+        hero.Z = 4318;
+        hero.Y = game.Ground(hero.X, hero.Z);
+        var enemy = game.Add(ActorKind.Heninger, Moves.Heninger, 0x18, 16, hero.X + 40, 4317);
+        enemy.Cooldown = 1000;
+
+        for (var tick = 0; tick < 10; tick++)
+            game.Tick(default);
+        Assert.That(game.Ground(enemy.X, enemy.Z), Is.LessThan(5248));
+
+        for (var tick = 0; tick < 40 && enemy.State != FighterState.Falling; tick++)
+            game.Tick(new GameInput(Z: 1));
+        Assert.That(enemy.State, Is.EqualTo(FighterState.Falling));
+        Assert.That(enemy.Z, Is.GreaterThanOrEqualTo(4320));
+        Assert.That(enemy.Health, Is.EqualTo(16));
+    }
+
+    [Test]
     public void ShoulderBargeKnocksAnEnemyOverTheTurtleVillageEdge()
     {
         var game = new Game(m_areas[1]);
