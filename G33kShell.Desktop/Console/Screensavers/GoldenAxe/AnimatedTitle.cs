@@ -168,6 +168,10 @@ internal sealed class AnimatedTitle
 
     private void DrawLetters(PixelScreenData screen, int tick, bool behind)
     {
+        const double orbitRadius = 122, orbitCenterY = 72, baseScale = 0.69;
+        Span<(double Depth, int Frame, int Left, int Top, int Width, int Height)> letters = stackalloc
+            (double, int, int, int, int, int)[s_letters.Length];
+        var count = 0;
         for (var i = 0; i < s_letters.Length; i++)
         {
             var age = tick - FirstTick - i * 7 - (i >= 6 ? 2 : 0);
@@ -176,29 +180,40 @@ internal sealed class AnimatedTitle
             var frame = s_letters[i];
             var angle = (Math.Min(age, 112) - 16) * -0.103;
             var depth = Math.Sin(angle);
-            var x = 160 - 141 * Math.Cos(angle);
-            var y = 64 + 36 * depth;
-            if (age is >= 16 and < 24)
-                y -= 22 * (24 - age) / 8.0;
+            // Project the tilted ring and the glyphs with the same perspective.
+            // At the rear a letter is about half the height it has at the front.
+            var perspective = 1 / (1 - 0.31 * depth);
+            var x = Width / 2.0 - orbitRadius * Math.Cos(angle) * perspective;
+            var centerY = (orbitCenterY + 21 * depth) * perspective;
             var sprite = m_data.Frames[frame];
-            var progress = Math.Clamp(age / 156.0, 0, 1);
-            progress *= progress * (3 - 2 * progress);
-            var height = (int)Math.Round(0.85 * sprite.Height * (1 - progress) + 32 * progress);
-            var width = (int)Math.Round(sprite.Width * (0.85 - 0.34 * progress));
+            var scale = baseScale * perspective;
+            var settle = Math.Clamp((age - 112) / 44.0, 0, 1);
+            settle *= 2 - settle;
+            var height = sprite.Height * scale;
+            var top = centerY - height / 2;
             if (age < 16)
             {
                 var entry = (16 - age) / 16.0;
-                x = 21 + 284 * Math.Pow(entry, 1.3);
-                y = 42 + (Height - height - 42) * (1 - Math.Pow(1 - entry, 2));
+                scale = baseScale;
+                height = sprite.Height * scale;
+                var entryEndX = Width / 2.0 - orbitRadius;
+                x = entryEndX + (Width - 15 - entryEndX) * Math.Pow(entry, 1.3);
+                top = orbitCenterY - height / 2;
+                top += (Height - height - top) * (1 - Math.Pow(1 - entry, 2));
             }
-            var settle = Math.Clamp((age - 112) / 44.0, 0, 1);
-            settle *= 2 - settle;
             if (behind != (age >= 16 && depth < 0 && settle < 0.45))
                 continue;
             x += (s_centers[i] - x) * settle;
-            y += (145 - y) * settle;
-            Sprite(screen, frame, m_letters, (int)Math.Round(x - width * 0.5), (int)Math.Round(y), width, height);
+            top += (LogoTop - top) * settle;
+            var width = (int)Math.Round(sprite.Width * (scale + (0.51 - scale) * settle));
+            letters[count++] = (age < 16 ? 1 : depth * (1 - settle), frame, (int)Math.Round(x - width * 0.5),
+                (int)Math.Round(top), width, (int)Math.Round(height + (LogoHeight - height) * settle));
         }
+
+        var visible = letters[..count];
+        visible.Sort(static (a, b) => a.Depth.CompareTo(b.Depth));
+        foreach (var (_, frame, left, top, width, height) in visible)
+            Sprite(screen, frame, m_letters, left, top, width, height);
     }
 
     private void Layer(PixelScreenData screen, int sourceY, int height, int top, double opacity = 1)
