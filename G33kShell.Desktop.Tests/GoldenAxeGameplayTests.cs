@@ -648,17 +648,21 @@ public class GoldenAxeGameplayTests
         Assert.That(withPotion, Is.EqualTo(screen.Pixels[overlap]));
     }
 
-    [Test]
-    public void FilledMagicSlotsPulseWhileEmptySlotsAndBordersStayFixed()
+    [TestCase(1, 1, 108, 138, 148, 144)]
+    [TestCase(2, 2, 118, 128, 138, 134)]
+    public void PartiallyFilledMagicTiersPulseAcrossTheirFullWidth(int character, int potions, int near, int far, int empty, int divider)
     {
         var data = m_areas[0];
-        var game = new Game(data, character: 2);
+        var game = new Game(data, character);
+        for (var i = game.Potions; i < potions; i++)
+            game.Add(ActorKind.Potion, Moves.Thief, 0x4a, 1, game.Hero.X, game.Hero.Z);
         var screen = new PixelScreenData(320, 224, data.Palette);
         var renderer = new ArcadeRenderer(data);
         var bright = new int[320 * 224];
         var dark = new int[320 * 224];
         for (var tick = 0; tick < 15; tick++)
             game.Tick(default);
+        Assert.That(game.Potions, Is.EqualTo(potions));
         renderer.Draw(screen, game);
         screen.CopyToBgra(bright);
         for (var tick = 0; tick < 30; tick++)
@@ -666,9 +670,12 @@ public class GoldenAxeGameplayTests
         renderer.Draw(screen, game);
         screen.CopyToBgra(dark);
         var row = (ArcadeRenderer.MagicMeterTop + 9) * 320;
-        Assert.That((bright[row + 108] >> 16) & 255, Is.GreaterThan((dark[row + 108] >> 16) & 255));
-        Assert.That((dark[row + 108] >> 16) & 255, Is.GreaterThan((dark[row + 118] >> 16) & 255));
-        Assert.That(bright[row + 118], Is.EqualTo(dark[row + 118]));
+        Assert.That((bright[row + near] >> 16) & 255, Is.GreaterThan((dark[row + near] >> 16) & 255));
+        Assert.That(bright[row + far], Is.EqualTo(bright[row + near]));
+        Assert.That(dark[row + far], Is.EqualTo(dark[row + near]));
+        Assert.That((dark[row + near] >> 16) & 255, Is.GreaterThan((dark[row + empty] >> 16) & 255));
+        Assert.That(bright[row + empty], Is.EqualTo(dark[row + empty]));
+        Assert.That(bright[row + divider], Is.EqualTo(dark[row + divider]));
         Assert.That(bright[row + 104], Is.EqualTo(dark[row + 104]));
     }
 

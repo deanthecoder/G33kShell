@@ -1544,7 +1544,7 @@ internal sealed class ArcadeRenderer
         const int height = 18;
         var hero = game.Character;
         Text(screen, "MAGIC", left, 2, m_hudPink, m_hudRed);
-        // Pulse the filled background smoothly; artwork and tier dividers stay crisp.
+        // Pulse the whole background of each occupied tier.
         var pulse = (byte)(96 + 159 * (0.5 + 0.5 * Math.Sin(game.TickCount * Math.PI / 30)));
         Fill(screen, left, top, hero.PotionCapacity * slotWidth + 1, height, m_data.White);
         for (var tier = 0; tier < hero.MagicLevels; tier++)
@@ -1552,9 +1552,9 @@ internal sealed class ArcadeRenderer
             var start = hero.MagicThresholds[tier] - 1;
             var end = tier + 1 < hero.MagicLevels ? hero.MagicThresholds[tier + 1] - 1 : hero.PotionCapacity;
             var x = left + start * slotWidth + 1;
-            Fill(screen, x, top + 1, (end - start) * slotWidth - 1, height - 2, m_darkRed);
-            var filled = Math.Min(end, game.Potions) - start;
-            if (filled > 0)
+            var width = (end - start) * slotWidth - 1;
+            Fill(screen, x, top + 1, width, height - 2, m_darkRed);
+            if (game.Potions > start)
             {
                 if (game.HudOpacity < byte.MaxValue)
                 {
@@ -1564,12 +1564,12 @@ internal sealed class ArcadeRenderer
                     var weight = pulse / 255.0;
                     var fill = Color((int)(dark.R + (bright.R - dark.R) * weight),
                         (int)(dark.G + (bright.G - dark.G) * weight), (int)(dark.B + (bright.B - dark.B) * weight));
-                    Fill(screen, x, top + 1, filled * slotWidth - 1, height - 2, fill);
+                    Fill(screen, x, top + 1, width, height - 2, fill);
                 }
                 else
                 {
                     screen.BeginTranslucentSprite(pulse);
-                    Fill(screen, x, top + 1, filled * slotWidth - 1, height - 2, m_filledRed);
+                    Fill(screen, x, top + 1, width, height - 2, m_filledRed);
                     screen.EndTranslucentSprite();
                 }
             }
