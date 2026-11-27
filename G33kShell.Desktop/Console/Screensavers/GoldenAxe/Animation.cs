@@ -38,10 +38,15 @@ internal sealed class Animation
         var previous = Steps == null ? null : Current;
         Address = address;
         Steps = m_data.Animations[address];
-        SelectFrame(attack ? FirstAttackStep(Steps) : 0, previous);
+        SelectFrame(attack ? FirstAttackStep(address, Steps) : 0, previous);
     }
 
-    public static int FirstAttackStep(AnimationStep[] steps) => steps.Length > 1 && steps[0].Duration >= 30 ? 1 : 0;
+    private static int FirstAttackStep(int address, AnimationStep[] steps)
+    {
+        // Set-6 starts these ground swings at step one even though the setup pose is only ten ticks long.
+        var startsAtStepOne = address is 0x19bfc or 0x1d73e or 0x226d6 or 0x24c64;
+        return steps.Length > 1 && (startsAtStepOne || steps[0].Duration >= 30) ? 1 : 0;
+    }
 
     public int TicksUntilStep(int target)
     {

@@ -829,6 +829,38 @@ public class GoldenAxeGameplayTests
         Assert.That(game.Actors, Does.Not.Contain(potion));
     }
 
+    [TestCase((int)ActorKind.Heninger, 31)]
+    [TestCase((int)ActorKind.Longmoan, 31)]
+    [TestCase((int)ActorKind.Amazon, 27)]
+    [TestCase((int)ActorKind.Skeleton, 9)]
+    public void EnemyGroundSwingHitsAtTheArcadeTime(int enemyKind, int windupTicks)
+    {
+        var game = new Game(m_areas[0], 0, new Random(0));
+        var hero = game.Hero;
+        var kind = (ActorKind)enemyKind;
+        var (moves, palette) = kind switch
+        {
+            ActorKind.Heninger => (Moves.Heninger, 0x18),
+            ActorKind.Longmoan => (Moves.Longmoan, 0x78),
+            ActorKind.Amazon => (Moves.Amazon, 0x63),
+            _ => (Moves.Skeleton, 0x6f)
+        };
+        var enemy = game.Add(kind, moves, palette, 48, hero.X + 32, hero.Z);
+        enemy.Cooldown = 0;
+        for (var tick = 0; tick < 8 && enemy.State != FighterState.Attacking; tick++)
+            game.Tick(default);
+
+        Assert.That(enemy.State, Is.EqualTo(FighterState.Attacking));
+        for (var tick = 1; tick < windupTicks; tick++)
+        {
+            game.Tick(default);
+            Assert.That(hero.Health, Is.EqualTo(48), $"The strike must not connect on wind-up tick {tick}.");
+        }
+
+        game.Tick(default);
+        Assert.That(hero.Health, Is.EqualTo(48 - m_areas[0].Attacks[moves.Attacks[0]][1]));
+    }
+
     [TestCase(false)]
     [TestCase(true)]
     public void HeningerFinishesHisSwingWithoutRepeatingTheStrikePose(bool strong)
